@@ -7,9 +7,8 @@ import * as cloud from './cloud'
 import { SLOTS, decorDef } from './decor'
 import { Game, GameEvent, Mon, RARE_50, Roster, STONES, aStone, stoneName } from './game'
 import { Hud, fmtMinutes } from './hud'
-import { H, W } from './island'
+import { H, W, seaCss } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
-import { backdropHtml, paintPageMons } from './page'
 import { Scene } from './scene'
 import { Manifest, Species, loadManifest, loadSpecies } from './sprites'
 
@@ -26,23 +25,10 @@ const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke: Invoke } 
 
 // ---------- page ----------
 const app = document.getElementById('app')!
-app.innerHTML = popoutMode
-  ? `<div class="pip-stage${floatMode ? ' float' : ''}${floatMode && !tauri ? ' float-preview' : ''}"><div class="window"><canvas class="stage"${tauri ? ' data-tauri-drag-region' : ''}></canvas></div></div>`
-  : `
-  ${backdropHtml()}
-  <header class="topbar">
-    <div class="topbar-in">
-      <h1 class="wordmark">Island</h1>
-      <button class="btn" data-act="popout">Pop out</button>
-    </div>
-  </header>
-  <main class="stage-wrap">
-    <div class="frame"><div class="window"><canvas class="stage"></canvas></div></div>
-  </main>
-  ${debug ? `<section class="debug card"></section>` : ''}
-  <footer class="foot card">
-    <p>Free fan project, not affiliated with Nintendo, Creatures or GAME FREAK. Pokémon © its owners. Island sprites: <a href="https://sprites.pmdcollab.org" target="_blank" rel="noreferrer">PMD Sprite Repository</a> (<a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noreferrer">CC BY-NC 4.0</a>). Page sprites: Pokémon Showdown. Data and item icons: PokéAPI.</p>
-  </footer>`
+// The whole page is the game: the island fills the screen over open sea.
+// Credits and the pop-out button live in the More menu inside the window.
+app.innerHTML = `<div class="pip-stage${floatMode ? ' float' : ''}${floatMode && !tauri ? ' float-preview' : ''}${popoutMode ? '' : ' page'}"><div class="window"><canvas class="stage"${tauri ? ' data-tauri-drag-region' : ''}></canvas></div></div>${debug && !popoutMode ? `<section class="debug"></section>` : ''}`
+if (!floatMode) document.documentElement.style.setProperty('--sea-page', seaCss())
 
 const win = app.querySelector<HTMLElement>('.window')!
 const canvas = app.querySelector<HTMLCanvasElement>('canvas.stage')!
@@ -342,20 +328,7 @@ function saveDecor() {
 }
 
 // ---------- game events ----------
-function pageMons() {
-  if (popoutMode) return
-  const sv = game.save
-  const byId = new Map(sv.mons.map((m) => [m.id, m.dex]))
-  const party = sv.party.map((id) => byId.get(id)).filter((d): d is number => !!d)
-  const mine = [...new Set([...party, ...sv.mons.map((m) => m.dex)])]
-  const wild = Object.entries(game.roster)
-    .filter(([d, s]) => s.stage === 1 && s.rarity && s.rarity !== 'starter' && !sv.caught.includes(+d))
-    .map(([d]) => +d)
-  paintPageMons(app, mine, wild)
-}
-
 function onGame(e: GameEvent) {
-  pageMons()
   switch (e.type) {
     case 'sessionStart':
       hud.toast('Session started.')
@@ -506,6 +479,13 @@ setInterval(() => {
 let clockOwner = !('locks' in navigator)
 if ('locks' in navigator) navigator.locks.request('island-clock', () => ((clockOwner = true), new Promise<void>(() => {})))
 setInterval(() => clockOwner && game?.beat(), 1000)
+// the page around the canvas takes the open sea's colour as the light changes, so there is no seam
+if (!floatMode)
+  setInterval(() => {
+    if (host !== window) return
+    const [r, gg, b] = g.getImageData(0, 0, 1, 1).data
+    document.documentElement.style.setProperty('--sea-page', `rgb(${r},${gg},${b})`)
+  }, 1000)
 document.addEventListener('visibilitychange', () => clockOwner && game?.beat())
 window.addEventListener('storage', (e) => {
   if (e.key !== 'island-save-v1' || !game) return
@@ -522,7 +502,8 @@ declare global {
   }
 }
 function fitInto(w: Window) {
-  const s = Math.max(1, Math.floor(Math.min(w.innerWidth / W, w.innerHeight / H)))
+  const raw = Math.min(w.innerWidth / W, w.innerHeight / H)
+  const s = raw >= 2 ? Math.floor(raw) : Math.max(1, raw)
   canvas.style.width = `${W * s}px`
   canvas.style.height = `${H * s}px`
   hud?.fit(canvas)
@@ -553,11 +534,9 @@ async function popOut() {
   host.requestAnimationFrame(raf)
   pip.addEventListener('pagehide', () => {
     marker.replaceWith(win)
-    canvas.style.width = ''
-    canvas.style.height = ''
     host = window
     window.requestAnimationFrame(raf)
-    requestAnimationFrame(() => hud.fit(canvas))
+    fitInto(window)
   })
 }
 app.querySelector('[data-act="popout"]')?.addEventListener('click', popOut)
@@ -643,7 +622,6 @@ async function boot() {
   manifest = m
   game = new Game((roster as { species: Roster }).species)
   scene.hour = clockHour()
-  pageMons()
 
   hud = new Hud(
     win,
@@ -761,9 +739,9 @@ async function boot() {
   )
   game.on(onGame)
   new ResizeObserver(() => hud.fit(canvas)).observe(canvas)
-  if (popoutMode) {
+  {
     fitInto(window)
-    window.addEventListener('resize', () => fitInto(window))
+    window.addEventListener('resize', () => host === window && fitInto(window))
   }
 
   if (!game.hasStarter) {

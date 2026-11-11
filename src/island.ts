@@ -48,6 +48,29 @@ export const PAL = {
   stoneDark: hex('#7c7974'),
 }
 
+// Paul wanted the island and the sea more saturated (2026-11-11): boost every
+// palette colour's HSL saturation, the water more than the land.
+function saturate([r, g, b]: RGB, k: number): RGB {
+  r /= 255; g /= 255; b /= 255
+  const max = Math.max(r, g, b), min = Math.min(r, g, b), l = (max + min) / 2
+  if (max === min) return [r * 255, g * 255, b * 255]
+  const d = max - min
+  let s = l > 0.5 ? d / (2 - max - min) : d / (max + min)
+  let h = max === r ? (g - b) / d + (g < b ? 6 : 0) : max === g ? (b - r) / d + 2 : (r - g) / d + 4
+  h /= 6
+  s = Math.min(1, s * k)
+  const q = l < 0.5 ? l * (1 + s) : l + s - l * s, pp = 2 * l - q
+  const f = (t: number) => {
+    t = (t + 1) % 1
+    return t < 1 / 6 ? pp + (q - pp) * 6 * t : t < 1 / 2 ? q : t < 2 / 3 ? pp + (q - pp) * (2 / 3 - t) * 6 : pp
+  }
+  return [Math.round(f(h + 1 / 3) * 255), Math.round(f(h) * 255), Math.round(f(h - 1 / 3) * 255)]
+}
+const WATER = new Set(['deep', 'sea', 'seaRipple', 'shallow', 'shallow2'])
+for (const k of Object.keys(PAL) as (keyof typeof PAL)[]) PAL[k] = saturate(PAL[k], WATER.has(k) ? 1.4 : 1.25)
+/** The open-sea colour, for the page behind the canvas. */
+export const seaCss = () => `rgb(${PAL.deep.join(',')})`
+
 // ---------- shape ----------
 const LOBES: [number, number, number, number][] = [
   [120, 90, 76, 42],
@@ -109,15 +132,17 @@ export function buildIsland(): IslandLayout {
   const tree = { x: 158, y: 74 }
   const bush = { x: 184, y: 104 }
   const grassPatch = { x: 76, y: 96, r: 15 }
-  const dockX = 118
+  const dockX = 117
+  const DW = 14
   let lip = 0
   for (let y = H - 1; y >= 0; y--)
-    if (T(dockX, y) && T(dockX + 11, y)) {
+    if (T(dockX, y) && T(dockX + DW - 1, y)) {
       lip = y
       break
     }
-  const dock = { x: dockX, y0: lip - 3, y1: lip + 30, w: 12 }
-  const lantern = { x: dockX + 1, y: dock.y1 - 1 }
+  // steps cut into the cliff, then a pier on the water
+  const dock = { x: dockX, y0: lip - 2, y1: lip + 28, w: DW }
+  const lantern = { x: dockX + DW - 2, y: dock.y1 + 1 }
 
   const p = new Pix(W, H)
 
@@ -210,30 +235,50 @@ export function buildIsland(): IslandLayout {
   shade(tree.x + 4, tree.y + 1, 15, 5)
   shade(bush.x + 2, bush.y + 1, 9, 3)
 
-  // ---------- dock ----------
+  // ---------- dock: wooden steps down the cliff, then a pier with posts ----------
   const { y0, y1, w } = dock
-  for (let y = y0; y <= y1 + 3; y++)
+  const deckTop = lip + CLIFF + 1
+  const darken = (x: number, y: number, k: number) => {
+    const j = (y * W + x) * 4
+    p.data[j] = p.data[j] * k
+    p.data[j + 1] = p.data[j + 1] * k
+    p.data[j + 2] = p.data[j + 2] * k
+  }
+  // steps: three treads with dark risers, set into the cliff between earth cheeks
+  for (let y = y0; y < deckTop; y++)
+    for (let x = dockX + 2; x < dockX + w - 2; x++) {
+      const cheek = x === dockX + 2 || x === dockX + w - 3
+      const r = (y - y0) % 3
+      p.set(x, y, cheek ? PAL.earthWet : r === 0 ? PAL.woodLight : r === 1 ? PAL.wood : PAL.woodGap)
+    }
+  // shadow of the pier on the water, to the right and under the front edge
+  for (let y = deckTop + 1; y <= y1 + 4; y++) for (const x of [dockX + w, dockX + w + 1]) darken(x, y, x === dockX + w ? 0.78 : 0.88)
+  // the deck: planks across, staggered board joints, a soft highlight row
+  for (let y = deckTop; y <= y1; y++) {
+    const r = (y - deckTop) % 3
+    const joint = dockX + 2 + Math.floor(hash2(y >> 2, 3, 77) * (w - 4))
     for (let x = dockX; x < dockX + w; x++) {
-      if (y > y1) {
-        // dock edge and the posts going into the water
-        const post = x === dockX || x === dockX + w - 1
-        if (y === y1 + 1) p.set(x, y, PAL.woodDark)
-        else if (post) p.set(x, y, y === y1 + 3 ? PAL.shallow2 : PAL.woodGap)
-        continue
-      }
-      const row = (y - y0) % 4
-      let c = row === 3 ? PAL.woodGap : row === 0 ? PAL.woodLight : PAL.wood
-      if (x === dockX || x === dockX + w - 1) c = PAL.woodDark
-      if (row !== 3 && hash2(x, y, 41) < 0.06) c = PAL.woodDark
+      let c = r === 0 ? PAL.woodLight : r === 1 ? PAL.wood : PAL.woodDark
+      if (r !== 2 && x === joint) c = PAL.woodDark
+      if (x === dockX || x === dockX + w - 1) c = r === 2 ? PAL.woodGap : PAL.woodDark
+      if (r === 1 && hash2(x, y, 41) < 0.05) c = PAL.woodDark
       p.set(x, y, c)
     }
-  // posts down the dock's sides, visible against the water
-  for (const py of [y0 + 12, y0 + 24]) {
-    for (const px of [dockX - 1, dockX + w]) {
-      p.set(px, py, PAL.woodDark)
-      p.set(px, py + 1, PAL.woodGap)
-      p.set(px, py + 2, PAL.woodGap)
+  }
+  // the front face, then posts into the water with a ring of foam
+  for (let x = dockX; x < dockX + w; x++) {
+    p.set(x, y1 + 1, PAL.woodDark)
+    p.set(x, y1 + 2, PAL.woodGap)
+  }
+  for (const px of [dockX + 1, dockX + w - 3]) {
+    for (let y = y1 + 3; y <= y1 + 5; y++) {
+      p.set(px, y, PAL.woodGap)
+      p.set(px + 1, y, PAL.woodDark)
     }
+    p.set(px - 1, y1 + 6, PAL.foam)
+    p.set(px, y1 + 6, PAL.foam)
+    p.set(px + 1, y1 + 6, PAL.foam)
+    p.set(px + 2, y1 + 6, PAL.shallow2)
   }
 
   // ---------- rocks in the shallows ----------
@@ -262,7 +307,7 @@ export function buildIsland(): IslandLayout {
       if (footprint[i]) continue
       if (footprint[i - 1] || footprint[i + 1] || footprint[i - W] || footprint[i + W]) {
         // skip under the dock
-        if (x >= dockX - 1 && x <= dockX + w && y >= y0 && y <= y1 + 3) continue
+        if (x >= dockX - 1 && x <= dockX + w + 1 && y >= y0 && y <= y1 + 6) continue
         shoreline.push({ x, y })
       }
     }
@@ -284,7 +329,7 @@ export function buildIsland(): IslandLayout {
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       const i = y * W + x
-      const onDock = x >= dockX - 1 && x <= dockX + w && y >= y0 && y <= y1 + 3
+      const onDock = x >= dockX - 1 && x <= dockX + w + 1 && y >= y0 && y <= y1 + 6
       const keep = footprint[i] || onDock || seaDist[i] + bayer(x, y) * 3 < 9
       if (!keep) continue
       const j = i * 4

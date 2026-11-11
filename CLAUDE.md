@@ -62,15 +62,15 @@ Read `docs/PLAN.md` first. It holds the approved plan and the decision log. Paul
   - The web app switches to float mode when it sees `__TAURI_INTERNALS__`.
 - `src/hud.ts`: the in-window UI, laid out in island pixels and scaled with the canvas.
   - It has the focus widget, the party chips, the PMD-style dialog queue (portrait plus text), toasts, the Pokémon/Settings/Credits sheet, and the starter picker.
-- `src/page.ts`: the page around the island in the PokéMAPs overworld style (grass and forest). The nav bar is pinned to the top with nothing above it (Paul removed the route band). Your Pokémon stand in the left clearing; uncaught species in the right. Page sprites are Showdown gen5ani gifs in `public/scene/mons` (`node scripts/pull-page-sprites.mjs`); tiles are copied from `../wheremon/public/scene`.
 - `src/main.ts`: orchestration.
   - It syncs the party to the island, runs the visitor and evolution sequences on sim time, wires game events to the HUD, and handles the PiP pop-out.
   - It runs the Web Lock clock ownership and the debug panel.
   - Dev handle: `window.__island` (`game`, `hud`, `scene`, `step(sec)`, `setHour`, `shot(name)`, `runVisit`).
 
 ## Rules
-- The page around the island follows PokéMAPs (`../wheremon/src/styles/tokens.css`): white chrome, M PLUS Rounded 1c, 2.5px ink outlines with a hard 4px lip, IBM Plex Mono for small print. Not the Studdy look (Paul, 2026-11-11).
-- The UI inside the window is FireRed/LeafGreen GBA style (Paul picked it after seeing PokéDesk, manolloz.itch.io/pokedesk): white windows with a two-tone blue border drawn in CSS (never ripped frames), Pixelify Sans (OFL) with a light drop shadow, gold primary buttons, a navy tab strip of real PokéAPI item icons in `public/items` (Poké Ball, Town Map, Pal Pad, Oran Berry, Shoal Shell, Soothe Bell, stones; the Pokédex icon is a hand-drawn SVG in hud.ts). Icons are 10 island px so they are 1:1 at the 720px canvas.
+- The page is the game: no header, no cards, no page sprites. The canvas fills the viewport at a whole-number scale (5x on a 1440x900 screen) over a page coloured like the open sea; `main.ts` samples the canvas corner every second so the page follows the day/night tint. Credits and Pop out live in the More menu (Paul, 2026-11-11: "ditch the white UI stuff", "the whole thing should feel way more RPG").
+- The UI inside the window is FireRed/LeafGreen GBA style (Paul picked it after seeing PokéDesk, manolloz.itch.io/pokedesk): white windows with a two-tone blue border drawn in CSS (never ripped frames), gold primary buttons, a square navy tab strip of real PokéAPI item icons in `public/items` (the Pokédex icon is a hand-drawn SVG in hud.ts). Font: Press Start 2P (OFL), chosen because Pixelify's numbers were confusing; it sits on an 8px grid, so all HUD text is 8px (16px for the clock).
+- The HUD has its own whole-number scale, separate from the island's (`Hud.fit`): 2 at most desktop sizes, 3 above 1680px, 1.5 or less in small windows (adds `.narrow`). So a bigger island does not make bigger menus. The menu window opens above the strip (about 300x320 HUD px) and never covers the whole island.
 - Copy is as short as it can be: no explainer paragraphs, no rules section, one line per message.
 - Ambient motion stays calm: feathered light, slow drift, no flashes.
 - Snappy springs are only for direct presses.

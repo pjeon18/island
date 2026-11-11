@@ -1,6 +1,6 @@
-// The interface inside the island window. It is laid out in island pixels
-// (240×180) and scaled with the canvas, so it travels into the pop-out window
-// as one piece. Dialogs follow PMD: a portrait beside a text box. Everything
+// The interface inside the island window, in FireRed-style windows. It is
+// laid out in HUD pixels at its own whole-number scale (see fit) and travels
+// into the pop-out window with the canvas. Dialogs follow PMD: a portrait beside a text box. Everything
 // you choose (befriend, feed, stones, party, decorations, friends) lives in
 // the sheet, and the sheet's choices only unlock between sessions.
 import type { CloudState, Friend, FriendRequest, Me } from './cloud'
@@ -145,7 +145,9 @@ export class Hud {
     this.party.addEventListener('click', () => this.openSheet('mons'))
     this.el.querySelector('.hud-strip')!.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-open-tab]')
-      if (b) this.openSheet(b.dataset.openTab as Tab)
+      if (!b) return
+      if (!this.sheet.hidden && this.tab === b.dataset.openTab) this.closeSheet()
+      else this.openSheet(b.dataset.openTab as Tab)
     })
     this.focus.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-f]')
@@ -165,8 +167,17 @@ export class Hud {
     this.sheet.addEventListener('submit', (e) => void this.onSheetSubmit(e))
   }
 
+  // The HUD has its own whole-number scale (Press Start 2P sits on an 8px
+  // grid), independent of the island's, so a bigger island does not mean
+  // bigger menus. Its box is the canvas size divided by that scale.
   fit(canvas: HTMLCanvasElement) {
-    this.el.style.transform = `scale(${canvas.clientWidth / 240})`
+    const cw = canvas.clientWidth
+    const ch = canvas.clientHeight
+    const hs = cw >= 1680 ? 3 : cw >= 560 ? 2 : cw >= 400 ? 1.5 : Math.max(1, cw / 300)
+    this.el.style.width = `${cw / hs}px`
+    this.el.style.height = `${ch / hs}px`
+    this.el.style.transform = `scale(${hs})`
+    this.el.classList.toggle('narrow', cw / hs < 480)
   }
 
   // ---------- per-frame state ----------
@@ -295,15 +306,20 @@ export class Hud {
   }
 
   // ---------- the sheet ----------
+  private markStrip() {
+    this.el.querySelectorAll<HTMLElement>('.strip-tab').forEach((b) => b.classList.toggle('on', !this.sheet.hidden && b.dataset.openTab === this.tab))
+  }
   openSheet(tab: Tab) {
     this.tab = tab
     this.note = ''
     this.sheet.hidden = false
     this.renderSheet()
+    this.markStrip()
     if (tab === 'friends') void this.loadFriends()
   }
   closeSheet() {
     this.sheet.hidden = true
+    this.markStrip()
   }
   refreshSheet() {
     if (!this.sheet.hidden) this.renderSheet()
@@ -315,7 +331,6 @@ export class Hud {
   }
 
   private renderSheet() {
-    const tab = ([id, label, src]: [Tab, string, string]) => `<button class="tab${this.tab === id ? ' on' : ''}" data-tab="${id}" aria-label="${label}" title="${label}">${tabIcon(src)}</button>`
     const title = TABS.find(([id]) => id === this.tab)![1]
     const body =
       this.tab === 'mons'
@@ -330,8 +345,7 @@ export class Hud {
     const scroll = this.sheet.querySelector('.sheet-body')?.scrollTop ?? 0
     this.sheet.innerHTML = `
       <div class="px-panel sheet-panel">
-        <div class="sheet-head">${TABS.map(tab).join('')}<button class="close-x" data-act="close" aria-label="Close"></button></div>
-        <p class="sheet-title">${title}</p>
+        <div class="sheet-head"><p class="sheet-title">${title}</p><button class="close-x" data-act="close" aria-label="Close"></button></div>
         <div class="sheet-body">${this.note ? `<p class="note flash">${esc(this.note)}</p>` : ''}${body}</div>
       </div>`
     const sb = this.sheet.querySelector('.sheet-body')
@@ -456,7 +470,7 @@ export class Hud {
         : placed.has(item.id)
           ? `<button class="px-btn small" data-move="${item.id}" ${locked ? 'disabled' : ''}>Move</button><button class="px-btn small" data-store="${item.id}" ${locked ? 'disabled' : ''}>Put away</button>`
           : `<button class="px-btn small primary" data-place="${item.id}" ${!free || locked ? 'disabled' : ''}>Place</button>`
-      return `<div class="decor-row"><div class="mon-main"><p><strong>${item.name}</strong> <span class="hint">${owned ? (placed.has(item.id) ? 'On the island' : 'Put away') : `${item.price} shells`}</span></p><p class="hint">${item.blurb}</p></div><div class="row-actions">${act}</div></div>`
+      return `<div class="decor-row"><div class="mon-main"><p><strong>${item.name}</strong> <span class="hint">${owned ? (placed.has(item.id) ? 'On the island' : 'Put away') : `${item.price} shells`}</span></p></div><div class="row-actions">${act}</div></div>`
     }).join('')
     return `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${g.save.shells}</b></span><span>${free}/${SLOTS.length} spots free</span></p>
       ${locked ? '<p class="note">Locked while focusing.</p>' : ''}${rows}`
