@@ -2,8 +2,8 @@
 // middle and drifts off to the left and right, with a few pale clouds riding
 // its edges. It plays on every load (opening the app, after sailing, back from
 // a visit or a dungeon). It should read as weather, not as a show: the haze is
-// one pale colour dithered at its edge, the clouds are low-contrast with no
-// outline, and the whole thing is over in about two seconds. At night the
+// one pale colour dithered at its edge, the clouds (a faint distant bank and a
+// few nearer ones) are low-contrast with no outline or shadow, and the whole thing is over in about two seconds. At night the
 // scene passes the hour's light in, so it dims with everything else.
 import { Pix, bayer, hash2, hex, rng } from './pixel'
 
@@ -18,10 +18,11 @@ interface Cloud {
   side: -1 | 1
   home: number // its centre's x while the view is covered
   lag: number // a little behind the haze in time, so the edge breathes
+  speed: number // distant clouds drift a little slower
 }
 
 /** One pale cloud: a few round lobes in two close tones, its rim dithered away instead of outlined. */
-function paintCloud(w: number, h: number, seed: number) {
+function paintCloud(w: number, h: number, seed: number, far = false) {
   const p = new Pix(w, h)
   const r = rng(seed)
   const lobes: { x: number; y: number; r: number }[] = []
@@ -30,8 +31,9 @@ function paintCloud(w: number, h: number, seed: number) {
     const k = i / (n - 1)
     lobes.push({ x: w * (0.18 + k * 0.64) + (r() - 0.5) * 8, y: h * (0.58 - Math.sin(k * Math.PI) * 0.18), r: h * (0.3 + Math.sin(k * Math.PI) * 0.18 + r() * 0.05) })
   }
-  const top = hex('#ffffff')
-  const under = hex('#e9eff6')
+  // two close tones, no shadow; distant clouds sit even closer to the haze colour
+  const top = hex(far ? '#f9fbfd' : '#ffffff')
+  const under = hex(far ? '#f4f7fb' : '#eef3f8')
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
       let best = Infinity
@@ -60,7 +62,19 @@ export class Intro {
     const r = rng(29)
     // the haze edge wanders a little down the screen so it is not a straight wipe
     for (let y = 0; y < H; y++) this.wob.push(Math.sin(y * 0.09 + 1) * 4 + Math.sin(y * 0.031 + 2) * 7)
-    // three pale clouds a side, spread down the screen
+    // a bank of small, faint clouds in the distance, then three larger near ones a side
+    for (const side of [-1, 1] as const)
+      for (let i = 0; i < 5; i++) {
+        const w = Math.round(44 + r() * 28)
+        this.clouds.push({
+          img: paintCloud(w, Math.round(w * 0.44), Math.floor(r() * 1e6), true),
+          y: Math.round((i + 0.1 + r() * 0.6) * (H / 5) - w * 0.22 + (side > 0 ? 10 : 0)),
+          side,
+          home: W / 2 + side * (10 + ((i * 0.53 + r() * 0.35) % 1) * (W / 2 - 24)),
+          lag: 0.04 + r() * 0.08,
+          speed: 0.8,
+        })
+      }
     for (const side of [-1, 1] as const)
       for (let i = 0; i < 3; i++) {
         const w = Math.round(96 + r() * 40)
@@ -70,6 +84,7 @@ export class Intro {
           side,
           home: W / 2 + side * (18 + ((i * 0.37 + r() * 0.3) % 1) * (W / 2 - 40)),
           lag: r() * 0.08,
+          speed: 1,
         })
       }
   }
@@ -120,7 +135,7 @@ export class Intro {
     lg.globalAlpha = fade
     for (const c of this.clouds) {
       const ec = this.ease(c.lag)
-      const x = c.home - c.img.width / 2 + c.side * ec * (W / 2 + c.img.width * 0.6)
+      const x = c.home - c.img.width / 2 + c.side * ec * c.speed * (W / 2 + c.img.width * 0.6)
       lg.drawImage(c.img, Math.round(x), Math.round(c.y - ec * 4))
     }
     lg.globalAlpha = 1
