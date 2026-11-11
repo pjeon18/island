@@ -68,6 +68,7 @@ function inTop(x: number, y: number) {
 
 export interface IslandLayout {
   base: HTMLCanvasElement
+  floatBase: HTMLCanvasElement // the island on a transparent background, with a small lagoon ring
   top: Uint8Array // 1 = grassy top surface
   edge: Int32Array // distance to the top's edge
   footprint: Uint8Array // top ∪ cliff, for the shoreline foam
@@ -77,6 +78,7 @@ export interface IslandLayout {
   dock: { x: number; y0: number; y1: number; w: number }
   lantern: { x: number; y: number }
   walkable: (x: number, y: number) => boolean
+  blockers: { x: number; y: number; r: number }[] // decorations, kept clear
   shoreline: { x: number; y: number }[] // foam pixels, just outside the footprint
 }
 
@@ -265,6 +267,7 @@ export function buildIsland(): IslandLayout {
       }
     }
 
+  const blockers: { x: number; y: number; r: number }[] = []
   const walkable = (x: number, y: number) => {
     x = Math.round(x)
     y = Math.round(y)
@@ -272,10 +275,26 @@ export function buildIsland(): IslandLayout {
     if (Math.hypot((x - tree.x) / 1.6, y - tree.y) < 7) return false
     if (Math.hypot((x - bush.x) / 1.4, y - bush.y) < 6) return false
     if (Math.hypot(x - grassPatch.x, (y - grassPatch.y) * 1.3) < grassPatch.r + 2) return false
+    for (const b of blockers) if (b.r && Math.hypot((x - b.x) / 1.3, y - b.y) < b.r + 3) return false
     return true
   }
 
-  return { base: p.toCanvas(), top, edge, footprint, grassPatch, tree, bush, dock, lantern, walkable, shoreline }
+  // the desktop-pet version: keep the land, the dock and a feathered lagoon ring
+  const fp = new Pix(W, H)
+  for (let y = 0; y < H; y++)
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x
+      const onDock = x >= dockX - 1 && x <= dockX + w && y >= y0 && y <= y1 + 3
+      const keep = footprint[i] || onDock || seaDist[i] + bayer(x, y) * 3 < 9
+      if (!keep) continue
+      const j = i * 4
+      fp.data[j] = p.data[j]
+      fp.data[j + 1] = p.data[j + 1]
+      fp.data[j + 2] = p.data[j + 2]
+      fp.data[j + 3] = 255
+    }
+
+  return { base: p.toCanvas(), floatBase: fp.toCanvas(), top, edge, footprint, grassPatch, tree, bush, dock, lantern, walkable, blockers, shoreline }
 }
 
 // ---------- props (drawn per frame so they y-sort with the Pokémon) ----------

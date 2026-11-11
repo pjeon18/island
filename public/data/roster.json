@@ -148,9 +148,20 @@
   },
   "25": {
    "name": "Pikachu",
-   "evolvesTo": [],
+   "evolvesTo": [
+    {
+     "dex": 26,
+     "item": "thunder-stone"
+    }
+   ],
    "rarity": "uncommon",
    "stage": 1,
+   "line": 25
+  },
+  "26": {
+   "name": "Raichu",
+   "evolvesTo": [],
+   "stage": 2,
    "line": 25
   },
   "43": {
@@ -167,8 +178,23 @@
   },
   "44": {
    "name": "Gloom",
-   "evolvesTo": [],
+   "evolvesTo": [
+    {
+     "dex": 45,
+     "item": "leaf-stone"
+    },
+    {
+     "dex": 182,
+     "item": "sun-stone"
+    }
+   ],
    "stage": 2,
+   "line": 43
+  },
+  "45": {
+   "name": "Vileplume",
+   "evolvesTo": [],
+   "stage": 3,
    "line": 43
   },
   "54": {
@@ -191,9 +217,58 @@
   },
   "133": {
    "name": "Eevee",
-   "evolvesTo": [],
+   "evolvesTo": [
+    {
+     "dex": 134,
+     "item": "water-stone"
+    },
+    {
+     "dex": 135,
+     "item": "thunder-stone"
+    },
+    {
+     "dex": 136,
+     "item": "fire-stone"
+    },
+    {
+     "dex": 196,
+     "friendship": true,
+     "time": "day"
+    },
+    {
+     "dex": 197,
+     "friendship": true,
+     "time": "night"
+    },
+    {
+     "dex": 470,
+     "item": "leaf-stone"
+    },
+    {
+     "dex": 471,
+     "item": "ice-stone"
+    }
+   ],
    "rarity": "rare",
    "stage": 1,
+   "line": 133
+  },
+  "134": {
+   "name": "Vaporeon",
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 133
+  },
+  "135": {
+   "name": "Jolteon",
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 133
+  },
+  "136": {
+   "name": "Flareon",
+   "evolvesTo": [],
+   "stage": 2,
    "line": 133
   },
   "179": {
@@ -224,6 +299,12 @@
    "evolvesTo": [],
    "stage": 3,
    "line": 179
+  },
+  "182": {
+   "name": "Bellossom",
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 43
   },
   "187": {
    "name": "Hoppip",
@@ -271,6 +352,18 @@
    "evolvesTo": [],
    "stage": 2,
    "line": 194
+  },
+  "196": {
+   "name": "Espeon",
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 133
+  },
+  "197": {
+   "name": "Umbreon",
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 133
   },
   "396": {
    "name": "Starly",
@@ -329,6 +422,18 @@
    "evolvesTo": [],
    "stage": 3,
    "line": 403
+  },
+  "470": {
+   "name": "Leafeon",
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 133
+  },
+  "471": {
+   "name": "Glaceon",
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 133
   }
  }
 }

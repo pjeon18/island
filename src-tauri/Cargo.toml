@@ -1,0 +1,13 @@
+[package]
+name = "island"
+version = "0.1.0"
+description = "A Pokémon study island that floats on your desktop (free fan project)"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["macos-private-api"] }
+user-idle = "0.6"
+serde_json = "1"

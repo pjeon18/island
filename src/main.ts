@@ -3,7 +3,9 @@
 // levels, and a visitor comes out of the tall grass when a session finishes.
 import './styles.css'
 import { Creature } from './creature'
-import { Game, GameEvent, Mon, Roster } from './game'
+import * as cloud from './cloud'
+import { SLOTS, decorDef } from './decor'
+import { Game, GameEvent, Mon, RARE_50, Roster, STONES, aStone, stoneName } from './game'
 import { Hud, fmtMinutes } from './hud'
 import { H, W } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
@@ -12,13 +14,19 @@ import { Manifest, Species, loadManifest, loadSpecies } from './sprites'
 
 const STARTERS = [1, 4, 7]
 const params = new URLSearchParams(location.search)
-const popoutMode = params.has('popout')
+// Inside the Tauri desktop app the island floats on the desktop: no page, no
+// sea, a transparent window you drag by the island itself.
+const tauri = '__TAURI_INTERNALS__' in window
+const floatMode = tauri || params.has('float')
+const popoutMode = params.has('popout') || floatMode
 const debug = params.has('debug')
+type Invoke = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>
+const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke: Invoke } }).__TAURI_INTERNALS__?.invoke
 
 // ---------- page ----------
 const app = document.getElementById('app')!
 app.innerHTML = popoutMode
-  ? `<div class="pip-stage"><div class="window"><canvas class="stage"></canvas></div></div>`
+  ? `<div class="pip-stage${floatMode ? ' float' : ''}${floatMode && !tauri ? ' float-preview' : ''}"><div class="window"><canvas class="stage"${tauri ? ' data-tauri-drag-region' : ''}></canvas></div></div>`
   : `
   <header class="head">
     <h1>Island</h1>
@@ -54,6 +62,7 @@ let manifest: Manifest
 let game: Game
 let hud: Hud
 const scene = new Scene()
+scene.float = floatMode
 const species = new Map<number, Species>()
 const loading = new Map<number, Promise<Species>>()
 const dex4 = (dex: number) => String(dex).padStart(4, '0')
@@ -145,10 +154,10 @@ const lead = () => game.party[0]?.dex
 
 // ---------- visitors ----------
 let visiting = false
-async function runVisit() {
+async function runVisit(rareMult = 1) {
   if (visiting) return
   visiting = true
-  const { dex, level } = game.pickVisitor()
+  const { dex, level } = game.pickVisitor(rareMult)
   const sp = await ensure(dex)
   const gp = scene.island.grassPatch
   const name = game.name(dex)
@@ -277,6 +286,7 @@ function stepEvolution(dt: number) {
       const from = game.name(e.mon)
       game.evolve(e.mon, e.to)
       e.c.setSpecies(species.get(e.to)!)
+      publishParty()
       hud.dismiss()
       hud.say({ dex: e.to, emotion: 'Happy', text: `${from} evolved into ${game.name(e.to)}.`, auto: 5000 })
     }
@@ -303,16 +313,54 @@ function queueEvolution(mon: Mon, to: number) {
   nextEvolution()
 }
 
+// ---------- online (T2) ----------
+function publishParty() {
+  if (!game) return
+  cloud.publish(
+    game.party.map((m) => ({ dex: m.dex, level: m.level })),
+    game.save.caught.length,
+  )
+}
+async function showWaves() {
+  if (game.inSession) return
+  const names = await cloud.collectWaves()
+  if (!names.length) return
+  const who = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+  hud.say({ dex: lead(), emotion: 'Happy', text: `${who} waved while you were studying.`, auto: 5000 })
+}
+
+// ---------- decorations ----------
+function decorSlotOf(id: string) {
+  return Object.entries(game.save.decor.slots).find(([, v]) => v === id)?.[0]
+}
+function freeSlotAfter(from?: string) {
+  const ids = SLOTS.map((s) => s.id)
+  const start = from ? ids.indexOf(from) + 1 : 0
+  for (let i = 0; i < ids.length; i++) {
+    const id = ids[(start + i) % ids.length]
+    if (!game.save.decor.slots[id]) return id
+  }
+  return undefined
+}
+function saveDecor() {
+  game.persist()
+  scene.setDecor(game.save.decor.slots)
+  hud.refreshSheet()
+}
+
 // ---------- game events ----------
 function onGame(e: GameEvent) {
   switch (e.type) {
     case 'sessionStart':
       hud.toast('Your session has started. Your party grows while you focus.')
       syncSleep()
+      void cloud.sessionBegin()
       break
     case 'sessionEnd':
       hud.clearQueue((d) => d.text.includes('still studying'))
-      if (e.complete) hud.toast(`You focused for ${fmtMinutes(e.minutes)}.`)
+      void cloud.sessionEnd()
+      if (e.complete)
+        hud.toast(`You focused for ${fmtMinutes(e.minutes)}. ${e.berries === 2 ? 'Two berries' : 'A berry'} ripened on the bush.`)
       else
         hud.say({
           dex: lead(),
@@ -320,12 +368,39 @@ function onGame(e: GameEvent) {
           auto: 5000,
         })
       syncSleep()
+      after(6, () => void showWaves())
       break
     case 'visit':
-      after(1.2, () => runVisit())
+      after(1.2, () => runVisit(e.rareMult))
+      break
+    case 'visitCapped':
+      hud.say({ dex: lead(), text: 'That was a lot of focus today. Visitors come back tomorrow, and your party still grows.', auto: 6000 })
+      break
+    case 'stone':
+      hud.say({
+        dex: lead(),
+        emotion: 'Happy',
+        text: `You have focused ${e.streak} days in a row. ${aStone(e.item).replace(/^a/, 'A')} washed ashore. You can give it to a Pokémon between sessions.`,
+        auto: 7000,
+      })
+      break
+    case 'fed':
+      hud.toast(
+        e.levels
+          ? `${game.name(e.mon)} ate the berry and grew to level ${e.mon.level}.`
+          : `${game.name(e.mon)} ate the berry and gained ${10} experience.`,
+      )
+      {
+        const c = scene.byMon(e.mon.id)
+        if (c && !c.asleep) c.walkTo(c.x, c.y, 'hop')
+        if (game.evolutionDue(e.mon)) hud.say({ dex: e.mon.dex, emotion: 'Happy', text: `${game.name(e.mon)} is ready to evolve. It will evolve once you start focusing.`, auto: 5000 })
+      }
+      publishParty()
       break
     case 'levelUp': {
       const c = scene.byMon(e.mon.id)
+      publishParty()
+      if (!game.inSession) break // berries announce their own level-ups
       hud.toast(`${game.name(e.mon)} grew to level ${e.mon.level}.`)
       if (c && !c.asleep && !evolving.has(e.mon.id) && c.state !== 'still') c.walkTo(c.x, c.y, 'hop')
       break
@@ -351,6 +426,7 @@ function onGame(e: GameEvent) {
       })
       break
     case 'away': {
+      void cloud.sessionEnd()
       if (hud.busy && hud.currentText.includes('still studying')) hud.dismiss()
       hud.clearQueue((d) => d.text.includes('still studying'))
       syncSleep()
@@ -364,13 +440,16 @@ function onGame(e: GameEvent) {
       break
     }
     case 'back':
+      void cloud.sessionBegin()
       if (hud.busy && hud.currentText.includes('still studying')) hud.dismiss()
       hud.toast('Welcome back. The clock is running again.')
       syncSleep()
       break
     case 'partyChanged':
       syncParty()
+      scene.setDecor(game.save.decor.slots)
       hud.refreshSheet()
+      publishParty()
       break
   }
 }
@@ -485,6 +564,7 @@ function buildDebug() {
   el.innerHTML = `
     <p class="debug-title">Demo controls</p>
     <div class="debug-row">${b('m1', 'Add 1 focused minute')}${b('m10', 'Add 10 minutes')}${b('m60', 'Add 60 minutes')}${b('finish', 'Finish the session')}</div>
+    <div class="debug-row">${b('berries', 'Add 3 berries')}${b('shells', 'Add 300 shells')}${b('stone', 'A stone washes ashore')}${b('bond', 'Lead has 10 hours of bond')}${b('visit50', 'Visitor at 50-minute odds')}</div>
     <div class="debug-row">${b('visit', 'Visitor now')}${b('evolve', 'Lead is ready to evolve')}${b('checkin', 'Ask now')}${b('idle', 'Simulate 10 idle minutes')}${b('lock', 'Simulate screen lock')}${b('active', 'Simulate activity')}${b('gap', 'Simulate a 10 minute sleep')}</div>
     <div class="debug-row"><label class="time"><span>Hour</span><input type="range" min="0" max="24" step="0.1" value="${clockHour()}" /><output></output></label>${b('clock', 'Use my clock')}${b('reset', 'Reset save')}</div>`
   const slider = el.querySelector<HTMLInputElement>('input')!
@@ -507,10 +587,22 @@ function buildDebug() {
       else game.endSession(true)
     }
     if (d === 'visit') runVisit()
+    if (d === 'visit50') runVisit(RARE_50)
+    if (d === 'berries') game.save.berries += 3
+    if (d === 'shells') game.save.shells += 300
+    if (d === 'stone') {
+      const useful = STONES.filter((st) => game.save.mons.some((m) => game.evolutionOptions(m).some((x) => x.item === st)))
+      const item = (useful.length ? useful : STONES)[Math.floor(Math.random() * (useful.length || STONES.length))]
+      game.save.bag[item] = (game.save.bag[item] ?? 0) + 1
+      hud.toast(`${aStone(item).replace(/^a/, 'A')} washed ashore.`)
+    }
+    if (d === 'bond' && game.party[0]) game.party[0].focusedMin = Math.max(game.party[0].focusedMin, 600)
+    game.persist()
+    hud.refreshSheet()
     if (d === 'evolve') {
       const m = game.party[0]
-      const next = m && game.species(m.dex)?.evolvesTo[0]
-      if (m && next) {
+      const next = m && game.species(m.dex)?.evolvesTo.find((x) => x.level)
+      if (m && next?.level) {
         m.noEvolve = false
         m.level = next.level - 1
         m.exp = m.level - 1
@@ -589,6 +681,60 @@ async function boot() {
       toggleParty: (id, on) => {
         if (!game.setInParty(id, on)) hud.toast('You can change your party between sessions.')
       },
+      feed: (id) => {
+        if (!game.feed(id)) hud.toast(game.inSession ? 'You can feed berries between sessions.' : 'There are no ripe berries yet. A finished session ripens one.')
+        hud.refreshSheet()
+      },
+      giveStone: (id, item) => {
+        const m = game.mon(id)
+        if (m && game.giveStone(id, item)) hud.say({ dex: m.dex, text: `${game.name(m)} is holding the ${stoneName(item)}. It will evolve once you start focusing.`, auto: 5000 })
+        hud.refreshSheet()
+      },
+      takeStone: (id) => {
+        game.takeStone(id)
+        hud.refreshSheet()
+      },
+      buyDecor: (id) => {
+        const d = decorDef(id)
+        if (!d || game.inSession || game.save.decor.owned.includes(id)) return
+        if (!game.spendShells(d.price)) return hud.toast('You need more shells. You earn one for every focused minute.')
+        game.save.decor.owned.push(id)
+        const slot = freeSlotAfter()
+        if (slot) game.save.decor.slots[slot] = id
+        hud.toast(slot ? `The ${d.name.toLowerCase()} is on your island.` : `You bought the ${d.name.toLowerCase()}. Put something away to make room for it.`)
+        saveDecor()
+      },
+      placeDecor: (id) => {
+        const slot = freeSlotAfter()
+        if (!slot || game.inSession) return
+        game.save.decor.slots[slot] = id
+        saveDecor()
+      },
+      moveDecor: (id) => {
+        const from = decorSlotOf(id)
+        const to = freeSlotAfter(from)
+        if (!from || !to || game.inSession) return hud.toast('There is no free spot to move it to.')
+        game.save.decor.slots[from] = null
+        game.save.decor.slots[to] = id
+        saveDecor()
+      },
+      storeDecor: (id) => {
+        const from = decorSlotOf(id)
+        if (!from || game.inSession) return
+        game.save.decor.slots[from] = null
+        saveDecor()
+      },
+      cloud: {
+        state: cloud.cloudState,
+        me: cloud.whoami,
+        friends: cloud.listFriends,
+        signIn: cloud.signIn,
+        signOut: cloud.signOut,
+        claimName: cloud.claimName,
+        request: cloud.requestFriend,
+        answer: cloud.answerRequest,
+        wave: cloud.wave,
+      },
       allowEvolution: (id) => {
         const mon = game.mon(id)
         if (mon) game.allowEvolution(mon)
@@ -602,6 +748,7 @@ async function boot() {
         if (!ok) hud.toast('Idle detection was not allowed, so the island will keep asking every 20 minutes.')
       },
       popOut: popoutMode ? undefined : popOut,
+      quit: tauri ? () => void invoke?.('plugin:window|close', { label: 'main' }) : undefined,
     },
     creditsHtml,
   )
@@ -624,14 +771,36 @@ async function boot() {
   } else {
     await syncParty(true)
   }
-  if (game.save.settings.detector) {
+  // the desktop app reads system idle time natively (no permission prompt)
+  if (tauri && invoke) {
+    game.save.settings.detector = true
+    let wasIdle = false
+    setInterval(async () => {
+      const idle = Number(await invoke('idle_seconds').catch(() => 0))
+      if (idle >= 600 && !wasIdle) {
+        wasIdle = true
+        presence.idle()
+      } else if (idle < 5 && wasIdle) {
+        wasIdle = false
+        presence.active()
+      }
+    }, 5000)
+  } else if (game.save.settings.detector) {
     const ok = await startIdleDetection(presence)
     if (!ok) {
       game.save.settings.detector = false
       game.persist()
     }
   }
+  scene.setDecor(game.save.decor.slots)
   if (clockOwner) game.beat() // settles any time that passed while the island was closed
+  void cloud.initCloud().then(() => {
+    cloud.onCloud(() => hud.refreshSheet())
+    hud.refreshSheet()
+    publishParty()
+    if (game.inSession && game.save.session?.state === 'running') void cloud.sessionBegin()
+    else void showWaves()
+  })
   syncSleep(true)
   buildDebug()
   window.requestAnimationFrame(raf)

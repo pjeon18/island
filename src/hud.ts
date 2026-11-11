@@ -1,7 +1,11 @@
 // The interface inside the island window. It is laid out in island pixels
-// (240×180) and scaled with the canvas, so it travels into the pop-out
-// window as one piece. Dialogs follow PMD: a portrait beside a text box.
-import { Game, Mon, PARTY_MAX, expToNext } from './game'
+// (240×180) and scaled with the canvas, so it travels into the pop-out window
+// as one piece. Dialogs follow PMD: a portrait beside a text box. Everything
+// you choose (befriend, feed, stones, party, decorations, friends) lives in
+// the sheet, and the sheet's choices only unlock between sessions.
+import type { CloudState, Friend, FriendRequest, Me } from './cloud'
+import { CATALOG, SLOTS } from './decor'
+import { BERRY_EXP, BOND_FOR_FRIENDSHIP, Evolution, Game, Mon, PARTY_MAX, aStone, expToNext, stoneName } from './game'
 
 const BASE = import.meta.env.BASE_URL
 export const portraitUrl = (dex: number, emo = 'Normal') => `${BASE}sprites/${String(dex).padStart(4, '0')}/${emo}.png`
@@ -16,7 +20,6 @@ export interface Dialog {
   emotion?: string
   text: string
   actions?: DialogAction[]
-  /** dismiss on its own after this many ms (no actions) */
   auto?: number
   onShow?: () => void
 }
@@ -30,9 +33,30 @@ export interface HudHandlers {
   setLength: (sec: number | null) => void
   toggleParty: (id: string, on: boolean) => void
   allowEvolution: (id: string) => void
+  feed: (id: string) => void
+  giveStone: (id: string, item: string) => void
+  takeStone: (id: string) => void
+  buyDecor: (id: string) => void
+  placeDecor: (id: string) => void
+  moveDecor: (id: string) => void
+  storeDecor: (id: string) => void
   enableIdle: () => void
   popOut?: () => void
+  quit?: () => void
+  cloud: {
+    state: () => CloudState
+    me: () => Me | null
+    friends: () => Promise<{ friends: Friend[]; requests: FriendRequest[]; error?: string }>
+    signIn: (email: string) => Promise<string>
+    signOut: () => Promise<void>
+    claimName: (name: string) => Promise<string>
+    request: (handle: string) => Promise<string>
+    answer: (rowId: number, accept: boolean) => Promise<void>
+    wave: (id: string) => Promise<string>
+  }
 }
+
+type Tab = 'mons' | 'dex' | 'island' | 'friends' | 'more'
 
 const fmtClock = (sec: number) => {
   sec = Math.max(0, Math.floor(sec))
@@ -47,6 +71,8 @@ export const fmtMinutes = (min: number) => {
   if (!h) return `${m} minute${m === 1 ? '' : 's'}`
   return `${h} hour${h === 1 ? '' : 's'}${m ? ` ${m} minute${m === 1 ? '' : 's'}` : ''}`
 }
+const esc = (s: string) => s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`)
+const list = (xs: string[]) => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} or ${xs[xs.length - 1]}`)
 
 export class Hud {
   el: HTMLElement
@@ -60,7 +86,12 @@ export class Hud {
   private current: Dialog | null = null
   private autoTimer = 0
   private toastTimer = 0
-  private sheetTab: 'mons' | 'settings' | 'credits' = 'mons'
+  private tab: Tab = 'mons'
+  private openMon: string | null = null
+  private stonePick: string | null = null
+  private dexPick: number | null = null
+  private note = ''
+  private friendsCache: { friends: Friend[]; requests: FriendRequest[]; error?: string } | null = null
   private lastFocusKey = ''
   private lastPartyKey = ''
 
@@ -100,31 +131,33 @@ export class Hud {
         this.lastFocusKey = ''
       }
     })
-    this.sheet.addEventListener('click', (e) => this.onSheetClick(e))
+    this.sheet.addEventListener('click', (e) => void this.onSheetClick(e))
+    this.sheet.addEventListener('submit', (e) => void this.onSheetSubmit(e))
   }
 
-  /** Scale the island-pixel layout to the canvas's on-screen size. */
   fit(canvas: HTMLCanvasElement) {
-    const s = canvas.clientWidth / 240
-    this.el.style.transform = `scale(${s})`
+    this.el.style.transform = `scale(${canvas.clientWidth / 240})`
   }
 
   // ---------- per-frame state ----------
   update() {
     const g = this.game
     const s = g.save.session
-    // focus widget: rebuild only when its shape changes, then just update the clock text
-    const key = !g.hasStarter ? 'none' : !s ? `idle:${g.save.settings.length}` : s.state
+    const breakLeft = !s && g.save.breakUntil ? (g.save.breakUntil - g.now()) / 1000 : 0
+    const key = !g.hasStarter ? 'none' : !s ? `idle:${g.save.settings.length}:${breakLeft > 0}` : s.state
     if (key !== this.lastFocusKey) {
       this.lastFocusKey = key
       const len = g.save.settings.length
       const seg = (v: string, label: string, on: boolean) => `<button class="seg${on ? ' on' : ''}" data-f="len:${v}">${label}</button>`
+      const segs = `<div class="segs">${seg('25', '25 min', len === 1500)}${seg('50', '50 min', len === 3000)}${seg('open', 'Open', len === null)}</div>`
       this.focus.innerHTML =
         key === 'none'
           ? ''
           : !s
-            ? `<button class="px-btn primary" data-f="start">Start focusing</button>
-               <div class="segs">${seg('25', '25 min', len === 1500)}${seg('50', '50 min', len === 3000)}${seg('open', 'Open', len === null)}</div>`
+            ? breakLeft > 0
+              ? `<div class="px-panel clock break"><span class="clock-t"></span><span class="clock-l">Break</span></div>
+                 <button class="px-btn primary small" data-f="start">Start focusing</button>${segs}`
+              : `<button class="px-btn primary" data-f="start">Start focusing</button>${segs}`
             : s.state === 'running'
               ? `<div class="px-panel clock"><span class="clock-t"></span><span class="clock-l">${s.length ? 'Focusing' : 'Focusing, open session'}</span></div>
                  <button class="px-btn small" data-f="end">End session</button>`
@@ -133,11 +166,11 @@ export class Hud {
                    <button class="px-btn primary small" data-f="still">I am still here</button>`
                 : `<div class="px-panel clock away"><span class="clock-t"></span><span class="clock-l">Paused</span></div>
                    <button class="px-btn primary small" data-f="back">I am back</button>`
+      if (!this.sheet.hidden) this.renderSheet()
     }
     const t = this.focus.querySelector('.clock-t')
-    if (t && s) t.textContent = s.length ? fmtClock(s.length - s.credited) : fmtClock(s.credited)
+    if (t) t.textContent = s ? (s.length ? fmtClock(s.length - s.credited) : fmtClock(s.credited)) : fmtClock(breakLeft)
 
-    // party chips
     const pk = g.party.map((m) => `${m.id}:${m.dex}:${m.level}:${m.exp}`).join('|')
     if (pk !== this.lastPartyKey) {
       this.lastPartyKey = pk
@@ -148,7 +181,7 @@ export class Hud {
         })
         .join('')
       this.party.setAttribute('aria-label', `Your party: ${g.party.map((m) => `${g.name(m)}, level ${m.level}`).join('; ')}. Open your Pokémon.`)
-      if (!this.sheet.hidden) this.renderSheet()
+      if (!this.sheet.hidden && this.tab !== 'friends') this.renderSheet()
     }
   }
 
@@ -157,7 +190,6 @@ export class Hud {
     this.queue.push(d)
     if (!this.current) this.next()
   }
-  /** Replace whatever is showing right now (used to resolve a question). */
   dismiss() {
     window.clearTimeout(this.autoTimer)
     this.current = null
@@ -231,112 +263,306 @@ export class Hud {
     )
   }
 
-  // ---------- sheet: your Pokémon, settings, credits ----------
-  openSheet(tab: 'mons' | 'settings' | 'credits') {
-    this.sheetTab = tab
+  // ---------- the sheet ----------
+  openSheet(tab: Tab) {
+    this.tab = tab
+    this.note = ''
     this.sheet.hidden = false
     this.renderSheet()
+    if (tab === 'friends') void this.loadFriends()
   }
   closeSheet() {
     this.sheet.hidden = true
   }
+  refreshSheet() {
+    if (!this.sheet.hidden) this.renderSheet()
+  }
+  private async loadFriends() {
+    if (this.h.cloud.state() !== 'ready') return
+    this.friendsCache = await this.h.cloud.friends()
+    if (this.tab === 'friends' && !this.sheet.hidden) this.renderSheet()
+  }
+
   private renderSheet() {
-    const g = this.game
-    const tab = (id: string, label: string) => `<button class="tab${this.sheetTab === id ? ' on' : ''}" data-tab="${id}">${label}</button>`
-    let body = ''
-    if (this.sheetTab === 'mons') {
-      const inSession = !!g.save.session
-      const order = [...g.party, ...g.save.mons.filter((m) => !g.save.party.includes(m.id))]
-      body =
-        (inSession ? `<p class="note">You can change your party between sessions.</p>` : '') +
-        order.map((m) => this.monRow(m, inSession)).join('') +
-        `<p class="note">${g.save.mons.length} Pokémon on your island. Up to ${PARTY_MAX} can be in your party.</p>`
-    } else if (this.sheetTab === 'settings') {
-      const len = g.save.settings.length
-      const det = g.save.settings.detector
-      const idleOk = typeof (window as unknown as { IdleDetector?: unknown }).IdleDetector === 'function'
-      const streak = g.streak()
-      body = `
-        <p class="row-title">Session length</p>
-        <div class="segs wide">
-          <button class="seg${len === 1500 ? ' on' : ''}" data-len="25">25 minutes</button>
-          <button class="seg${len === 3000 ? ' on' : ''}" data-len="50">50 minutes</button>
-          <button class="seg${len === null ? ' on' : ''}" data-len="open">Open</button>
-        </div>
-        <p class="note">A visitor comes at the end of each full session. In an open session, one comes every 30 focused minutes.</p>
-        <p class="row-title">Noticing when you step away</p>
-        ${
-          det
-            ? `<p class="note">Idle detection is on. If your computer sees no keyboard or mouse use for 10 minutes, the island asks whether you are still studying. If the screen locks, the clock pauses right away.</p>`
-            : `<p class="note">The island asks whether you are still studying every 20 minutes. ${idleOk ? 'If you turn on idle detection, it only asks after 10 minutes without keyboard or mouse use. The browser shares nothing about what you are doing, only whether you are active.' : ''}</p>
-               ${idleOk ? `<button class="px-btn small" data-act="idle">Turn on idle detection</button>` : ''}`
-        }
-        <p class="row-title">Your focus</p>
-        <p class="note">Today you have focused for ${fmtMinutes(g.todayMinutes())}. ${streak ? `You have focused ${streak} day${streak === 1 ? '' : 's'} in a row.` : ''}</p>
-        ${this.h.popOut ? `<button class="px-btn small" data-act="popout">Pop out the island</button>` : ''}`
-    } else {
-      body = `<div class="credits-body">${this.credits()}</div>`
-    }
+    const tab = (id: Tab, label: string) => `<button class="tab${this.tab === id ? ' on' : ''}" data-tab="${id}">${label}</button>`
+    const body =
+      this.tab === 'mons'
+        ? this.monsTab()
+        : this.tab === 'dex'
+          ? this.dexTab()
+          : this.tab === 'island'
+            ? this.islandTab()
+            : this.tab === 'friends'
+              ? this.friendsTab()
+              : this.moreTab()
+    const scroll = this.sheet.querySelector('.sheet-body')?.scrollTop ?? 0
     this.sheet.innerHTML = `
       <div class="px-panel sheet-panel">
-        <div class="sheet-head">${tab('mons', 'Pokémon')}${tab('settings', 'Settings')}${tab('credits', 'Credits')}<button class="px-btn small close" data-act="close" aria-label="Close">Close</button></div>
-        <div class="sheet-body">${body}</div>
+        <div class="sheet-head">${tab('mons', 'Pokémon')}${tab('dex', 'Pokédex')}${tab('island', 'Island')}${tab('friends', 'Friends')}${tab('more', 'More')}<button class="px-btn small close" data-act="close" aria-label="Close">Close</button></div>
+        <div class="sheet-body">${this.note ? `<p class="note flash">${esc(this.note)}</p>` : ''}${body}</div>
       </div>`
+    const sb = this.sheet.querySelector('.sheet-body')
+    if (sb) sb.scrollTop = scroll
   }
-  private monRow(m: Mon, locked: boolean) {
+
+  // Pokémon: party first, then the box; tap a row for its choices
+  private monsTab() {
     const g = this.game
-    const inParty = g.save.party.includes(m.id)
+    const s = g.save
+    const stones = Object.entries(s.bag).filter(([, n]) => n > 0)
+    const inv = `<p class="inv"><span>Berries <b>${s.berries}</b></span><span>Shells <b>${s.shells}</b></span>${stones.map(([k, n]) => `<span>${stoneName(k)} <b>${n}</b></span>`).join('')}</p>`
+    const locked = g.inSession ? `<p class="note">You can feed, give stones and change your party between sessions.</p>` : ''
+    const order = [...g.party, ...s.mons.filter((m) => !s.party.includes(m.id))]
+    return inv + locked + order.map((m) => this.monRow(m)).join('') + `<p class="note">${s.mons.length} Pokémon on your island. Up to ${PARTY_MAX} can be in your party, and only they gain experience while you focus.</p>`
+  }
+  private evoText(m: Mon) {
+    const g = this.game
+    const opts = g.evolutionOptions(m)
+    if (!opts.length) return 'It does not evolve further on this island.'
+    const lv = opts.filter((e) => e.level).map((e) => `at level ${e.level} into ${g.name(e.dex)}`)
+    const st = opts.filter((e) => e.item).map((e) => `with ${aStone(e.item!)} into ${g.name(e.dex)}`)
+    const fr = opts.filter((e) => e.friendship).map((e) => `by friendship ${e.time ? `during the ${e.time} ` : ''}into ${g.name(e.dex)}`)
+    const bond = fr.length ? ` Friendship needs ${fmtMinutes(BOND_FOR_FRIENDSHIP)} of focus together; you have ${fmtMinutes(Math.min(m.focusedMin, BOND_FOR_FRIENDSHIP))}.` : ''
+    return `It evolves ${list([...lv, ...st, ...fr])}.${bond}`
+  }
+  private monRow(m: Mon) {
+    const g = this.game
+    const s = g.save
+    const inParty = s.party.includes(m.id)
+    const open = this.openMon === m.id
     const pct = Math.round((m.exp / expToNext(m.level)) * 100)
-    const next = g.species(m.dex)?.evolvesTo.find((e) => g.species(e.dex))
-    const evo = m.noEvolve
-      ? `<button class="px-btn small" data-allow="${m.id}">Let it evolve</button>`
-      : next
-        ? `<span class="hint">Evolves at level ${next.level}</span>`
-        : ''
-    const partyBtn = inParty
-      ? `<button class="px-btn small" data-party="${m.id}:0" ${locked || g.save.party.length <= 1 ? 'disabled' : ''}>Rest in the box</button>`
-      : `<button class="px-btn small" data-party="${m.id}:1" ${locked || g.save.party.length >= PARTY_MAX ? 'disabled' : ''}>Add to party</button>`
+    const status = m.heldItem
+      ? `Holding ${aStone(m.heldItem)}. It evolves when your next session starts.`
+      : m.noEvolve
+        ? 'It is waiting until you let it evolve.'
+        : `Focused together for ${fmtMinutes(m.focusedMin)}.`
+    let detail = ''
+    if (open) {
+      const locked = g.inSession
+      const usable = g.evolutionOptions(m).filter((e: Evolution) => e.item && (s.bag[e.item] ?? 0) > 0)
+      const btn = (attrs: string, label: string, dis = false, primary = false) => `<button class="px-btn small${primary ? ' primary' : ''}" ${attrs} ${dis ? 'disabled' : ''}>${label}</button>`
+      const partyBtn = inParty
+        ? btn(`data-party="${m.id}:0"`, 'Rest in the box', locked || s.party.length <= 1)
+        : btn(`data-party="${m.id}:1"`, 'Add to party', locked || s.party.length >= PARTY_MAX)
+      const stoneRow =
+        this.stonePick === m.id
+          ? `<div class="row-actions">${usable.map((e) => btn(`data-give="${m.id}:${e.item}"`, `${stoneName(e.item!)} → ${g.name(e.dex)}`)).join('')}${btn('data-stonecancel="1"', 'Cancel')}</div>`
+          : ''
+      detail = `
+        <div class="mon-detail">
+          <p class="hint">${this.evoText(m)}</p>
+          <div class="row-actions">
+            ${btn(`data-feed="${m.id}"`, `Feed a berry (+${BERRY_EXP} EXP)`, locked || s.berries <= 0, true)}
+            ${usable.length && !m.heldItem ? btn(`data-stones="${m.id}"`, 'Give a stone', locked) : ''}
+            ${m.heldItem ? btn(`data-take="${m.id}"`, 'Take the stone back', locked) : ''}
+            ${m.noEvolve ? btn(`data-allow="${m.id}"`, 'Let it evolve') : ''}
+            ${partyBtn}
+          </div>
+          ${stoneRow}
+        </div>`
+    }
     return `
-      <div class="mon-row${inParty ? ' in' : ''}">
-        <img src="${portraitUrl(m.dex)}" alt="" />
-        <div class="mon-main">
-          <p><strong>${g.name(m)}</strong> <span>Lv ${m.level}</span>${inParty ? ' <em>In party</em>' : ''}</p>
-          <span class="bar"><i style="width:${pct}%"></i></span>
-          <p class="hint">Focused together for ${fmtMinutes(m.focusedMin)}. ${evo}</p>
-        </div>
-        ${partyBtn}
+      <div class="mon-row${inParty ? ' in' : ''}${open ? ' open' : ''}">
+        <button class="mon-head" data-open="${m.id}">
+          <img src="${portraitUrl(m.dex)}" alt="" />
+          <span class="mon-main">
+            <span class="mon-name"><strong>${g.name(m)}</strong> <span>Lv ${m.level}</span>${inParty ? ' <em>In party</em>' : ''}</span>
+            <span class="bar"><i style="width:${pct}%"></i></span>
+            <span class="hint">${status}</span>
+          </span>
+        </button>
+        ${detail}
       </div>`
   }
-  private onSheetClick(e: Event) {
+
+  // Pokédex: every species on the island, and how to get the ones you lack
+  private dexTab() {
+    const g = this.game
+    const all = Object.keys(g.roster).map(Number).sort((a, b) => a - b)
+    const seen = new Set(g.save.seen)
+    const caught = new Set(g.save.caught)
+    const cells = all
+      .map((d) => {
+        const cls = caught.has(d) ? 'caught' : seen.has(d) ? 'seen' : 'unseen'
+        if (caught.has(d)) seen.add(d)
+        return `<button class="dex-cell ${cls}${this.dexPick === d ? ' on' : ''}" data-dex="${d}" aria-label="${seen.has(d) ? g.name(d) : 'Unknown'}">${seen.has(d) ? `<img src="${portraitUrl(d)}" alt="" />` : `<span>${d}</span>`}</button>`
+      })
+      .join('')
+    let caption = 'Tap a Pokémon to see how to find it.'
+    if (this.dexPick) {
+      const d = this.dexPick
+      const sp = g.species(d)
+      const known = seen.has(d)
+      const from = Object.entries(g.roster).find(([, s]) => s.evolvesTo.some((e) => e.dex === d))
+      const how = (() => {
+        if (sp.stage === 1) return sp.rarity === 'starter' ? 'It can be a starter, and rarely it visits from the tall grass.' : `It visits from the tall grass. It is ${sp.rarity === 'common' ? 'common' : sp.rarity === 'uncommon' ? 'uncommon' : 'rare'}.`
+        if (!from) return ''
+        const e = from[1].evolvesTo.find((x) => x.dex === d)!
+        const fromName = known || seen.has(Number(from[0])) ? from[1].name : 'another Pokémon'
+        if (e.level) return `It evolves from ${fromName} at level ${e.level}.`
+        if (e.item) return `It evolves from ${fromName} with ${aStone(e.item)}.`
+        return `It evolves from ${fromName} by friendship${e.time ? ` during the ${e.time}` : ''}.`
+      })()
+      caption = `<strong>${known ? sp.name : `No. ${d}`}</strong>. ${how}`
+    }
+    return `<p class="note">You have seen ${seen.size} and befriended ${caught.size} of the ${all.length} Pokémon that live around the island.</p>
+      <div class="dex-grid">${cells}</div><p class="hint dex-cap">${caption}</p>`
+  }
+
+  // Island: decorations bought with shells, placed on fixed spots
+  private islandTab() {
+    const g = this.game
+    const d = g.save.decor
+    const placed = new Set(Object.values(d.slots).filter(Boolean) as string[])
+    const free = SLOTS.filter((s) => !d.slots[s.id]).length
+    const locked = g.inSession
+    const rows = CATALOG.map((item) => {
+      const owned = d.owned.includes(item.id)
+      const act = !owned
+        ? `<button class="px-btn small${g.save.shells >= item.price ? ' primary' : ''}" data-buy="${item.id}" ${g.save.shells < item.price || locked ? 'disabled' : ''}>Buy for ${item.price}</button>`
+        : placed.has(item.id)
+          ? `<button class="px-btn small" data-move="${item.id}" ${locked ? 'disabled' : ''}>Move</button><button class="px-btn small" data-store="${item.id}" ${locked ? 'disabled' : ''}>Put away</button>`
+          : `<button class="px-btn small primary" data-place="${item.id}" ${!free || locked ? 'disabled' : ''}>Place</button>`
+      return `<div class="decor-row"><div class="mon-main"><p><strong>${item.name}</strong> <span class="hint">${owned ? (placed.has(item.id) ? 'On the island' : 'Put away') : `${item.price} shells`}</span></p><p class="hint">${item.blurb}</p></div><div class="row-actions">${act}</div></div>`
+    }).join('')
+    return `<p class="inv"><span>Shells <b>${g.save.shells}</b></span><span>${free} of ${SLOTS.length} spots free</span></p>
+      <p class="note">You earn one shell for every focused minute. Decorations are only for looks, and they never change what visits or how fast anyone grows.${locked ? ' You can decorate between sessions.' : ''}</p>${rows}`
+  }
+
+  private friendsTab() {
+    const c = this.h.cloud
+    const st = c.state()
+    if (st === 'off') return `<p class="note">Friends need the online service, which is not set up in this copy of the island.</p>`
+    if (st === 'signedOut')
+      return `<p class="row-title">See your friends' islands</p>
+        <p class="note">Sign in with the email you use for Studdy. Your Studdy friends become your island friends, and they can see your party and when you are studying. They never see what you work on.</p>
+        <form class="inline-form" data-form="signin"><input class="px-input" type="email" name="email" placeholder="you@example.com" required /><button class="px-btn small primary">Send a link</button></form>`
+    if (st === 'needsName')
+      return `<p class="row-title">Choose a name</p>
+        <p class="note">Friends find you by this name. It is shared with Studdy.</p>
+        <form class="inline-form" data-form="name"><input class="px-input" name="name" maxlength="20" placeholder="Your name" required /><button class="px-btn small primary">Save</button></form>`
+    if (st === 'missingSchema') return `<p class="note">You are signed in, but the island's part of the online service is not set up yet.</p>`
+    const me = c.me()!
+    const fc = this.friendsCache
+    const reqs = (fc?.requests ?? [])
+      .map((r) => `<div class="decor-row"><div class="mon-main"><p><strong>${esc(r.name)}</strong> <span class="hint">@${esc(r.handle)} wants to be friends.</span></p></div><div class="row-actions"><button class="px-btn small primary" data-accept="${r.rowId}">Accept</button><button class="px-btn small" data-decline="${r.rowId}">Decline</button></div></div>`)
+      .join('')
+    const rows = (fc?.friends ?? [])
+      .map((f) => {
+        const party = f.party.map((p) => `<span class="mini"><img src="${portraitUrl(p.dex)}" alt="" /><i>${p.level}</i></span>`).join('')
+        const status = f.studying ? 'Studying now.' : f.dayMin ? `Focused ${fmtMinutes(f.dayMin)} in the last day.` : 'Not studying right now.'
+        const waveBtn = f.studying && !this.game.inSession ? `<button class="px-btn small" data-wave="${f.id}">Wave</button>` : ''
+        return `<div class="friend-row${f.studying ? ' live' : ''}"><div class="mon-main"><p><strong>${esc(f.name)}</strong> <span class="hint">@${esc(f.handle)}</span></p><p class="hint">${status} ${f.dexCount ? `Pokédex: ${f.dexCount}.` : ''}</p></div><div class="mini-party">${party}</div>${waveBtn}</div>`
+      })
+      .join('')
+    return `<p class="note">You are signed in as ${esc(me.name)} (@${esc(me.handle)}). Friends see your party and whether you are studying, never what you work on.</p>
+      ${reqs}
+      ${fc ? rows || `<p class="note">No friends yet. Add someone by their Studdy handle.</p>` : `<p class="note">Loading your friends…</p>`}
+      ${fc?.error ? `<p class="note">${esc(fc.error)}</p>` : ''}
+      <form class="inline-form" data-form="add"><input class="px-input" name="handle" maxlength="21" placeholder="@handle" required /><button class="px-btn small">Add friend</button></form>
+      <button class="px-btn small quiet" data-act="signout">Sign out</button>`
+  }
+
+  private moreTab() {
+    const g = this.game
+    const len = g.save.settings.length
+    const det = g.save.settings.detector
+    const idleOk = typeof (window as unknown as { IdleDetector?: unknown }).IdleDetector === 'function'
+    const streak = g.streak()
+    return `
+      <p class="row-title">Session length</p>
+      <div class="segs wide">
+        <button class="seg${len === 1500 ? ' on' : ''}" data-len="25">25 minutes</button>
+        <button class="seg${len === 3000 ? ' on' : ''}" data-len="50">50 minutes</button>
+        <button class="seg${len === null ? ' on' : ''}" data-len="open">Open</button>
+      </div>
+      <p class="note">A finished session brings a visitor and ripens a berry. A 50-minute session ripens two berries and makes rare visitors two and a half times as likely. In an open session, a visitor comes every 30 focused minutes. Visitors stop after 12 a day.</p>
+      <p class="row-title">Your focus</p>
+      <p class="note">Today you have focused for ${fmtMinutes(g.todayMinutes())}.${streak ? ` You have focused ${streak} day${streak === 1 ? '' : 's'} in a row.` : ''} Stones wash ashore on the 3rd, 7th, 14th and 30th day in a row.</p>
+      <p class="row-title">Noticing when you step away</p>
+      ${
+        det
+          ? `<p class="note">Idle detection is on. If your computer sees no keyboard or mouse use for 10 minutes, the island asks whether you are still studying. If the screen locks, the clock pauses right away.</p>`
+          : `<p class="note">The island asks whether you are still studying every 20 minutes. ${idleOk ? 'If you turn on idle detection, it only asks after 10 minutes without keyboard or mouse use. The browser shares only whether you are active, never what you are doing.' : ''}</p>
+             ${idleOk ? `<button class="px-btn small" data-act="idle">Turn on idle detection</button>` : ''}`
+      }
+      ${this.h.popOut ? `<p class="row-title">Window</p><button class="px-btn small" data-act="popout">Pop out the island</button>` : ''}
+      ${this.h.quit ? `<p class="row-title">Window</p><p class="note">Drag the island to move it. Your progress is saved.</p><button class="px-btn small" data-act="quit">Close the island</button>` : ''}
+      <p class="row-title">Credits</p>
+      <div class="credits-body">${this.credits()}</div>`
+  }
+
+  private async onSheetClick(e: Event) {
     const t = e.target as HTMLElement
-    const tab = t.closest<HTMLElement>('[data-tab]')
-    if (tab) return this.openSheet(tab.dataset.tab as 'mons')
-    const act = t.closest<HTMLElement>('[data-act]')?.dataset.act
+    const at = (k: string) => t.closest<HTMLElement>(`[data-${k}]`)?.dataset[k.replace(/-./g, (x) => x[1].toUpperCase())]
+    const btn = t.closest<HTMLButtonElement>('button')
+    if (btn?.disabled) return
+    const tab = at('tab')
+    if (tab) return this.openSheet(tab as Tab)
+    const act = at('act')
     if (act === 'close') return this.closeSheet()
     if (act === 'idle') return this.h.enableIdle()
+    if (act === 'quit') return this.h.quit?.()
     if (act === 'popout') {
       this.closeSheet()
       return this.h.popOut?.()
     }
-    const len = t.closest<HTMLElement>('[data-len]')?.dataset.len
+    if (act === 'signout') {
+      await this.h.cloud.signOut()
+      this.friendsCache = null
+      return this.renderSheet()
+    }
+    const len = at('len')
     if (len) {
       this.h.setLength(len === 'open' ? null : Number(len) * 60)
       this.lastFocusKey = ''
       return this.renderSheet()
     }
-    const p = t.closest<HTMLButtonElement>('[data-party]')
-    if (p && !p.disabled) {
-      const [id, on] = p.dataset.party!.split(':')
-      this.h.toggleParty(id, on === '1')
+    const open = at('open')
+    if (open) {
+      this.openMon = this.openMon === open ? null : open
+      this.stonePick = null
       return this.renderSheet()
     }
-    const allow = t.closest<HTMLElement>('[data-allow]')?.dataset.allow
-    if (allow) {
-      this.h.allowEvolution(allow)
-      return this.renderSheet()
-    }
+    const id = (k: string) => at(k)
+    let v: string | undefined
+    if ((v = id('party'))) {
+      const [mid, on] = v.split(':')
+      this.h.toggleParty(mid, on === '1')
+    } else if ((v = id('feed'))) this.h.feed(v)
+    else if ((v = id('stones'))) this.stonePick = v
+    else if (at('stonecancel')) this.stonePick = null
+    else if ((v = id('give'))) {
+      const [mid, item] = v.split(':')
+      this.stonePick = null
+      this.h.giveStone(mid, item)
+    } else if ((v = id('take'))) this.h.takeStone(v)
+    else if ((v = id('allow'))) this.h.allowEvolution(v)
+    else if ((v = id('buy'))) this.h.buyDecor(v)
+    else if ((v = id('place'))) this.h.placeDecor(v)
+    else if ((v = id('move'))) this.h.moveDecor(v)
+    else if ((v = id('store'))) this.h.storeDecor(v)
+    else if ((v = id('dex'))) this.dexPick = Number(v)
+    else if ((v = id('accept')) || (v = id('decline'))) {
+      await this.h.cloud.answer(Number(v), !!at('accept'))
+      await this.loadFriends()
+    } else if ((v = id('wave'))) {
+      this.note = await this.h.cloud.wave(v)
+    } else return
+    this.renderSheet()
   }
-  refreshSheet() {
-    if (!this.sheet.hidden) this.renderSheet()
+
+  private async onSheetSubmit(e: Event) {
+    e.preventDefault()
+    const f = e.target as HTMLFormElement
+    const kind = f.dataset.form
+    const val = (name: string) => (f.elements.namedItem(name) as HTMLInputElement | null)?.value ?? ''
+    if (kind === 'signin') this.note = await this.h.cloud.signIn(val('email'))
+    if (kind === 'name') this.note = await this.h.cloud.claimName(val('name'))
+    if (kind === 'add') {
+      this.note = await this.h.cloud.request(val('handle'))
+      await this.loadFriends()
+    }
+    this.renderSheet()
   }
 }

@@ -13,14 +13,26 @@ Read `docs/PLAN.md` first. It holds the approved plan and the decision log. Paul
 - **T1, the playable slice, is built** (2026-11-11) on the approved T0 look ("looks brilliant").
   - It covers the starter pick, focus sessions, EXP and levels, real-level evolution, visitors and befriending, the box, step-away detection, the `?debug` panel, and the in-window HUD.
   - See VALIDATION.md for what was checked and what still needs real Chrome.
-- **Next: T2**, Supabase accounts and friends with server-witnessed sessions (Studdy's project). It waits for Paul's go-ahead.
+- **The loop pass, T2 and T3 are built** (2026-11-11). `docs/LOOP.md` is the pricing law:
+  - Every focused minute gives 1 EXP to each party Pokémon and 1 shell.
+  - Each finished session brings a visitor and ripens berries. A 50-minute session makes rare visitors 2.5 times as likely.
+  - Streak days wash stones ashore, and 10 hours of bond unlock friendship evolutions.
+  - Every choice happens in the 5-minute break after a session.
+  - T2 is Studdy accounts and friends: `supabase/island.sql` plus `src/cloud.ts`. T3 is stone and friendship evolutions (45 species), shell decorations, and the Tauri desktop pet (`src-tauri/`, plus `?float`).
+- **What Paul has to do:**
+  - Run `supabase/island.sql` in Studdy's SQL editor.
+  - Add the island's URLs to Supabase Auth's redirect allow-list.
+  - Install Rust (rustup) to build the desktop app.
+  - See VALIDATION.md for the full list.
 - The repo is not deployed.
 
 ## Run
 - `npm install`, then `npm run dev`. It serves on port 5600, under the launch.json entry `island`.
 - `npm run sprites` pulls the evolution data from PokéAPI, then the sprites from SpriteCollab. Both are cached, pinned and throttled, so a re-run is a no-op.
   - The roster lives in `scripts/roster.mjs` (Gens 1–4, level-up evolutions only in T1).
-- `?popout` shows the window-only view.
+- `?popout` shows the window-only view. `?float` previews the desktop-pet mode in a browser.
+- `npm run desktop` runs the Tauri app, and `npm run desktop:build` builds the .app and .dmg. Both need Rust.
+- `.env` (gitignored) holds Studdy's public Supabase URL, anon key and Turnstile site key. Without it, the online part switches off.
 - `?debug` adds demo controls below the window: add focused minutes, finish the session, a visitor, the lead ready to evolve, an ask or idle prompt, screen lock, activity, a sleep gap, the hour, and reset.
 
 ## Map
@@ -36,6 +48,18 @@ Read `docs/PLAN.md` first. It holds the approved plan and the decision log. Paul
   - Check-ins come every 20 minutes. With the idle detector, an unanswered idle question takes back 10 minutes, and EXP never de-levels.
   - Level L costs L EXP. Visitors are drawn by weighted rarity.
 - `src/presence.ts`: the Idle Detection API wrapper (active or idle, locked or unlocked only).
+- `src/cloud.ts`: the online half (T2).
+  - Accounts are shared with Studdy through email magic links behind Turnstile; there is never an anonymous sign-in.
+  - Verified sessions use `island_session_begin`, `island_session_beat` and `island_session_end`; a beat goes out every 60 s while running, and the session ends when you step away.
+  - `island_publish` sends the party (the server clamps it). Friends come through `island_friends`, which reuses Studdy's friend requests.
+  - Waves arrive at your next break.
+  - Every call no-ops politely when the island's tables are missing (the `missingSchema` state).
+- `src/decor.ts`: the decoration catalog, the six fixed `SLOTS`, and pixel-art painters, with a glow or live animation per item.
+- `supabase/island.sql`: additive island_* tables and functions on Studdy's project. It was tested on Postgres 16 with stubbed auth (see VALIDATION.md).
+- `src-tauri/`: the desktop pet.
+  - The window is transparent, frameless and always on top, and starts in the bottom-right corner.
+  - `idle_seconds` comes from the user-idle crate.
+  - The web app switches to float mode when it sees `__TAURI_INTERNALS__`.
 - `src/hud.ts`: the in-window UI, laid out in island pixels and scaled with the canvas.
   - It has the focus widget, the party chips, the PMD-style dialog queue (portrait plus text), toasts, the Pokémon/Settings/Credits sheet, and the starter picker.
 - `src/main.ts`: orchestration.
@@ -61,4 +85,6 @@ Read `docs/PLAN.md` first. It holds the approved plan and the decision log. Paul
 - `syncParty()` is async because sprites load lazily, so a creature appears a tick after the save changes.
 - Screenshots of the Claude pane can be stale. Confirm UI state from the DOM.
 - Editing a module during dev triggers a full reload, which resets `setHour` overrides. The save persists.
+- Float mode tints at night by multiplying, then cutting the result back to a copy of the scene's alpha. A plain multiply would paint the transparent desktop.
+- Visitor odds are tuned so the copy stays true. Measured over 20,000 draws, rare is about 4% normally and 2.5 times that after a 50-minute session (weight `RARE_50` = 3.3). Re-measure after changing the roster.
 - Keep big final forms off the roster unless they fit. Gyarados has a 72×128 frame, so Magikarp was swapped for Hoppip.

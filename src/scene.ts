@@ -3,6 +3,7 @@
 import { Creature } from './creature'
 import { H, IslandLayout, PAL, W, buildIsland, paintBush, paintLantern, paintTree } from './island'
 import { hash2, rng } from './pixel'
+import { DecorArt, SLOTS, decorArt } from './decor'
 import type { Species } from './sprites'
 
 interface Tuft {
@@ -70,6 +71,9 @@ export class Scene {
   creatures: Creature[] = []
   time = 0
   hour = 10
+  /** desktop-pet mode: no open sea, transparent around the island */
+  float = false
+  private mask = document.createElement('canvas')
   private tree = paintTree()
   private bush = paintBush()
   private lantern = paintLantern()
@@ -78,6 +82,7 @@ export class Scene {
   private rustle = 0
   private rand = rng(7)
   private seaPts: { x: number; y: number }[] = []
+  private decor: { x: number; y: number; art: DecorArt }[] = []
 
   constructor() {
     this.island = buildIsland()
@@ -119,6 +124,19 @@ export class Scene {
     const c = new Creature(sp, x, y, this.island, this.rand)
     this.creatures.push(c)
     return c
+  }
+
+  /** Place decorations by slot; also keeps their footprints clear of wandering Pokémon. */
+  setDecor(slots: Record<string, string | null>) {
+    this.decor = []
+    this.island.blockers.length = 0
+    for (const sl of SLOTS) {
+      const id = slots[sl.id]
+      const art = id ? decorArt(id) : undefined
+      if (!art) continue
+      this.decor.push({ x: sl.x, y: sl.y, art })
+      this.island.blockers.push({ x: sl.x, y: sl.y, r: art.r })
+    }
   }
 
   remove(c: Creature) {
@@ -166,8 +184,14 @@ export class Scene {
     const night = nightness(this.hour)
     g.imageSmoothingEnabled = false
     g.globalCompositeOperation = 'source-over'
-    g.drawImage(this.island.base, 0, 0)
-    this.drawWater(g, night)
+    if (this.float) {
+      g.clearRect(0, 0, W, H)
+      g.drawImage(this.island.floatBase, 0, 0)
+      this.drawWater(g, night, true)
+    } else {
+      g.drawImage(this.island.base, 0, 0)
+      this.drawWater(g, night)
+    }
 
     // y-sorted world: props, tufts, Pokémon
     type Item = { y: number; draw: () => void }
@@ -177,14 +201,38 @@ export class Scene {
     items.push({ y: bush.y, draw: () => g.drawImage(this.bush.img, bush.x - this.bush.ax, bush.y - this.bush.ay) })
     items.push({ y: lantern.y, draw: () => g.drawImage(this.lantern.img, lantern.x - this.lantern.ax, lantern.y - this.lantern.ay) })
     for (const tf of this.tufts) items.push({ y: tf.y, draw: () => this.drawTuft(g, tf) })
+    for (const d of this.decor) {
+      // flat ground pieces (no footprint) sit under everything
+      items.push({
+        y: d.art.r ? d.y : -1,
+        draw: () => {
+          g.drawImage(d.art.img, d.x - d.art.ax, d.y - d.art.ay)
+          // moving parts that are not light (windmill sails) take the day/night grade
+          if (!d.art.glow) d.art.live?.(g, d.x, d.y, this.time, nightness(this.hour))
+        },
+      })
+    }
     for (const c of this.creatures) items.push({ y: c.y, draw: () => c.draw(g) })
     items.sort((a, b) => a.y - b.y)
     for (const it of items) it.draw()
 
     // light: multiply the whole scene by the hour's colour
+    if (this.float) {
+      // multiply would paint the transparent desktop too, so keep a copy of the
+      // scene's alpha and cut the tint back to it
+      this.mask.width = W
+      this.mask.height = H
+      const mg = this.mask.getContext('2d')!
+      mg.clearRect(0, 0, W, H)
+      mg.drawImage(g.canvas, 0, 0)
+    }
     g.globalCompositeOperation = 'multiply'
     g.fillStyle = lightAt(this.hour)
     g.fillRect(0, 0, W, H)
+    if (this.float) {
+      g.globalCompositeOperation = 'destination-in'
+      g.drawImage(this.mask, 0, 0)
+    }
     g.globalCompositeOperation = 'source-over'
 
     // the lantern at dusk and night: feathered warm light that breathes slowly
@@ -224,12 +272,30 @@ export class Scene {
       g.fillRect(cx - r, cy - r, r * 2, r * 2)
       g.globalCompositeOperation = 'source-over'
     }
+    // decorations that glow or move: feathered light first, then their live pixels
+    for (const d of this.decor) {
+      const gl = d.art.glow
+      if (gl && night > 0.02) {
+        const cx = d.x + gl.x
+        const cy = d.y + gl.y
+        const breath = 0.88 + 0.12 * Math.sin((this.time * Math.PI * 2) / 9 + d.x)
+        g.globalCompositeOperation = 'lighter'
+        const grad = g.createRadialGradient(cx, cy, 0, cx, cy, gl.r)
+        grad.addColorStop(0, `rgba(${gl.rgb}, ${0.3 * night * breath})`)
+        grad.addColorStop(0.4, `rgba(${gl.rgb}, ${0.1 * night * breath})`)
+        grad.addColorStop(1, `rgba(${gl.rgb}, 0)`)
+        g.fillStyle = grad
+        g.fillRect(cx - gl.r, cy - gl.r, gl.r * 2, gl.r * 2)
+        g.globalCompositeOperation = 'source-over'
+      }
+      if (gl) d.art.live?.(g, d.x, d.y, this.time, night)
+    }
     for (const c of this.creatures) c.drawZs(g)
   }
 
-  private drawWater(g: CanvasRenderingContext2D, night: number) {
+  private drawWater(g: CanvasRenderingContext2D, night: number, lagoonOnly = false) {
     // glints: short light dashes that drift and fade in and out
-    for (const gl of this.glints) {
+    for (const gl of lagoonOnly ? [] : this.glints) {
       const k = gl.t / gl.life
       const a = Math.sin(k * Math.PI) ** 2
       g.globalAlpha = a * (0.75 - night * 0.35)

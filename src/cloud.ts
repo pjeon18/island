@@ -1,0 +1,277 @@
+// The online half of the island (T2), on Studdy's Supabase project. It is
+// entirely optional: without env vars, or before supabase/island.sql has been
+// run, the island stays fully playable on its own.
+//
+// Accounts are Studdy accounts. On GitHub Pages both apps live on
+// pjeon18.github.io, so a Studdy sign-in carries over automatically. The
+// island never signs anyone in anonymously: you sign in by email when you
+// want friends, and Studdy's friends become your island's friends.
+import { createClient, type SupabaseClient, type Session } from '@supabase/supabase-js'
+
+const url = import.meta.env.VITE_SUPABASE_URL as string | undefined
+const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined
+const turnstileSiteKey = import.meta.env.VITE_TURNSTILE_SITE_KEY as string | undefined
+
+export type CloudState = 'off' | 'signedOut' | 'needsName' | 'missingSchema' | 'ready'
+export interface Me {
+  id: string
+  handle: string
+  name: string
+  email?: string
+}
+export interface Friend {
+  id: string
+  handle: string
+  name: string
+  party: { dex: number; level: number }[]
+  dexCount: number
+  dayMin: number
+  studying: boolean
+}
+export interface FriendRequest {
+  rowId: number
+  id: string
+  handle: string
+  name: string
+}
+
+let supa: SupabaseClient | null = null
+let session: Session | null = null
+let me: Me | null = null
+let state: CloudState = url && anonKey ? 'signedOut' : 'off'
+const listeners: ((s: CloudState) => void)[] = []
+const setState = (s: CloudState) => {
+  state = s
+  listeners.forEach((f) => f(s))
+}
+export const cloudState = () => state
+export const whoami = () => me
+export const onCloud = (f: (s: CloudState) => void) => listeners.push(f)
+
+const missing = (e: { code?: string; message?: string } | null) =>
+  !!e && (e.code === '42883' || e.code === '42P01' || e.code === 'PGRST202' || e.code === 'PGRST205' || /does not exist|Could not find/i.test(e.message ?? ''))
+
+// ---------- Turnstile (Studdy requires a captcha for sign-ins) ----------
+declare global {
+  interface Window {
+    turnstile?: { render: (el: HTMLElement, o: Record<string, unknown>) => string; remove: (id: string) => void }
+  }
+}
+async function captcha(): Promise<string | undefined> {
+  if (!turnstileSiteKey) return undefined
+  if (!window.turnstile) {
+    await new Promise<void>((res) => {
+      const s = document.createElement('script')
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit'
+      s.async = true
+      s.onload = () => res()
+      s.onerror = () => res()
+      document.head.append(s)
+    })
+  }
+  if (!window.turnstile) return undefined
+  return new Promise((resolve) => {
+    const el = document.createElement('div')
+    el.style.cssText = 'position:fixed;left:50%;bottom:24px;transform:translateX(-50%);z-index:200'
+    document.body.append(el)
+    let id: string | undefined
+    let done = false
+    const finish = (t?: string) => {
+      if (done) return
+      done = true
+      resolve(t)
+      try {
+        if (id) window.turnstile!.remove(id)
+      } catch {}
+      el.remove()
+    }
+    try {
+      id = window.turnstile!.render(el, {
+        sitekey: turnstileSiteKey,
+        appearance: 'interaction-only',
+        callback: (t: string) => finish(t),
+        'error-callback': () => finish(undefined),
+        'expired-callback': () => finish(undefined),
+      })
+      setTimeout(() => finish(undefined), 25000)
+    } catch {
+      finish(undefined)
+    }
+  })
+}
+
+// ---------- boot ----------
+export async function initCloud() {
+  if (state === 'off') return state
+  supa = createClient(url!, anonKey!)
+  supa.auth.onAuthStateChange((_e, s) => {
+    const was = session?.user.id
+    session = s
+    if (s?.user.id !== was) void loadMe()
+  })
+  const { data } = await supa.auth.getSession()
+  session = data.session
+  await loadMe()
+  return state
+}
+
+async function loadMe() {
+  if (!supa) return
+  if (!session) {
+    me = null
+    return setState('signedOut')
+  }
+  const { data } = await supa.from('profiles').select('handle, name').eq('user_id', session.user.id).maybeSingle()
+  if (!data) {
+    me = { id: session.user.id, handle: '', name: '', email: session.user.email ?? undefined }
+    return setState('needsName')
+  }
+  me = { id: session.user.id, handle: data.handle, name: data.name, email: session.user.email ?? undefined }
+  // is the island part of the database set up?
+  const probe = await supa.rpc('island_friends')
+  setState(missing(probe.error) ? 'missingSchema' : 'ready')
+}
+
+/** Send a sign-in link to the email you use for Studdy. */
+export async function signIn(email: string) {
+  if (!supa) return 'The online service is not set up in this build.'
+  const captchaToken = await captcha()
+  const { error } = await supa.auth.signInWithOtp({
+    email,
+    options: { emailRedirectTo: location.origin + location.pathname, captchaToken, shouldCreateUser: true },
+  })
+  return error ? `The link could not be sent: ${error.message}` : 'Check your email for a sign-in link. Open it in this browser.'
+}
+
+export async function signOut() {
+  await supa?.auth.signOut()
+  session = null
+  me = null
+  setState('signedOut')
+}
+
+/** First time on the shared accounts: claim a Studdy profile with a handle. */
+export async function claimName(name: string) {
+  if (!supa || !session) return 'You are not signed in.'
+  const clean = name.trim().slice(0, 20)
+  if (!clean) return 'Please enter a name.'
+  const base = clean.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 16) || 'trainer'
+  for (let attempt = 0; attempt < 6; attempt++) {
+    const salt = attempt ? String(Math.floor(Math.random() * 900 + 100)) : ''
+    const handle = (base.length < 3 ? base + 'xyz'.slice(0, 3 - base.length) : base).slice(0, 19 - salt.length) + salt
+    const { error } = await supa.from('profiles').insert({ user_id: session.user.id, handle, name: clean })
+    if (!error) {
+      await loadMe()
+      return ''
+    }
+    if (!/duplicate|unique/i.test(error.message)) return `That did not work: ${error.message}`
+  }
+  return 'That name is taken. Try another.'
+}
+
+// ---------- verified sessions ----------
+let sessionId: number | null = null
+let beatTimer = 0
+export async function sessionBegin() {
+  if (state !== 'ready' || !supa || sessionId) return
+  const { data, error } = await supa.rpc('island_session_begin')
+  if (error || typeof data !== 'number' || data < 0) return
+  sessionId = data
+  window.clearInterval(beatTimer)
+  // beats ~once a minute; the server counts at most 90 s per beat
+  beatTimer = window.setInterval(() => void beat(), 60_000)
+}
+async function beat() {
+  if (!supa || !sessionId) return
+  const { data } = await supa.rpc('island_session_beat', { p_id: sessionId })
+  if (data === -1) sessionId = null
+}
+export async function sessionEnd() {
+  window.clearInterval(beatTimer)
+  if (!supa || !sessionId) return
+  const id = sessionId
+  sessionId = null
+  await supa.rpc('island_session_end', { p_id: id })
+}
+
+// ---------- your public island ----------
+let publishTimer = 0
+export function publish(party: { dex: number; level: number }[], dexCount: number) {
+  if (state !== 'ready' || !supa) return
+  window.clearTimeout(publishTimer)
+  publishTimer = window.setTimeout(() => void supa!.rpc('island_publish', { p_party: party, p_dex_count: dexCount }), 4000)
+}
+
+// ---------- friends ----------
+export async function listFriends(): Promise<{ friends: Friend[]; requests: FriendRequest[]; error?: string }> {
+  if (state !== 'ready' || !supa || !me) return { friends: [], requests: [] }
+  const [f, r] = await Promise.all([
+    supa.rpc('island_friends'),
+    supa.from('friends').select('id, requester').eq('addressee', me.id).eq('status', 'pending'),
+  ])
+  if (f.error) return { friends: [], requests: [], error: f.error.message }
+  const friends: Friend[] = (f.data as Record<string, unknown>[]).map((x) => ({
+    id: String(x.user_id),
+    handle: String(x.handle ?? ''),
+    name: String(x.name ?? '').slice(0, 20),
+    party: (Array.isArray(x.party) ? x.party : [])
+      .slice(0, 3)
+      .map((p: { dex?: unknown; level?: unknown }) => ({ dex: Number(p.dex) | 0, level: Number(p.level) | 0 }))
+      .filter((p) => p.dex >= 1 && p.dex <= 493),
+    dexCount: Number(x.dex_count) | 0,
+    dayMin: Number(x.day_min) | 0,
+    studying: x.studying === true,
+  }))
+  let requests: FriendRequest[] = []
+  const rows = (r.data ?? []) as { id: number; requester: string }[]
+  if (rows.length) {
+    const { data } = await supa.from('profiles').select('user_id, handle, name').in('user_id', rows.map((x) => x.requester))
+    const byId = new Map((data ?? []).map((p) => [p.user_id as string, p]))
+    requests = rows
+      .map((x) => ({ rowId: x.id, id: x.requester, handle: String(byId.get(x.requester)?.handle ?? '?'), name: String(byId.get(x.requester)?.name ?? 'Someone') }))
+  }
+  return { friends, requests }
+}
+
+export async function requestFriend(handle: string) {
+  if (!supa || !me) return 'You are not signed in.'
+  const h = handle.trim().replace(/^@/, '').toLowerCase().slice(0, 20)
+  if (!h) return 'Enter a handle, like @paul.'
+  const { data } = await supa.from('profiles').select('user_id, name').eq('handle', h).maybeSingle()
+  if (!data) return `Nobody is called @${h}.`
+  if (data.user_id === me.id) return 'That is you.'
+  const { error } = await supa.from('friends').insert({ requester: me.id, addressee: data.user_id })
+  if (!error) return `Friend request sent to ${data.name}.`
+  if (/duplicate|unique/i.test(error.message)) return `You and ${data.name} already have a request or friendship.`
+  return `That did not work: ${error.message}`
+}
+export async function answerRequest(rowId: number, accept: boolean) {
+  if (!supa) return
+  if (accept) await supa.from('friends').update({ status: 'accepted' }).eq('id', rowId)
+  else await supa.from('friends').delete().eq('id', rowId)
+}
+
+export async function wave(userId: string) {
+  if (!supa) return 'You are not signed in.'
+  const { data, error } = await supa.rpc('island_wave', { p_to: userId })
+  if (error) return `That did not work: ${error.message}`
+  return data === 'ok'
+    ? 'You waved. They will see it at their next break.'
+    : data === 'already waved'
+      ? 'You waved a few minutes ago. Give them a little time.'
+      : data === 'too many'
+        ? 'You have waved a lot today. Try again tomorrow.'
+        : 'You can only wave to friends.'
+}
+
+/** Waves that arrived while you were focusing. Marks them seen. */
+export async function collectWaves(): Promise<string[]> {
+  if (state !== 'ready' || !supa || !me) return []
+  const { data } = await supa.from('island_waves').select('id, sender').eq('recipient', me.id).eq('seen', false).limit(10)
+  const rows = (data ?? []) as { id: number; sender: string }[]
+  if (!rows.length) return []
+  await supa.from('island_waves').update({ seen: true }).in('id', rows.map((r) => r.id))
+  const { data: ps } = await supa.from('profiles').select('user_id, name').in('user_id', [...new Set(rows.map((r) => r.sender))])
+  const names = new Map((ps ?? []).map((p) => [p.user_id as string, String(p.name).slice(0, 20)]))
+  return [...new Set(rows.map((r) => names.get(r.sender) ?? 'A friend'))]
+}

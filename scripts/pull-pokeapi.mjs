@@ -38,13 +38,30 @@ async function addSpecies(dex, extra) {
   return s
 }
 
-/** Plain level-up evolution with no other condition (time, item, gender…). */
-function plainLevel(details) {
-  return details.find((d) => {
-    if (d.trigger?.name !== 'level-up' || !d.min_level) return false
-    const extras = Object.entries(d).filter(([k, v]) => !['trigger', 'min_level', 'version_group', 'is_default'].includes(k) && v !== null && v !== '' && v !== false)
-    return extras.length === 0
-  })
+const STONES = new Set(['thunder-stone', 'water-stone', 'fire-stone', 'leaf-stone', 'ice-stone', 'sun-stone', 'moon-stone'])
+const MAX_DEX = 493 // Gens 1–4 only (complete PMD Collab coverage)
+
+/**
+ * The evolution methods the island supports, in order of preference:
+ *  - plain level-up                      → { level }
+ *  - a stone                             → { item }
+ *  - friendship, optionally by day/night → { friendship: true, time }
+ * Anything else (trade, location, held item…) is skipped.
+ */
+function method(details) {
+  const extras = (d, allowed) =>
+    Object.entries(d).filter(([k, v]) => ![...allowed, 'trigger', 'version_group', 'is_default', 'required_pokemon_form'].includes(k) && v !== null && v !== '' && v !== false)
+  for (const d of details) {
+    if (d.trigger?.name === 'level-up' && d.min_level && extras(d, ['min_level']).length === 0) return { level: d.min_level }
+  }
+  for (const d of details) {
+    if (d.trigger?.name === 'use-item' && STONES.has(d.item?.name) && extras(d, ['item']).length === 0) return { item: d.item.name }
+  }
+  for (const d of details) {
+    if (d.trigger?.name === 'level-up' && d.min_happiness && extras(d, ['min_happiness', 'time_of_day']).length === 0)
+      return { friendship: true, time: d.time_of_day || null }
+  }
+  return null
 }
 
 for (const line of LINES) {
@@ -55,10 +72,10 @@ for (const line of LINES) {
   const walk = async (node, stage) => {
     const from = idFromUrl(node.species.url)
     for (const next of node.evolves_to) {
-      const d = plainLevel(next.evolution_details)
-      if (!d) continue
       const to = idFromUrl(next.species.url)
-      species[from].evolvesTo.push({ dex: to, level: d.min_level })
+      const m = method(next.evolution_details)
+      if (!m || to > MAX_DEX) continue
+      species[from].evolvesTo.push({ dex: to, ...m })
       await addSpecies(to, { stage: stage + 1, line: line.dex })
       await walk(next, stage + 1)
     }
@@ -68,5 +85,5 @@ for (const line of LINES) {
 
 await fs.mkdir(path.join(ROOT, 'public', 'data'), { recursive: true })
 await fs.writeFile(path.join(ROOT, 'public', 'data', 'roster.json'), JSON.stringify({ source: 'https://pokeapi.co', species }, null, 1))
-for (const [dex, s] of Object.entries(species)) console.log(dex, s.name, s.rarity ?? '', s.evolvesTo.map((e) => `→${e.dex}@${e.level}`).join(' '))
+for (const [dex, s] of Object.entries(species)) console.log(dex, s.name, s.rarity ?? '', s.evolvesTo.map((e) => `→${e.dex}@${e.level ?? e.item ?? 'friendship' + (e.time ? '/' + e.time : '')}`).join(' '))
 console.log(Object.keys(species).length, 'species')

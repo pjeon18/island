@@ -19,6 +19,22 @@
   - Hoppip replaced Magikarp because Gyarados's 72×128 sprite dwarfs the island.
   - Only level-up evolutions are followed until T3.
 - **D4 (2026-11-11):** a Web Lock makes one window the clock owner, so the page and a plain pop-out can't double-count time.
+- **D5 (2026-11-11):** Paul asked me to plan and run T2 and T3, and to tighten how effort turns into reward. `docs/LOOP.md` is the new pricing law for that loop:
+  - Every focused minute gives 1 EXP to each party Pokémon and 1 shell.
+  - Each finished session brings a visitor and ripens a berry.
+  - A 50-minute session gives the same visitor count but makes rare visitors 2.5 times as likely, and ripens two berries. This fixes T1's bias toward short sessions.
+  - Visitors stop after 12 a day.
+  - Streaks of 3, 7, 14 and 30 days wash a stone ashore.
+  - 10 focused hours together in the party unlock friendship evolutions.
+  - Every choice happens in the 5-minute break after a session: befriend or let go, feed a berry worth 10 EXP to any Pokémon, give a stone, change the party, decorate, or wave to a friend.
+  - Stones, and evolutions reached through berries, take effect when your next session starts, which keeps Paul's rule that Pokémon evolve only while you work.
+- **D6 (T2):** the island shares Studdy's Supabase accounts and its profiles, friends and blocks tables. `supabase/island.sql` is additive (island_* tables and functions) and copies Studdy's beat law: at most 90 s per beat, 6 h per session, 16 h per day.
+  - What friends see is clamped to what verified minutes could have earned.
+  - The island never signs anyone in anonymously. You sign in by email only when you want friends.
+  - A wave reaches your friend at their next break, never during their focus.
+- **D7 (T3):** evolution methods are data-driven from PokéAPI: level, stone, and friendship by day or night. The roster grows to 45 species: Raichu, Vileplume, Bellossom and Eevee's seven forms.
+- **D8 (T3):** decorations are bought with shells and placed on six fixed spots, so the small window never needs a drag editor. There are nine items, priced from 40 to 400 shells. The lantern and campfire glow at night; the windmill's sails turn.
+- **D9 (T3):** the Tauri desktop app shows the island floating on a transparent, always-on-top window you drag by the island itself. It reads system idle time natively, with no permission prompt. The same mode can be previewed in a browser with `?float`.
 - **Still open:** the name ("island" is a working title) and a screenshot of the Reddit reference.
 
 ---
