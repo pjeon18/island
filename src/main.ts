@@ -610,6 +610,14 @@ async function placeGuardian() {
   scene.gate = { x: d.x + d.w + 7, y: d.y0 + 9 }
 }
 /** The guardian waits at the bottom of the island's gate dungeon (stage 6). */
+/** "Lv11" or "Lv10 to Lv11": the party's level range, for sizing up a guardian. */
+function partyLevels() {
+  const lv = game.party.map((m) => m.level)
+  if (!lv.length) return 'empty'
+  const lo = Math.min(...lv)
+  const hi = Math.max(...lv)
+  return lo === hi ? `Lv${lo}` : `Lv${lo} to Lv${hi}`
+}
 function askBattle() {
   const isl = game.islandDef
   const g = isl.guardian
@@ -617,7 +625,7 @@ function askBattle() {
   const cleared = game.save.guardians.includes(isl.id)
   hud.say({
     dex: g.dex,
-    text: cleared ? `The way into the dungeon. ${game.name(g.dex)} is beaten, but you can go back in.` : `${game.name(g.dex)} is ${g.where}. Go down with your party?`,
+    text: cleared ? `The way into the dungeon. ${game.name(g.dex)} is beaten, but you can go back in.` : `${game.name(g.dex)} Lv${g.level} is ${g.where}. Your party is ${partyLevels()}.`,
     actions: [
       { label: 'Enter', primary: true, run: () => (location.href = `${import.meta.env.BASE_URL}dungeon.html?id=${isl.dungeon}&gate=${isl.id}`) },
       { label: 'Not now', run: () => {} },
