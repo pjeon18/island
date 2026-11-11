@@ -900,7 +900,7 @@ function buildDebug() {
 
 // ---------- boot ----------
 async function boot() {
-  const [m, roster] = await Promise.all([loadManifest(), fetch(import.meta.env.BASE_URL + 'data/roster.json').then((r) => r.json())])
+  const [m, roster] = await Promise.all([loadManifest(), fetch(import.meta.env.BASE_URL + `data/roster.json?v=${__BUILD__}`).then((r) => r.json())])
   manifest = m
   game = new Game((roster as { species: Roster }).species)
   scene.hour = clockHour()

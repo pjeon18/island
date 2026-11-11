@@ -4,6 +4,8 @@ import path from 'node:path'
 
 export default defineConfig({
   base: process.env.BASE_PATH || '/',
+  // stamps data URLs so a new deploy never pairs new code with cached data (Pages caches 10 minutes)
+  define: { __BUILD__: JSON.stringify(Date.now().toString(36)) },
   server: { port: 5600, strictPort: true },
   plugins: [
     {

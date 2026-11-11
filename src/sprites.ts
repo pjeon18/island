@@ -74,7 +74,7 @@ function groundPoint(shadow: HTMLImageElement, w: number, h: number) {
 }
 
 export async function loadManifest(): Promise<Manifest> {
-  return (await fetch(base + 'manifest.json')).json()
+  return (await fetch(base + `manifest.json?v=${__BUILD__}`)).json()
 }
 
 export async function loadSpecies(m: Manifest, dex: string): Promise<Species> {
