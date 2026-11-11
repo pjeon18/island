@@ -265,16 +265,16 @@ export class Hud {
           ? ''
           : !s
             ? breakLeft > 0
-              ? `<div class="px-panel clock break"><span class="clock-t"></span><span class="clock-l">Break</span></div>
+              ? `<div class="clock break"><span class="clock-t"></span><span class="clock-l">Break</span></div>
                  <button class="px-btn primary small" data-f="start">Start focusing</button>${segs}`
               : `<button class="px-btn primary" data-f="start">Start focusing</button>${segs}`
             : s.state === 'running'
-              ? `<div class="px-panel clock"><span class="clock-t"></span><span class="clock-l">${g.together.length ? `With ${esc(g.together[0])}` : s.length ? 'Focusing' : 'Open'}</span></div>
+              ? `<div class="clock"><span class="clock-t"></span><span class="clock-l">${g.together.length ? `With ${esc(g.together[0])}` : s.length ? 'Focusing' : 'Open'}</span></div>
                  <button class="px-btn small" data-f="end">End session</button>`
               : s.state === 'asking'
-                ? `<div class="px-panel clock"><span class="clock-t"></span><span class="clock-l">Waiting for you</span></div>
+                ? `<div class="clock"><span class="clock-t"></span><span class="clock-l">Waiting for you</span></div>
                    <button class="px-btn primary small" data-f="still">I'm here</button>`
-                : `<div class="px-panel clock away"><span class="clock-t"></span><span class="clock-l">Paused</span></div>
+                : `<div class="clock away"><span class="clock-t"></span><span class="clock-l">Paused</span></div>
                    <button class="px-btn primary small" data-f="back">I am back</button>`
       if (!this.sheet.hidden) this.renderSheet()
     }
@@ -720,8 +720,7 @@ export class Hud {
     const hours = Math.floor(g.totalHours())
     const growth = here.id === 'home' ? GROWTH.map((x) => `<p class="hint"><i class="tick${hours >= x.hours ? ' on' : ''}"></i>${x.hours} h: ${x.text}</p>`).join('') : ''
     return `<p class="row-title">${here.name}</p>
-      <p class="stat-line"><span>Pokédex</span><b>${dex.caught}</b><span>of ${dex.all.length}</span></p>
-      <p class="stat-line"><span>Focused</span><b>${hours}</b><span>hours</span></p>
+      <div class="stat-rows"><p><span>Pokédex</span><b>${dex.caught} of ${dex.all.length}</b></p><p><span>Focused</span><b>${hours} ${hours === 1 ? 'hour' : 'hours'}</b></p></div>
       <div class="decor-row"><img class="shop-ico mini-face" src="${portraitUrl(gd.dex)}" alt="" /><div class="mon-main"><p>${g.name(gd.dex)} <span class="hint">Lv${gd.level}</span></p><p class="hint">${beaten ? 'Beaten. It joined you.' : `Guardian, ${gd.where}.`}</p></div><div class="row-actions row">${beaten ? '' : `<button class="px-btn small primary" data-act="challenge" ${g.inSession ? 'disabled' : ''}>Enter</button>`}</div></div>
       ${growth}
       <p class="row-title">Islands</p>${others}`

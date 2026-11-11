@@ -65,10 +65,17 @@ body { -webkit-font-smoothing: none; }
 .seg { appearance: none; font: 8px/1 var(--px); padding: 5px 6px; cursor: pointer; background: var(--fr-navy-2); color: #e8eef8 !important; text-shadow: none !important; border: 0; transition: background .15s; }
 .seg:hover { background: var(--fr-navy-3); }
 .seg.on { background: var(--fr-gold); color: var(--fr-gold-ink) !important; }
-.clock { display: flex; align-items: baseline; gap: 8px; padding: 5px 8px 4px; }
+/* the clock sits bare on the sea: white pixel text with a hard dark outline (no blur, no spread) */
+.clock {
+  --ol: #0c1830;
+  display: flex; align-items: baseline; gap: 8px; padding: 2px 2px 0;
+  color: #fff;
+  text-shadow: -1px 0 0 var(--ol), 1px 0 0 var(--ol), 0 -1px 0 var(--ol), 0 1px 0 var(--ol),
+    -1px -1px 0 var(--ol), 1px -1px 0 var(--ol), -1px 1px 0 var(--ol), 1px 1px 0 var(--ol), 2px 2px 0 var(--ol);
+}
 .clock-t { font: 16px/1 var(--px); }
-.clock-l { color: var(--fr-soft); }
-.clock.away .clock-t, .clock.break .clock-t { color: var(--fr-soft); }
+.clock .clock-l { color: #dfe8f4; text-shadow: inherit; }
+.clock.away .clock-t, .clock.break .clock-t { color: #c4d0e0; }
 
 /* party, top right: a compact FireRed-style list, one small card per Pokémon */
 .hud-party { position: absolute; right: 6px; top: 6px; line-height: 1.5; display: flex; flex-direction: column; align-items: stretch; gap: 3px; background: none; border: 0; padding: 0; cursor: pointer; }
@@ -302,9 +309,9 @@ html:has(.float), body:has(.float) { background: transparent; }
 .log-pager { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 8px; }
 
 /* secondary text: darker grey with a lighter shadow so small numbers stay crisp */
-.hint, .note, .log-time, .inv, .chip-row, .clock-l, .bag-cell span, .box-cell span, .dex-cell span { text-shadow: 1px 1px 0 var(--fr-soft-shadow); }
-.stat-line { display: flex; align-items: baseline; gap: 6px; margin: 2px 0; }
-.stat-line span { color: var(--fr-soft); text-shadow: 1px 1px 0 var(--fr-soft-shadow); }
-.stat-line span:first-child { width: 64px; }
-.stat-line b { font-weight: 400; font-size: 16px; line-height: 1.2; color: var(--fr-ink); }
+.hint, .note, .log-time, .inv, .chip-row, .bag-cell span, .box-cell span, .dex-cell span { text-shadow: 1px 1px 0 var(--fr-soft-shadow); }
+.stat-rows { margin: 2px 0 6px; }
+.stat-rows p { display: flex; justify-content: space-between; margin: 0; padding: 4px 2px 3px; border-bottom: 1px solid #e2e8f0; }
+.stat-rows span { color: var(--fr-soft); text-shadow: 1px 1px 0 var(--fr-soft-shadow); }
+.stat-rows b { font-weight: 400; color: var(--fr-ink); }
 .log-cell:first-child { flex-grow: 1.6; }
