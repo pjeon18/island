@@ -133,6 +133,8 @@ export class Scene {
   private gateArt = paintGate()
   /** Eggs in the nest (0..1 warmth each); the nest shows when there are eggs or a Day Care pair. */
   nest = { show: false, eggs: [] as number[] }
+  /** Little hearts that float up when you pet a Pokémon. */
+  hearts: { x: number; y: number; t: number }[] = []
   /** Pokémon that give off light at night (fire types), by dex4; set by main.ts from the roster. */
   glowDex = new Set<string>()
   private ncv = document.createElement('canvas') // the scene's normals, drawn alongside the colours
@@ -253,6 +255,51 @@ export class Scene {
     return { x: d.x + d.w / 2, y: d.y0 + 1 }
   }
 
+  /**
+   * Pokémon never stand on top of each other: any two closer than about one
+   * body apart drift apart, gently (depth counts more than width, since the
+   * view is three-quarter top-down). Pinned ones hold still and others step
+   * around them.
+   */
+  private separate(dt: number) {
+    const cs = this.creatures.filter((c) => c.state !== 'gone' && !c.hidden)
+    const MIN = 12
+    for (let i = 0; i < cs.length; i++)
+      for (let j = i + 1; j < cs.length; j++) {
+        const a = cs[i]
+        const b = cs[j]
+        let dx = b.x - a.x
+        let dy = (b.y - a.y) * 1.7
+        let d = Math.hypot(dx, dy)
+        if (d >= MIN) continue
+        if (d < 0.01) {
+          dx = this.rand() - 0.5
+          dy = this.rand() - 0.5
+          d = Math.hypot(dx, dy)
+        }
+        const push = ((MIN - d) / MIN) * 22 * dt
+        const nx = dx / d
+        const ny = dy / d / 1.7
+        const shove = (c: Creature, sx: number, sy: number) => {
+          if (c.pinned) return
+          const x = c.x + sx
+          const y = c.y + sy
+          // stay on land (or wherever it already is, like the pier)
+          if (this.island.walkable(x, y) || !this.island.walkable(c.x, c.y)) {
+            c.x = x
+            c.y = y
+          }
+        }
+        const both = !a.pinned && !b.pinned
+        shove(a, -nx * push * (both ? 1 : 2), -ny * push * (both ? 1 : 2))
+        shove(b, nx * push * (both ? 1 : 2), ny * push * (both ? 1 : 2))
+      }
+  }
+  /** Pet a Pokémon: it hops and a heart floats up. */
+  petAt(c: Creature) {
+    if (c.pet()) this.hearts.push({ x: c.x, y: c.y - Math.min(c.sp.anims.Idle.ay, 26) - 2, t: 0 })
+  }
+
   rustleGrass(seconds: number) {
     this.rustle = Math.max(this.rustle, seconds)
   }
@@ -280,6 +327,9 @@ export class Scene {
     this.rustle = Math.max(0, this.rustle - dt)
     for (const c of this.creatures) c.update(dt, this.creatures)
     this.creatures = this.creatures.filter((c) => c.state !== 'gone')
+    this.separate(dt)
+    for (const h of this.hearts) h.t += dt
+    this.hearts = this.hearts.filter((h) => h.t < 1.4)
     for (const gl of this.glints) gl.t += dt
     const before = this.glints.length
     this.glints = this.glints.filter((gl) => gl.t < gl.life)
@@ -451,6 +501,22 @@ export class Scene {
       if (gl) d.art.live?.(g, d.x, d.y, this.time, night)
     }
     for (const c of this.creatures) c.drawZs(g)
+    // hearts from petting: a 5×4 pixel heart that rises and fades
+    for (const h of this.hearts) {
+      const k = h.t / 1.4
+      const x = Math.round(h.x - 2 + Math.sin(h.t * 5) * 1)
+      const y = Math.round(h.y - k * 12)
+      g.globalAlpha = k < 0.15 ? k / 0.15 : 1 - Math.max(0, (k - 0.6) / 0.4)
+      g.fillStyle = '#e84a6a'
+      g.fillRect(x, y, 2, 1)
+      g.fillRect(x + 3, y, 2, 1)
+      g.fillRect(x, y + 1, 5, 1)
+      g.fillRect(x + 1, y + 2, 3, 1)
+      g.fillRect(x + 2, y + 3, 1, 1)
+      g.fillStyle = '#ffc0cc'
+      g.fillRect(x, y, 1, 1)
+      g.globalAlpha = 1
+    }
 
     // finds twinkle now and then: one soft pixel that fades in and out
     for (const f of this.finds) {

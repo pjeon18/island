@@ -218,6 +218,22 @@ export class Creature {
   }
 
   /** Which PMD action to show for the current state. */
+  /** You tapped it: it turns to you and hops (a sleeping one just puffs a z). */
+  pet() {
+    if (this.asleep) {
+      this.zs.push({ x: this.x + 5, y: this.y - 14, t: 0 })
+      return false
+    }
+    if (this.state === 'still' || this.state === 'leave' || this.state === 'emerge' || this.state === 'gone') return false
+    this.dir = 0
+    this.next = undefined
+    this.enter('hop', this.animLen('Hop') + 0.3)
+    return true
+  }
+  /** Things that must not be shoved by a crowd: standing at a post, being evolved, walking off. */
+  get pinned() {
+    return (this.anchor?.r === 0) || this.state === 'still' || this.state === 'leave' || this.state === 'emerge' || this.state === 'gone' || this.hidden
+  }
   /** The animation frame being shown (for the lighting pass's normals). */
   currentAnim() {
     return this.anim()

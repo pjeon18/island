@@ -189,7 +189,7 @@ export interface Save {
   mons: Mon[]
   session: Session | null
   days: Record<string, number> // local date → focused minutes
-  settings: { length: number | null; detector: boolean }
+  settings: { length: number | null; detector: boolean; sound?: boolean }
   seen: number[] // species that have visited or that you have raised
   caught: number[] // species you have owned
   shells: number
@@ -238,7 +238,7 @@ export const RARE_50 = 3.3 // rare-weight multiplier for a finished 50-minute se
 export const STONES = ['thunder-stone', 'water-stone', 'fire-stone', 'leaf-stone', 'ice-stone', 'sun-stone']
 // catching (docs/GAME_DESIGN.md, stage 1)
 export const PASSER_EVERY = 12 * 60 // a passer-by every 12 focused minutes
-export const WILD_MAX = 5 // at most this many wait on the island at once
+export const WILD_MAX = 3 // at most this many wait on the island at once (Paul: fewer, less crowded)
 export const PASSERS_PER_DAY = 24
 export const FIND_EVERY = 9 * 60
 export const WEATHER_EVERY = 15 * 60

@@ -91,8 +91,13 @@ let adopt: { dex: number; c: Creature } | null = null
 const evolving = new Set<string>()
 
 let spawnNext: { x: number; y: number } | null = null // a hatchling appears at the nest
+const ISLAND_CAP = 12
 async function syncParty(initial = false) {
-  const want = [...game.party, ...game.helpers]
+  // at most ISLAND_CAP Pokémon on the island: the party first, then helpers in the room left
+  // after waiting wild ones and friends' visitors (the rest keep working off-island)
+  const others = game.save.wild.length + scene.creatures.filter((c) => c.visitor && c.state !== 'leave').length
+  const room = Math.max(0, ISLAND_CAP - game.party.length - others)
+  const want = [...game.party, ...game.helpers.slice(0, room)]
   const ids = new Set(want.map((m) => m.id))
   // members who left the party walk off down the dock
   for (const c of scene.creatures) {
@@ -452,7 +457,14 @@ canvas.addEventListener('click', (e) => {
   if (vis) return hud.say({ dex: Number(vis.sp.dex), text: `${vis.visitor}'s ${vis.name} is visiting. ${vis.visitor} is studying too.`, auto: 5000 })
   if (scene.gate && Math.abs(scene.gate.x - x) < 8 && y > scene.gate.y - 13 && y < scene.gate.y + 2) return askBattle()
   const c = scene.creatures.find((c) => c.wildId && !c.hidden && c.state !== 'leave' && Math.abs(c.x - x) < 11 && y > c.y - 26 && y < c.y + 3)
-  if (!c) return
+  if (!c) {
+    // one of yours: it hops, a heart floats up, it cries, and its summary opens
+    const mine = scene.creatures
+      .filter((m) => m.monId && !m.hidden && m.state !== 'leave' && Math.abs(m.x - x) < 11 && y > m.y - 26 && y < m.y + 3)
+      .sort((a, b) => b.y - a.y)[0]
+    if (mine) return petMon(mine)
+    return hud.hideSummary()
+  }
   if (game.inSession) return hud.toast(`${c.name} is waiting for your break.`)
   openCatch(c)
 })
@@ -464,7 +476,7 @@ canvas.addEventListener('mousemove', (e) => {
   const over =
     !!catching ||
     scene.finds.some((f) => Math.abs(f.x - x) < 6 && y > f.y - 9 && y < f.y + 3) ||
-    scene.creatures.some((c) => c.wildId && !c.hidden && Math.abs(c.x - x) < 11 && y > c.y - 26 && y < c.y + 3)
+    scene.creatures.some((c) => (c.wildId || c.monId || c.visitor) && !c.hidden && Math.abs(c.x - x) < 11 && y > c.y - 26 && y < c.y + 3)
   canvas.style.cursor = over ? 'pointer' : ''
 })
 window.addEventListener('keydown', (e) => {
@@ -634,6 +646,28 @@ async function bootVisit(v: cloud.FriendScene & { id: string }) {
   new ResizeObserver(fitVisit).observe(canvas)
   fitVisit()
   window.requestAnimationFrame(raf)
+}
+
+// ---------- petting ----------
+const cries = new Map<number, HTMLAudioElement>()
+function cry(dex: number) {
+  if (game.save.settings.sound === false) return
+  let a = cries.get(dex)
+  if (!a) {
+    a = new Audio(`${import.meta.env.BASE_URL}cries/${dex}.mp3`)
+    a.volume = 0.22
+    cries.set(dex, a)
+  }
+  a.currentTime = 0
+  void a.play().catch(() => {})
+}
+function petMon(c: Creature) {
+  const m = c.monId ? game.mon(c.monId) : undefined
+  if (!m) return
+  const awake = !c.asleep
+  scene.petAt(c)
+  if (awake) cry(m.dex)
+  hud.showSummary(m.id)
 }
 
 /** Party life: now and then two Pokémon play together or nap side by side. */
@@ -1395,6 +1429,18 @@ async function boot() {
         if (!ok) hud.toast('Idle detection is off.')
       },
       challenge: askBattle,
+      pet: (id) => {
+        const c = scene.byMon(id)
+        if (c) {
+          scene.petAt(c)
+          if (!c.asleep) cry(game.mon(id)!.dex)
+        }
+      },
+      toggleSound: () => {
+        game.save.settings.sound = game.save.settings.sound === false
+        game.persist()
+        hud.refreshSheet()
+      },
       cheats: () => hud.toggleCheats(CHEATS, cheat),
       visit: (id) => void visitFriend(id),
       gift: (id, name, kind, ref) => void sendGift(id, name, kind, ref),
@@ -1502,7 +1548,7 @@ function creditsHtml() {
   const rows = Object.values(manifest.species)
     .map((s) => `<li><strong>${s.name}</strong> ${names(s.credits.sprite)} / ${names(s.credits.portrait)}</li>`)
     .join('')
-  return `<p>PMD Sprite Repository, CC BY-NC 4.0. Sprite / portrait artists:</p><ul>${rows}</ul>`
+  return `<p>PMD Sprite Repository, CC BY-NC 4.0. Cries and page sprites: Pokémon Showdown. Data and item icons: PokéAPI. Sprite / portrait artists:</p><ul>${rows}</ul>`
 }
 
 window.__island = {

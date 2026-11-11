@@ -88,3 +88,8 @@ This is a free, non-commercial fan project with no affiliation.
 - **Abomasnow** (#460): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), SingingMudkip
 - **Leafeon** (#470): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), baronessfaron; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), baronessfaron
 - **Glaceon** (#471): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, baronessfaron; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, PhillipsYoung (https://twitter.com/PhilliYoung196)
+
+
+## Cries
+
+Pokémon cries (`public/cries/`) come from Pokémon Showdown's cry library (play.pokemonshowdown.com/audio/cries), copied from PokéMAPs where it already had them. Pokémon is © Nintendo, Creatures Inc. and GAME FREAK inc.

@@ -74,6 +74,8 @@ export interface HudHandlers {
   expedition: (id: string, long: boolean) => void
   challenge: () => void
   cheats?: () => void
+  pet: (id: string) => void
+  toggleSound: () => void
   visit: (id: string) => void
   gift: (friendId: string, friendName: string, kind: 'mon' | 'egg' | 'item', ref: string) => void
   sail: (to: IslandId) => void
@@ -158,6 +160,7 @@ export class Hud {
       <div class="hud-sheet" hidden></div>
       <div class="hud-catch px-panel" hidden></div>
       <div class="hud-cheats px-panel" hidden></div>
+      <div class="hud-summary px-panel" hidden></div>
 
       <div class="hud-starter" hidden></div>`
     host.append(this.el)
@@ -247,6 +250,7 @@ export class Hud {
     const t = this.focus.querySelector('.clock-t')
     if (t) t.textContent = s ? (s.length ? fmtClock(s.length - s.credited) : fmtClock(s.credited)) : fmtClock(breakLeft)
 
+    if (this.summaryId) this.renderSummary()
     const pk = g.party.map((m) => `${m.id}:${m.dex}:${m.level}:${m.exp}`).join('|')
     if (pk !== this.lastPartyKey) {
       this.lastPartyKey = pk
@@ -337,6 +341,56 @@ export class Hud {
     this.catchEl.hidden = true
   }
 
+  // ---------- a Pokémon's summary card ----------
+  private summaryId: string | null = null
+  private summaryKey = ''
+  /** The card you get from tapping one of your Pokémon: how it is doing, at a glance. */
+  showSummary(id: string) {
+    this.summaryId = id
+    this.summaryKey = ''
+    this.renderSummary()
+  }
+  hideSummary() {
+    this.summaryId = null
+    this.el.querySelector<HTMLElement>('.hud-summary')!.hidden = true
+  }
+  private renderSummary() {
+    const el = this.el.querySelector<HTMLElement>('.hud-summary')!
+    const g = this.game
+    const m = this.summaryId ? g.mon(this.summaryId) : undefined
+    if (!m) return this.hideSummary()
+    const key = `${m.id}:${m.dex}:${m.level}:${m.exp}:${m.focusedMin}:${g.roleOf(m.id)}:${m.heldItem}:${g.inSession}:${g.save.berries}`
+    if (key === this.summaryKey && !el.hidden) return
+    this.summaryKey = key
+    const sp = g.species(m.dex)
+    const types = (sp?.types ?? ['normal']).map((t) => `<span class="type t-${t}">${t.toUpperCase()}</span>`).join('')
+    const role = g.roleOf(m.id)
+    const roleText = role === 'party' ? 'In your party' : role === 'box' ? 'Resting in the box' : role === 'daycare' ? 'At the Day Care' : role === 'expedition' ? 'Away on a trip' : JOBS.find((j) => `job:${j.id}` === role)!.name
+    const need = expToNext(m.level)
+    el.innerHTML = `
+      <div class="sum-head"><img class="sum-face" src="${portraitUrl(m.dex, 'Happy')}" alt="" onerror="this.src='${portraitUrl(m.dex)}'" />
+        <div class="sum-id"><p>${esc(g.name(m))} <span class="hint">Lv${m.level}</span></p><p class="sum-types">${types}</p></div>
+        <button class="close-x" data-s="close" aria-label="Close"></button></div>
+      <p class="sum-line"><span class="hint">EXP</span><span class="thin wide"><i style="width:${Math.round((m.exp / need) * 100)}%"></i></span><span class="hint">${need - m.exp} to Lv${m.level + 1}</span></p>
+      <p class="sum-line hint">${roleText}. ${fmtMinutes(m.focusedMin)} together.</p>
+      ${m.heldItem ? `<p class="sum-line hint">${icon(m.heldItem, 'ico-s')}Holding ${aStone(m.heldItem)}.</p>` : ''}
+      <p class="sum-line hint">${this.evoText(m)}</p>
+      <div class="row-actions"><button class="px-btn small primary" data-s="pet">Pet</button><button class="px-btn small" data-s="feed" ${g.inSession || g.save.berries <= 0 ? 'disabled' : ''}>${icon('oran-berry', 'ico-s')}Feed</button><button class="px-btn small" data-s="more">More</button></div>`
+    el.onclick = (e) => {
+      const a = (e.target as HTMLElement).closest<HTMLElement>('[data-s]')?.dataset.s
+      if (!a || !this.summaryId) return
+      if (a === 'close') return this.hideSummary()
+      if (a === 'pet') return this.h.pet(this.summaryId)
+      if (a === 'feed') return this.h.feed(this.summaryId)
+      if (a === 'more') {
+        this.openMon = this.summaryId
+        this.hideSummary()
+        this.openSheet('mons')
+      }
+    }
+    el.hidden = false
+  }
+
   // ---------- cheats (testing) ----------
   /** Show or hide the Cheats window: every event, one button each. */
   toggleCheats(groups: { title: string; items: [string, string][] }[], run: (id: string) => void) {
@@ -386,6 +440,7 @@ export class Hud {
   }
   openSheet(tab: Tab) {
     this.el.querySelector<HTMLElement>('.hud-cheats')!.hidden = true
+    if (tab !== 'mons' || !this.openMon) this.hideSummary()
     this.tab = tab
     this.note = ''
     this.sheet.hidden = false
@@ -698,6 +753,7 @@ export class Hud {
       }
       ${this.h.popOut ? `<p class="row-title">Window</p><button class="px-btn small" data-act="popout">Pop out</button>` : ''}
       ${this.h.quit ? `<p class="row-title">Window</p><button class="px-btn small" data-act="quit">Close</button>` : ''}
+      <p class="row-title">Sound</p><button class="px-btn small" data-act="sound">Cries ${g.save.settings.sound === false ? 'off' : 'on'}</button>
       ${this.h.cheats ? `<p class="row-title">Testing</p><button class="px-btn small" data-act="cheats">Cheats</button>` : ''}
       <p class="row-title">Credits</p>
       <div class="credits-body">${this.credits()}</div>`
@@ -716,6 +772,7 @@ export class Hud {
     if (act === 'quit') return this.h.quit?.()
     if (act === 'challenge') return this.h.challenge()
     if (act === 'cheats') return this.h.cheats?.()
+    if (act === 'sound') return this.h.toggleSound()
     if (act === 'popout') {
       this.closeSheet()
       return this.h.popOut?.()

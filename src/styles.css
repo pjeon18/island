@@ -127,6 +127,27 @@ body { -webkit-font-smoothing: none; }
 .has-actions .hud-next { display: none; }
 @keyframes nextbob { 50% { transform: translateY(2px); } }
 
+/* a Pokémon's summary card, under the party list */
+.hud-summary { position: absolute; right: 6px; top: 100px; width: 212px; padding: 6px 8px 8px; z-index: 4; display: flex; flex-direction: column; gap: 4px; }
+.hud-summary[hidden] { display: none !important; }
+.hud.narrow .hud-summary { top: auto; bottom: 39px; right: 6px; }
+.sum-head { display: flex; align-items: center; gap: 6px; }
+.sum-face { width: 40px; height: 40px; flex: none; border: 2px solid var(--fr-edge); background: var(--fr-tint); }
+.sum-id { flex: 1; min-width: 0; }
+.sum-id p { margin: 0; line-height: 1.6; white-space: nowrap; overflow: hidden; }
+.sum-head .close-x { align-self: flex-start; }
+.sum-types { display: flex; gap: 2px; }
+.type { display: inline-block; padding: 1px 3px; color: #fff !important; text-shadow: 1px 1px 0 rgba(0,0,0,.35) !important; border-radius: 2px; font-size: 8px; line-height: 1.2; }
+.sum-line { margin: 0; display: flex; align-items: center; gap: 4px; line-height: 1.5; }
+.thin.wide { flex: 1; height: 2px; }
+.hud-summary .row-actions { margin-top: 2px; }
+/* FireRed type colours */
+.t-normal { background: #a8a878; } .t-fire { background: #f08030; } .t-water { background: #6890f0; } .t-grass { background: #78c850; }
+.t-electric { background: #e0c020; } .t-ice { background: #78c8c8; } .t-fighting { background: #c03028; } .t-poison { background: #a040a0; }
+.t-ground { background: #d0b058; } .t-flying { background: #a890f0; } .t-psychic { background: #f85888; } .t-bug { background: #a8b820; }
+.t-rock { background: #b8a038; } .t-ghost { background: #705898; } .t-dragon { background: #7038f8; } .t-dark { background: #705848; }
+.t-steel { background: #b8b8d0; } .t-fairy { background: #e898e8; }
+
 /* the Cheats window sits where the menu does, a little taller */
 .hud-cheats { position: absolute; left: 6px; bottom: 39px; width: min(300px, calc(100% - 12px)); height: min(380px, calc(100% - 45px)); z-index: 7; display: flex; flex-direction: column; overflow: hidden; }
 .hud-cheats[hidden] { display: none !important; }
