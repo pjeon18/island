@@ -1,5 +1,11 @@
 # Validation
 
+## Dungeon v2 (2026-11-11)
+- Generated floors render in both themes (Glacier Grotto ice, Pier Hollow cave) with torches or crystals, ponds, grass, rocks, traps that show only in light, pots and chests. Stairs from B1 to B3 and into the hand-made boss floor worked; the run state survives as `island-dungeon-run`.
+- An autopilot (stairs-seeking, fights what is awake, eats berries) at the intended level: Glacier Grotto at Lv48 cleared B1 (20 to 35 s) and B2 (34 to 52 s) and reached the boss floor once in 2.5 simulated minutes; Lapras at Lv48 against a full-health Lv48 party got down to 17% before the party fell. Pier Hollow at Lv30 cleared B1 and B2. Losses came from undodged telegraphs (the bot dashes poorly); after that, minibosses were eased (5× HP, softer burst, one helper, no level bonus) and stairs heal fully.
+- Chests: with a charge, a floor chest gave an island Oran Berry and miniboss chests Ultra Balls; without one they stay sealed.
+- Not checked: the special catch screen end to end, a full hand-played run, the boss's lane and rock phases by eye, and touch controls (there are none yet).
+
 ## The corner window (2026-11-11)
 - At 480×360 (`?popout`) the island and HUD are both at a clean 2x, the compact layout shows the clock, Start, the lead and the strip, and the Pokémon menu fills the window and scrolls. At 1440×900 the HUD stays at 2x, and the strip ends with the pop-out button.
 - Not checked: Document Picture-in-Picture itself (the embedded browser refuses it; test in real Chrome, including 10+ minutes with the opener tab in the background), the popup's clock handover, and the desktop app (needs Rust).

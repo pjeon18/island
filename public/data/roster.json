@@ -703,6 +703,48 @@
    ],
    "guardian": "home"
   },
+  "147": {
+   "name": "Dratini",
+   "types": [
+    "dragon"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 148,
+     "level": 30
+    }
+   ],
+   "stage": 1,
+   "line": 147,
+   "islands": [],
+   "rarity": "deep"
+  },
+  "148": {
+   "name": "Dragonair",
+   "types": [
+    "dragon"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 149,
+     "level": 55
+    }
+   ],
+   "stage": 2,
+   "line": 147,
+   "islands": []
+  },
+  "149": {
+   "name": "Dragonite",
+   "types": [
+    "dragon",
+    "flying"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 147,
+   "islands": []
+  },
   "152": {
    "name": "Chikorita",
    "types": [
@@ -1121,6 +1163,50 @@
    ],
    "rarity": "uncommon"
   },
+  "246": {
+   "name": "Larvitar",
+   "types": [
+    "rock",
+    "ground"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 247,
+     "level": 30
+    }
+   ],
+   "stage": 1,
+   "line": 246,
+   "islands": [],
+   "rarity": "deep"
+  },
+  "247": {
+   "name": "Pupitar",
+   "types": [
+    "rock",
+    "ground"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 248,
+     "level": 55
+    }
+   ],
+   "stage": 2,
+   "line": 246,
+   "islands": []
+  },
+  "248": {
+   "name": "Tyranitar",
+   "types": [
+    "rock",
+    "dark"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 246,
+   "islands": []
+  },
   "252": {
    "name": "Treecko",
    "types": [
@@ -1246,6 +1332,50 @@
    "evolvesTo": [],
    "stage": 3,
    "line": 258,
+   "islands": []
+  },
+  "304": {
+   "name": "Aron",
+   "types": [
+    "steel",
+    "rock"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 305,
+     "level": 32
+    }
+   ],
+   "stage": 1,
+   "line": 304,
+   "islands": [],
+   "rarity": "deep"
+  },
+  "305": {
+   "name": "Lairon",
+   "types": [
+    "steel",
+    "rock"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 306,
+     "level": 42
+    }
+   ],
+   "stage": 2,
+   "line": 304,
+   "islands": []
+  },
+  "306": {
+   "name": "Aggron",
+   "types": [
+    "steel",
+    "rock"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 304,
    "islands": []
   },
   "361": {

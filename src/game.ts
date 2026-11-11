@@ -8,7 +8,7 @@
 // friendship evolutions. Choices (befriend, feed, stones, party, decorations)
 // happen between sessions, and evolutions play out while you focus.
 
-export type Rarity = 'starter' | 'common' | 'uncommon' | 'rare'
+export type Rarity = 'starter' | 'common' | 'uncommon' | 'rare' | 'deep'
 export interface Evolution {
   dex: number
   level?: number
@@ -230,7 +230,14 @@ export interface Save {
   partner?: string // your starter: it lives on every island
   parties: Partial<Record<IslandId, string[]>> // other islands' residents while you are away from them
   upgrades: string[] // island upgrades bought with Star Pieces (UPGRADES)
+  lanterns: number // Lantern charges: one per finished session of 25+ minutes, up to LANTERN_MAX; a charged dungeon run opens chests
+  deepTries: Record<string, number> // failed throws at each dungeon's special Pokémon (each makes the next likelier)
 }
+
+/** Dungeon loot needs a Lantern charge (Paul, 2026-11-11): focus stays the only real currency. */
+export const LANTERN_MAX = 2
+/** The special Pokémon deep in each dungeon, caught after a charged clear. */
+export const DEEP: Record<string, number[]> = { 'pier-hollow': [246, 304], 'glacier-grotto': [147] }
 
 /** Island upgrades: the long-term place for Star Pieces to go (review 2026-11-11). */
 export const UPGRADES: { id: string; name: string; text: string; stars: number }[] = [
@@ -296,7 +303,7 @@ export const BALLS: { id: Ball; name: string; price: number; mult: number }[] = 
   { id: 'great-ball', name: 'Great Ball', price: 15, mult: 1.5 },
   { id: 'ultra-ball', name: 'Ultra Ball', price: 30, mult: 2 },
 ]
-const CATCH_BASE: Record<Rarity, number> = { common: 0.7, uncommon: 0.5, rare: 0.35, starter: 0.3 }
+const CATCH_BASE: Record<Rarity, number> = { common: 0.7, uncommon: 0.5, rare: 0.35, starter: 0.3, deep: 0.25 }
 
 const KEY = 'island-save-v1'
 
@@ -356,6 +363,8 @@ export function emptySave(): Save {
     tutorial: 'prologue',
     parties: {},
     upgrades: [],
+    lanterns: 0,
+    deepTries: {},
   }
 }
 
@@ -838,6 +847,8 @@ export class Game {
       // Open sessions already ripen a berry every 30 minutes, so they get none at the end
       berries = !s.length ? 0 : s.length >= 50 * 60 ? 2 : 1
       this.save.berries = Math.min(BERRIES_MAX, this.save.berries + berries)
+      // a finished session of 25 minutes or more lights a Lantern charge for the dungeons
+      if (s.credited >= 25 * 60) this.save.lanterns = Math.min(LANTERN_MAX, (this.save.lanterns ?? 0) + 1)
       this.save.breakUntil = this.now() + BREAK_SECONDS * 1000
     }
     this.persist()
@@ -1315,6 +1326,37 @@ export class Game {
     const m = this.addMon(dex, level)
     const star = this.newSpeciesStar(isNew)
     return { mon: m, star }
+  }
+
+  // ---------- dungeons ----------
+  /** Spend a Lantern charge on a run (true if there was one). */
+  useLantern() {
+    if ((this.save.lanterns ?? 0) <= 0) return false
+    this.save.lanterns--
+    this.persist()
+    return true
+  }
+  /** Odds of catching a dungeon's special Pokémon with this ball (it rises 8% for each miss there). */
+  deepChance(dungeon: string, ball: Ball, quality = 0.5) {
+    const tries = this.save.deepTries[dungeon] ?? 0
+    const mult = BALLS.find((b) => b.id === ball)?.mult ?? 1
+    return Math.min(0.97, (CATCH_BASE.deep + tries * 0.08) * mult * (0.7 + 0.6 * quality))
+  }
+  /** One throw at the special Pokémon after a charged clear. */
+  throwDeep(dungeon: string, dex: number, ball: Ball, quality = 0.5, rand = Math.random) {
+    if (this.save.balls[ball] <= 0) return null
+    this.save.balls[ball]--
+    const caught = rand() < this.deepChance(dungeon, ball, quality)
+    if (!caught) {
+      this.save.deepTries[dungeon] = (this.save.deepTries[dungeon] ?? 0) + 1
+      this.persist()
+      return { caught }
+    }
+    this.save.deepTries[dungeon] = 0
+    const isNew = !this.save.caught.includes(dex)
+    const mon = this.addMon(dex, 10)
+    this.newSpeciesStar(isNew)
+    return { caught, mon }
   }
 
   // ---------- catching ----------

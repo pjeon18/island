@@ -39,3 +39,11 @@ html, body { margin: 0; height: 100%; background: #07080a; overflow: hidden; }
 .dg-toast.show { opacity: 1; }
 .dg-keys { position: absolute; right: 6px; bottom: 6px; padding: 5px 7px; color: var(--soft); line-height: 1.7; }
 .dg-keys p { margin: 0; }
+/* floors, the run's items, the special catch */
+.dg-dim { color: var(--soft); }
+.dg-floor { position: absolute; right: 6px; top: 6px; padding: 5px 8px; text-align: right; line-height: 1.7; }
+.dg-floor p, .dg-items p { margin: 0; }
+.dg-items { position: absolute; right: 6px; top: 40px; padding: 5px 8px; line-height: 1.7; }
+.dg-items b { font-weight: 400; color: var(--gold-edge); }
+.dg-deep { display: block; width: 40px; height: 40px; margin: 0 auto 2px; image-rendering: pixelated; border: 2px solid var(--edge2); background: #e0eefa; }
+.dg-msg .dg-row { flex-wrap: wrap; }

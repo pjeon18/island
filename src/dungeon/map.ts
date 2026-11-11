@@ -34,7 +34,9 @@ export interface Prop {
   x: number
   y: number
 }
-export type EntityKind = 'start' | 'exit' | 'enemy' | 'boss'
+// stairs, traps, pots, chests and the miniboss are placed by the floor generator (gen.ts)
+export type EntityKind = 'start' | 'exit' | 'enemy' | 'boss' | 'stairs' | 'trap' | 'chest' | 'pot' | 'miniboss'
+export type TrapKind = 'spikes' | 'spores' | 'alarm'
 export interface Entity {
   id: string
   kind: EntityKind
@@ -42,6 +44,7 @@ export interface Entity {
   y: number
   dex?: number
   level?: number
+  trap?: TrapKind
 }
 export type Theme = 'cave' | 'forest' | 'ice'
 export interface DungeonMap {

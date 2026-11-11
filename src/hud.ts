@@ -739,6 +739,7 @@ export class Hud {
       const known = seen.has(d)
       const from = Object.entries(g.roster).find(([, s]) => s.evolvesTo.some((e) => e.dex === d))
       const how = (() => {
+        if (sp.stage === 1 && sp.rarity === 'deep') return 'Found deep in a dungeon, after a clear with a Lantern charge.'
         if (sp.stage === 1) return `${sp.rarity === 'starter' ? 'Starter.' : `${sp.rarity === 'common' ? 'Common' : sp.rarity === 'uncommon' ? 'Uncommon' : 'Rare'}.`} ${g.lureNotes(d, (id) => decorDef(id)?.name ?? id).join(' ')}`
         if (!from) return ''
         const e = from[1].evolvesTo.find((x) => x.dex === d)!

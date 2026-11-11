@@ -622,6 +622,11 @@ async function placeGuardian() {
   scene.gate = { x: d.x + d.w + 7, y: d.y0 + 9 }
 }
 /** The guardian waits at the bottom of the island's gate dungeon (stage 6). */
+/** How many Lantern charges are lit (they open dungeon chests). */
+function lanternLine() {
+  const n = game.save.lanterns ?? 0
+  return n ? `Lantern charges: ${n}.` : 'No Lantern charge yet, so chests stay shut.'
+}
 /** "Lv11" or "Lv10 to Lv11": the party's level range, for sizing up a guardian. */
 function partyLevels() {
   const lv = game.party.map((m) => m.level)
@@ -637,7 +642,7 @@ function askBattle() {
   const cleared = game.save.guardians.includes(isl.id)
   hud.say({
     dex: g.dex,
-    text: cleared ? `The way into the dungeon. ${game.name(g.dex)} is beaten, but you can go back in.` : `${game.name(g.dex)} Lv${g.level} is ${g.where}. Your party is ${partyLevels()}.`,
+    text: `${cleared ? `${game.name(g.dex)} is beaten, but the dungeon is still there.` : `${game.name(g.dex)} Lv${g.level} is ${g.where}, three floors down.`} Your party is ${partyLevels()}. ${lanternLine()}`,
     actions: [
       { label: 'Enter', primary: true, run: () => enterDungeon(`${import.meta.env.BASE_URL}dungeon.html?id=${isl.dungeon}&gate=${isl.id}`) },
       { label: 'Not now', run: () => {} },
@@ -1350,7 +1355,7 @@ const CHEATS: { title: string; items: [string, string][] }[] = [
   { title: 'Growth', items: [['evolve', 'Lead ready to evolve'], ['stone', 'A stone washes ashore'], ['bond', 'Lead: 10 h bond'], ['lv20', 'Party to Lv 20'], ['strong', 'Party to Lv 34']] },
   { title: 'Eggs', items: [['egg', 'An egg'], ['daycare-egg', 'Day Care egg now'], ['hatch-now', 'Hatch eggs now'], ['jobs-now', 'Jobs pay out now'], ['expedition-back', 'Expedition returns']] },
   { title: 'Friends', items: [['fakefriend', 'A friend studies too'], ['fakewave', 'A friend waves'], ['fakegift', 'Gifts arrive']] },
-  { title: 'Items', items: [['shells', '+300 shells'], ['stars', '+5 Star Pieces'], ['balls', '+5 of each ball'], ['berries', '+3 berries'], ['foods', '+3 of each food']] },
+  { title: 'Items', items: [['lantern', '+1 Lantern charge'], ['shells', '+300 shells'], ['stars', '+5 Star Pieces'], ['balls', '+5 of each ball'], ['berries', '+3 berries'], ['foods', '+3 of each food']] },
   { title: 'Progress', items: [['hours', '+5 focused hours'], ['dexfill', 'Catch 70% of this dex'], ['unlock', 'Unlock Frost Isle'], ['guardian-reset', 'Un-beat this guardian'], ['dungeon', 'Enter the dungeon'], ['sail-frost', 'Sail to Frost Isle'], ['sail-home', 'Sail home']] },
   { title: 'Away', items: [['checkin', 'Ask "still studying?"'], ['idle', '10 idle minutes'], ['lock', 'Screen lock'], ['active', 'Activity'], ['gap', 'A 10-minute sleep']] },
   { title: 'Reset', items: [['reset', 'Reset save (no backup)']] },
@@ -1557,6 +1562,7 @@ function cheat(d: string) {
     if (s()) game.endSession(false)
     game.sail('home')
   }
+  if (d === 'lantern') game.save.lanterns = Math.min(2, (game.save.lanterns ?? 0) + 1)
   if (d === 'tour') {
     game.setTutorial('meet')
     location.reload()

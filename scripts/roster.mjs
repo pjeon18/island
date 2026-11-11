@@ -53,6 +53,12 @@ export const LINES = [
   { dex: 215, rarity: 'uncommon', islands: ['frost'], time: 'night' }, // Sneasel
   { dex: 393, rarity: 'rare', islands: ['frost'] }, // Piplup
 
+  // ---------- deep in the dungeons ----------
+  // caught only after a charged boss clear (DEEP in game.ts); they never pass by the island
+  { dex: 246, rarity: 'deep', islands: [] }, // Larvitar, deep in Pier Hollow
+  { dex: 304, rarity: 'deep', islands: [] }, // Aron, deep in Pier Hollow
+  { dex: 147, rarity: 'deep', islands: [] }, // Dratini, deep in Glacier Grotto
+
   // ---------- guardians ----------
   { dex: 143, guardian: 'home' }, // Snorlax, asleep across the end of the pier
   { dex: 131, guardian: 'frost' }, // Lapras, resting by the Frost Isle pier
