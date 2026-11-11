@@ -18,6 +18,9 @@ export interface Evolution {
 }
 export interface SpeciesInfo {
   name: string
+  types?: string[]
+  needs?: Habitat // a habitat that must be built before it comes at all
+  time?: 'night' | 'morning' // night: only at night; morning: likelier from 5 to 10
   evolvesTo: Evolution[]
   stage: number
   line: number
@@ -73,6 +76,46 @@ export interface Find {
   y?: number
 }
 export type Weather = 'clear' | 'rain' | 'fog' | 'sun'
+export type Habitat = 'pond' | 'rocks' | 'grass'
+
+// ---------- lures (docs/GAME_DESIGN.md, stage 2) ----------
+/** Habitats are built once, on their own spot, with Star Pieces and shells. */
+export const HABITATS: { id: Habitat; name: string; stars: number; shells: number; types: string[] }[] = [
+  { id: 'grass', name: 'Tall grass', stars: 2, shells: 60, types: ['bug', 'grass'] },
+  { id: 'rocks', name: 'Rocks', stars: 2, shells: 80, types: ['rock', 'ground'] },
+  { id: 'pond', name: 'Pond', stars: 3, shells: 100, types: ['water'] },
+]
+/** Food you set out before a session; it is eaten when the session ends. */
+export const FOODS: { id: string; name: string; price: number; types: string[] }[] = [
+  { id: 'honey', name: 'Honey', price: 15, types: ['bug', 'grass', 'flying'] },
+  { id: 'cheri-berry', name: 'Cheri Berry', price: 15, types: ['fire', 'electric'] },
+  { id: 'pecha-berry', name: 'Pecha Berry', price: 15, types: ['water', 'ground', 'normal'] },
+  { id: 'chesto-berry', name: 'Chesto Berry', price: 15, types: ['ghost', 'dark', 'psychic'] },
+]
+export const WEATHER_TYPES: Record<Weather, string[]> = { clear: [], rain: ['water', 'electric'], sun: ['grass', 'fire'], fog: ['ghost', 'normal', 'psychic'] }
+/** Each decoration has a few Pokémon that love it. */
+export const DECOR_LOVES: Record<string, number[]> = {
+  flowers: [43, 187, 1],
+  stones: [74, 194],
+  mushrooms: [92, 43],
+  sign: [16, 396],
+  bench: [133, 25],
+  umbrella: [7, 54],
+  lantern: [163, 92],
+  campfire: [4],
+  windmill: [16, 396, 187],
+}
+export const isNightHour = (h: number) => h >= 19 || h < 5
+/** What is drawing Pokémon right now; built by Game.lure(). */
+export interface Lure {
+  long: boolean // a 50-minute session (or an open one past 50 minutes): rare ones can come
+  clean: boolean
+  hour: number
+  weather: Weather
+  habitats: Habitat[]
+  bait: string | null
+  decor: string[]
+}
 
 export interface Save {
   v: 1
@@ -96,6 +139,9 @@ export interface Save {
   finds: Find[]
   weather: { kind: Weather; until: number }
   passers: { day: string; count: number }
+  habitats: Habitat[]
+  foods: Record<string, number>
+  bait: string | null
 }
 
 export const PARTY_MAX = 3
@@ -127,8 +173,7 @@ export const BALLS: { id: Ball; name: string; price: number; mult: number }[] = 
   { id: 'ultra-ball', name: 'Ultra Ball', price: 60, mult: 2 },
 ]
 const CATCH_BASE: Record<Rarity, number> = { common: 0.7, uncommon: 0.5, rare: 0.35, starter: 0.3 }
-// weather draws certain Pokémon (stage 2 will move this into types and habitats)
-const WEATHER_LIKES: Record<Weather, number[]> = { clear: [], rain: [7, 54, 194, 179, 403], sun: [1, 4, 43, 187], fog: [133, 10, 396] }
+
 const KEY = 'island-save-v1'
 
 export const expToNext = (level: number) => level
@@ -168,6 +213,9 @@ export function emptySave(): Save {
     finds: [],
     weather: { kind: 'clear', until: 0 },
     passers: { day: '', count: 0 },
+    habitats: [],
+    foods: {},
+    bait: null,
   }
 }
 
@@ -206,10 +254,17 @@ export type GameEvent =
   | { type: 'wildLeave'; ids: string[] }
   | { type: 'find'; find: Find }
   | { type: 'weather'; kind: Weather }
-  | { type: 'caught'; wild: Wild; mon: Mon }
+  | { type: 'caught'; wild: Wild; mon: Mon; newSpecies: boolean }
+  | { type: 'habitat'; id: Habitat }
+  | { type: 'bait'; food: string | null }
 
 export class Game {
   save: Save
+  /** The hour as the island sees it; main.ts swaps this for the debug clock. */
+  hour = () => {
+    const d = new Date(this.now())
+    return d.getHours() + d.getMinutes() / 60
+  }
   private listeners: ((e: GameEvent) => void)[] = []
   now = () => Date.now()
 
@@ -431,6 +486,7 @@ export class Game {
     const pool = useful.length ? useful : STONES
     const item = pool[Math.floor(Math.random() * pool.length)]
     this.save.bag[item] = (this.save.bag[item] ?? 0) + 1
+    this.save.starPieces++
     this.emit({ type: 'stone', item, streak: n })
   }
 
@@ -470,6 +526,10 @@ export class Game {
     const s = this.save.session
     if (!s) return
     this.save.session = null
+    if (this.save.bait) {
+      this.save.bait = null
+      this.emit({ type: 'bait', food: null })
+    }
     let berries = 0
     if (complete) {
       berries = s.length && s.length >= 50 * 60 ? 2 : 1
@@ -479,12 +539,70 @@ export class Game {
     this.persist()
     this.emit({ type: 'sessionEnd', minutes: s.granted, complete, berries })
     // the old end-of-session visitor is now a minor extra; passers-by are the main way in
-    if (complete && Math.random() < FRIENDLY_VISIT_CHANCE) this.requestVisit(s.length && s.length >= 50 * 60 ? RARE_50 : 1)
+    if (complete && Math.random() < FRIENDLY_VISIT_CHANCE) this.requestVisit(s.length && s.length >= 50 * 60 ? RARE_50 : 1, this.lure(s))
   }
 
-  private requestVisit(rareMult: number) {
+  private requestVisit(rareMult: number, _lure?: Lure) {
     if (this.visitsToday() >= VISITS_PER_DAY) return this.emit({ type: 'visitCapped' })
     this.emit({ type: 'visit', rareMult })
+  }
+
+  /** Everything drawing Pokémon right now. */
+  lure(s = this.save.session): Lure {
+    const long = !!s && ((!!s.length && s.length >= 50 * 60) || (!s.length && s.credited >= 50 * 60))
+    return {
+      long,
+      clean: !s || s.clean !== false,
+      hour: this.hour(),
+      weather: this.weather,
+      habitats: this.save.habitats,
+      bait: this.save.bait,
+      decor: Object.values(this.save.decor.slots).filter(Boolean) as string[],
+    }
+  }
+  /** Why a species would or would not come, for the Pokédex. */
+  lureNotes(dex: number, decorName: (id: string) => string = (id) => id) {
+    const sp = this.species(dex)
+    if (!sp) return [] as string[]
+    const notes: string[] = []
+    if (sp.needs) notes.push(`Needs ${HABITATS.find((h) => h.id === sp.needs)!.name.toLowerCase()}.`)
+    if (sp.time === 'night') notes.push('Night only.')
+    if (sp.time === 'morning') notes.push('Likes mornings.')
+    if (sp.rarity === 'rare' || sp.rarity === 'starter') notes.push('Only in 50-minute sessions.')
+    const food = FOODS.filter((f) => f.types.some((t) => sp.types?.includes(t))).map((f) => f.name)
+    if (food.length) notes.push(`Likes ${food.join(' or ')}.`)
+    const decor = Object.entries(DECOR_LOVES).filter(([, ds]) => ds.includes(dex)).map(([id]) => decorName(id).toLowerCase())
+    if (decor.length) notes.push(`Loves the ${decor.join(' and ')}.`)
+    return notes
+  }
+
+  // ---------- habitats and food ----------
+  buildHabitat(id: Habitat) {
+    const h = HABITATS.find((x) => x.id === id)
+    if (!h || this.save.session || this.save.habitats.includes(id)) return false
+    if (this.save.starPieces < h.stars || this.save.shells < h.shells) return false
+    this.save.starPieces -= h.stars
+    this.save.shells -= h.shells
+    this.save.habitats.push(id)
+    this.persist()
+    this.emit({ type: 'habitat', id })
+    return true
+  }
+  buyFood(id: string, n = 1) {
+    const f = FOODS.find((x) => x.id === id)
+    if (!f || this.save.session || !this.spendShells(f.price * n)) return false
+    this.save.foods[id] = (this.save.foods[id] ?? 0) + n
+    this.persist()
+    return true
+  }
+  /** Set food out before a session. One at a time; it is eaten when the session ends. */
+  setBait(id: string) {
+    if (this.save.session || this.save.bait || !this.save.foods[id]) return false
+    this.save.foods[id]--
+    this.save.bait = id
+    this.persist()
+    this.emit({ type: 'bait', food: id })
+    return true
   }
 
   /**
@@ -569,9 +687,9 @@ export class Game {
   passerBy(s = this.save.session) {
     if (this.save.wild.length >= WILD_MAX || this.passersToday() >= PASSERS_PER_DAY) return null
     // longer sessions and sessions without step-aways draw rarer Pokémon
-    const long = s?.length && s.length >= 50 * 60 ? RARE_50 : 1
-    const mult = long * (s && s.clean === false ? 0.6 : 1)
-    const { dex, level } = this.pickVisitor(mult, Math.random, WEATHER_LIKES[this.weather])
+    const lure = this.lure(s)
+    const mult = (lure.long ? RARE_50 : 1) * (lure.clean ? 1 : 0.6)
+    const { dex, level } = this.pickVisitor(mult, Math.random, lure)
     this.save.passers = { day: dayKey(this.now()), count: this.passersToday() + 1 }
     const w: Wild = { id: Math.random().toString(36).slice(2, 10), dex, level, tries: 0 }
     this.save.wild.push(w)
@@ -584,11 +702,11 @@ export class Game {
     if (this.save.finds.length >= 6) return null
     const r = rand()
     const f: Find =
-      r < 0.6
+      r < 0.55
         ? { id: '', kind: 'shells', n: 5 + Math.floor(rand() * 11) }
-        : r < 0.82
+        : r < 0.75
           ? { id: '', kind: 'berry', n: 1 }
-          : r < 0.95
+          : r < 0.9
             ? { id: '', kind: 'poke-ball', n: 1 }
             : { id: '', kind: 'star-piece', n: 1 }
     f.id = Math.random().toString(36).slice(2, 10)
@@ -640,8 +758,10 @@ export class Game {
       return { caught, shakes: Math.min(2, Math.floor(rand() * 3 * p + 0.3)) }
     }
     this.save.wild = this.save.wild.filter((x) => x !== w)
+    const newSpecies = !this.save.caught.includes(w.dex)
+    if (newSpecies) this.save.starPieces++ // a new species earns a Star Piece toward habitats
     const mon = this.addMon(w.dex, w.level)
-    this.emit({ type: 'caught', wild: w, mon })
+    this.emit({ type: 'caught', wild: w, mon, newSpecies })
     return { caught, shakes: 3, mon }
   }
 
@@ -721,20 +841,34 @@ export class Game {
    * 50-minute session, a 3-day streak and a long day. Species you have never
    * befriended are a little likelier, so the Pokédex keeps moving.
    */
-  pickVisitor(rareMult = 1, rand = Math.random, likes: number[] = []): { dex: number; level: number } {
+  pickVisitor(rareMult = 1, rand = Math.random, lure: Lure = this.lure()): { dex: number; level: number } {
     const caughtLines = new Set(this.save.caught.map((d) => this.species(d)?.line))
     const starterLine = this.save.mons[0] ? this.species(this.save.mons[0].dex)?.line : undefined
     const boost = rareMult * (1 + (this.streak() >= 3 ? 0.6 : 0) + (this.todayMinutes() >= 120 ? 0.4 : 0))
+    const night = isNightHour(lure.hour)
+    const morning = lure.hour >= 5 && lure.hour < 10
+    const likes = (types: string[] | undefined, want: string[]) => !!types && types.some((t) => want.includes(t))
+    const bait = FOODS.find((f) => f.id === lure.bait)
     const table: { dex: number; w: number; rarity: Rarity }[] = []
     for (const [k, s] of Object.entries(this.roster)) {
       if (s.stage !== 1 || !s.rarity) continue
-      if (s.rarity === 'starter' && Number(k) === starterLine) continue
-      // base odds per visit: rare about 4%, each other starter about 2%
+      const dex = Number(k)
+      if (s.rarity === 'starter' && dex === starterLine) continue
+      // gates: a habitat it needs, night-only, rare ones only in long sessions
+      if (s.needs && !lure.habitats.includes(s.needs)) continue
+      if (s.time === 'night' && !night) continue
+      if ((s.rarity === 'rare' || s.rarity === 'starter') && !lure.long) continue
+      // base odds per visit in a long session: rare about 4%, each other starter about 2%
       let w = s.rarity === 'common' ? 10 : s.rarity === 'uncommon' ? 5 * Math.sqrt(boost) : s.rarity === 'rare' ? 4 * boost : 2 * boost
       if (caughtLines.has(s.line)) w *= 0.5
-      if (likes.includes(Number(k))) w *= 2.5
-      table.push({ dex: Number(k), w, rarity: s.rarity })
+      if (likes(s.types, WEATHER_TYPES[lure.weather])) w *= 2.5
+      if (bait && likes(s.types, bait.types)) w *= 3
+      for (const h of HABITATS) if (lure.habitats.includes(h.id) && likes(s.types, h.types)) w *= 2
+      for (const d of lure.decor) if (DECOR_LOVES[d]?.includes(dex)) w *= 2
+      if (s.time === 'morning' && morning) w *= 2
+      table.push({ dex, w, rarity: s.rarity })
     }
+    if (!table.length) table.push({ dex: 16, w: 1, rarity: 'common' })
     const total = table.reduce((a, b) => a + b.w, 0)
     let r = rand() * total
     let pick = table[0]

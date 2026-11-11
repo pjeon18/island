@@ -34,7 +34,9 @@ const species = {}
 async function addSpecies(dex, extra) {
   const s = await getJson(`https://pokeapi.co/api/v2/pokemon-species/${dex}/`)
   const name = s.names.find((n) => n.language.name === 'en')?.name ?? s.name
-  species[dex] = { name, evolvesTo: [], ...extra }
+  const mon = await getJson(`https://pokeapi.co/api/v2/pokemon/${dex}/`)
+  const types = mon.types.sort((a, b) => a.slot - b.slot).map((t) => t.type.name)
+  species[dex] = { name, types, evolvesTo: [], ...extra }
   return s
 }
 
@@ -65,7 +67,7 @@ function method(details) {
 }
 
 for (const line of LINES) {
-  const s = await addSpecies(line.dex, { rarity: line.rarity, stage: 1, line: line.dex })
+  const s = await addSpecies(line.dex, { rarity: line.rarity, stage: 1, line: line.dex, ...(line.needs ? { needs: line.needs } : {}), ...(line.time ? { time: line.time } : {}) })
   const chain = (await getJson(s.evolution_chain.url)).chain
   // find this line's first stage in the chain (Pikachu sits under Pichu)
   const find = (node) => (idFromUrl(node.species.url) === line.dex ? node : node.evolves_to.map(find).find(Boolean))

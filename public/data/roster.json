@@ -3,6 +3,10 @@
  "species": {
   "1": {
    "name": "Bulbasaur",
+   "types": [
+    "grass",
+    "poison"
+   ],
    "evolvesTo": [
     {
      "dex": 2,
@@ -15,6 +19,10 @@
   },
   "2": {
    "name": "Ivysaur",
+   "types": [
+    "grass",
+    "poison"
+   ],
    "evolvesTo": [
     {
      "dex": 3,
@@ -26,12 +34,19 @@
   },
   "3": {
    "name": "Venusaur",
+   "types": [
+    "grass",
+    "poison"
+   ],
    "evolvesTo": [],
    "stage": 3,
    "line": 1
   },
   "4": {
    "name": "Charmander",
+   "types": [
+    "fire"
+   ],
    "evolvesTo": [
     {
      "dex": 5,
@@ -44,6 +59,9 @@
   },
   "5": {
    "name": "Charmeleon",
+   "types": [
+    "fire"
+   ],
    "evolvesTo": [
     {
      "dex": 6,
@@ -55,12 +73,19 @@
   },
   "6": {
    "name": "Charizard",
+   "types": [
+    "fire",
+    "flying"
+   ],
    "evolvesTo": [],
    "stage": 3,
    "line": 4
   },
   "7": {
    "name": "Squirtle",
+   "types": [
+    "water"
+   ],
    "evolvesTo": [
     {
      "dex": 8,
@@ -73,6 +98,9 @@
   },
   "8": {
    "name": "Wartortle",
+   "types": [
+    "water"
+   ],
    "evolvesTo": [
     {
      "dex": 9,
@@ -84,12 +112,18 @@
   },
   "9": {
    "name": "Blastoise",
+   "types": [
+    "water"
+   ],
    "evolvesTo": [],
    "stage": 3,
    "line": 7
   },
   "10": {
    "name": "Caterpie",
+   "types": [
+    "bug"
+   ],
    "evolvesTo": [
     {
      "dex": 11,
@@ -102,6 +136,9 @@
   },
   "11": {
    "name": "Metapod",
+   "types": [
+    "bug"
+   ],
    "evolvesTo": [
     {
      "dex": 12,
@@ -113,12 +150,20 @@
   },
   "12": {
    "name": "Butterfree",
+   "types": [
+    "bug",
+    "flying"
+   ],
    "evolvesTo": [],
    "stage": 3,
    "line": 10
   },
   "16": {
    "name": "Pidgey",
+   "types": [
+    "normal",
+    "flying"
+   ],
    "evolvesTo": [
     {
      "dex": 17,
@@ -127,10 +172,15 @@
    ],
    "rarity": "common",
    "stage": 1,
-   "line": 16
+   "line": 16,
+   "time": "morning"
   },
   "17": {
    "name": "Pidgeotto",
+   "types": [
+    "normal",
+    "flying"
+   ],
    "evolvesTo": [
     {
      "dex": 18,
@@ -142,12 +192,19 @@
   },
   "18": {
    "name": "Pidgeot",
+   "types": [
+    "normal",
+    "flying"
+   ],
    "evolvesTo": [],
    "stage": 3,
    "line": 16
   },
   "25": {
    "name": "Pikachu",
+   "types": [
+    "electric"
+   ],
    "evolvesTo": [
     {
      "dex": 26,
@@ -160,12 +217,19 @@
   },
   "26": {
    "name": "Raichu",
+   "types": [
+    "electric"
+   ],
    "evolvesTo": [],
    "stage": 2,
    "line": 25
   },
   "43": {
    "name": "Oddish",
+   "types": [
+    "grass",
+    "poison"
+   ],
    "evolvesTo": [
     {
      "dex": 44,
@@ -178,6 +242,10 @@
   },
   "44": {
    "name": "Gloom",
+   "types": [
+    "grass",
+    "poison"
+   ],
    "evolvesTo": [
     {
      "dex": 45,
@@ -193,12 +261,19 @@
   },
   "45": {
    "name": "Vileplume",
+   "types": [
+    "grass",
+    "poison"
+   ],
    "evolvesTo": [],
    "stage": 3,
    "line": 43
   },
   "54": {
    "name": "Psyduck",
+   "types": [
+    "water"
+   ],
    "evolvesTo": [
     {
      "dex": 55,
@@ -211,12 +286,112 @@
   },
   "55": {
    "name": "Golduck",
+   "types": [
+    "water"
+   ],
    "evolvesTo": [],
    "stage": 2,
    "line": 54
   },
+  "60": {
+   "name": "Poliwag",
+   "types": [
+    "water"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 61,
+     "level": 25
+    }
+   ],
+   "rarity": "uncommon",
+   "stage": 1,
+   "line": 60,
+   "needs": "pond"
+  },
+  "61": {
+   "name": "Poliwhirl",
+   "types": [
+    "water"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 62,
+     "item": "water-stone"
+    }
+   ],
+   "stage": 2,
+   "line": 60
+  },
+  "62": {
+   "name": "Poliwrath",
+   "types": [
+    "water",
+    "fighting"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 60
+  },
+  "74": {
+   "name": "Geodude",
+   "types": [
+    "rock",
+    "ground"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 75,
+     "level": 25
+    }
+   ],
+   "rarity": "uncommon",
+   "stage": 1,
+   "line": 74,
+   "needs": "rocks"
+  },
+  "75": {
+   "name": "Graveler",
+   "types": [
+    "rock",
+    "ground"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 74
+  },
+  "92": {
+   "name": "Gastly",
+   "types": [
+    "ghost",
+    "poison"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 93,
+     "level": 25
+    }
+   ],
+   "rarity": "uncommon",
+   "stage": 1,
+   "line": 92,
+   "time": "night"
+  },
+  "93": {
+   "name": "Haunter",
+   "types": [
+    "ghost",
+    "poison"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 92
+  },
   "133": {
    "name": "Eevee",
+   "types": [
+    "normal"
+   ],
    "evolvesTo": [
     {
      "dex": 134,
@@ -255,24 +430,63 @@
   },
   "134": {
    "name": "Vaporeon",
+   "types": [
+    "water"
+   ],
    "evolvesTo": [],
    "stage": 2,
    "line": 133
   },
   "135": {
    "name": "Jolteon",
+   "types": [
+    "electric"
+   ],
    "evolvesTo": [],
    "stage": 2,
    "line": 133
   },
   "136": {
    "name": "Flareon",
+   "types": [
+    "fire"
+   ],
    "evolvesTo": [],
    "stage": 2,
    "line": 133
   },
+  "163": {
+   "name": "Hoothoot",
+   "types": [
+    "normal",
+    "flying"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 164,
+     "level": 20
+    }
+   ],
+   "rarity": "common",
+   "stage": 1,
+   "line": 163,
+   "time": "night"
+  },
+  "164": {
+   "name": "Noctowl",
+   "types": [
+    "normal",
+    "flying"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 163
+  },
   "179": {
    "name": "Mareep",
+   "types": [
+    "electric"
+   ],
    "evolvesTo": [
     {
      "dex": 180,
@@ -285,6 +499,9 @@
   },
   "180": {
    "name": "Flaaffy",
+   "types": [
+    "electric"
+   ],
    "evolvesTo": [
     {
      "dex": 181,
@@ -296,18 +513,28 @@
   },
   "181": {
    "name": "Ampharos",
+   "types": [
+    "electric"
+   ],
    "evolvesTo": [],
    "stage": 3,
    "line": 179
   },
   "182": {
    "name": "Bellossom",
+   "types": [
+    "grass"
+   ],
    "evolvesTo": [],
    "stage": 3,
    "line": 43
   },
   "187": {
    "name": "Hoppip",
+   "types": [
+    "grass",
+    "flying"
+   ],
    "evolvesTo": [
     {
      "dex": 188,
@@ -316,10 +543,15 @@
    ],
    "rarity": "common",
    "stage": 1,
-   "line": 187
+   "line": 187,
+   "time": "morning"
   },
   "188": {
    "name": "Skiploom",
+   "types": [
+    "grass",
+    "flying"
+   ],
    "evolvesTo": [
     {
      "dex": 189,
@@ -331,12 +563,20 @@
   },
   "189": {
    "name": "Jumpluff",
+   "types": [
+    "grass",
+    "flying"
+   ],
    "evolvesTo": [],
    "stage": 3,
    "line": 187
   },
   "194": {
    "name": "Wooper",
+   "types": [
+    "water",
+    "ground"
+   ],
    "evolvesTo": [
     {
      "dex": 195,
@@ -349,24 +589,38 @@
   },
   "195": {
    "name": "Quagsire",
+   "types": [
+    "water",
+    "ground"
+   ],
    "evolvesTo": [],
    "stage": 2,
    "line": 194
   },
   "196": {
    "name": "Espeon",
+   "types": [
+    "psychic"
+   ],
    "evolvesTo": [],
    "stage": 2,
    "line": 133
   },
   "197": {
    "name": "Umbreon",
+   "types": [
+    "dark"
+   ],
    "evolvesTo": [],
    "stage": 2,
    "line": 133
   },
   "396": {
    "name": "Starly",
+   "types": [
+    "normal",
+    "flying"
+   ],
    "evolvesTo": [
     {
      "dex": 397,
@@ -375,10 +629,15 @@
    ],
    "rarity": "common",
    "stage": 1,
-   "line": 396
+   "line": 396,
+   "time": "morning"
   },
   "397": {
    "name": "Staravia",
+   "types": [
+    "normal",
+    "flying"
+   ],
    "evolvesTo": [
     {
      "dex": 398,
@@ -390,12 +649,19 @@
   },
   "398": {
    "name": "Staraptor",
+   "types": [
+    "normal",
+    "flying"
+   ],
    "evolvesTo": [],
    "stage": 3,
    "line": 396
   },
   "403": {
    "name": "Shinx",
+   "types": [
+    "electric"
+   ],
    "evolvesTo": [
     {
      "dex": 404,
@@ -408,6 +674,9 @@
   },
   "404": {
    "name": "Luxio",
+   "types": [
+    "electric"
+   ],
    "evolvesTo": [
     {
      "dex": 405,
@@ -419,18 +688,27 @@
   },
   "405": {
    "name": "Luxray",
+   "types": [
+    "electric"
+   ],
    "evolvesTo": [],
    "stage": 3,
    "line": 403
   },
   "470": {
    "name": "Leafeon",
+   "types": [
+    "grass"
+   ],
    "evolvesTo": [],
    "stage": 2,
    "line": 133
   },
   "471": {
    "name": "Glaceon",
+   "types": [
+    "ice"
+   ],
    "evolvesTo": [],
    "stage": 2,
    "line": 133

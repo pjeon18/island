@@ -1,5 +1,19 @@
 # Validation
 
+## Stage 2, lures and habitats (2026-11-11)
+
+- **Roster:** 54 species with types from PokéAPI. Poliwag, Geodude, Hoothoot and Gastly were added; all have PMD sprites, and none is too big for the island.
+- **Spawn odds:** sampled 4,000 draws per setup.
+  - Nothing built, at midday: no Poliwag, Geodude, night Pokémon or rares.
+  - All habitats plus a Pecha Berry: Poliwag 11.6%, Geodude 10.9%, Psyduck 18.9%, Wooper 18.3%.
+  - At 10 pm: Hoothoot 11.3%, Gastly 5.9%.
+  - Long session: Eevee 3.4% and the starters about 3% each at a ×1 boost. Passers-by in long sessions also get the ×3.3 boost.
+- **Habitats:** built from the Island menu with Star Pieces and shells. The pond, rocks and second tall grass are drawn and block walking. Water types arrive out of the pond.
+- **Food:** bought and set out from the Island menu. A dish appears on the island, and the food is eaten when the session ends (checked).
+- **Star Pieces:** a new species gave +1 (checked).
+- **Pokédex hints:** each species shows its rarity and lures, with decoration names.
+- **A 50-minute session** with the pond and a Pecha Berry brought Psyduck, Wooper, Squirtle and Psyduck.
+
 ## Stage 1, catching (2026-11-11)
 
 Built from `docs/GAME_DESIGN.md`. Checked in the browser with `?debug` and `__island.step()`.

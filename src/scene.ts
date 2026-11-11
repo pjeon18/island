@@ -5,7 +5,8 @@ import { H, IslandLayout, PAL, W, buildIsland, paintBush, paintLantern, paintTre
 import { hash2, rng } from './pixel'
 import { DecorArt, SLOTS, decorArt } from './decor'
 import type { Species } from './sprites'
-import type { FindKind, Weather } from './game'
+import type { FindKind, Habitat, Weather } from './game'
+import { HABITAT_SPOTS, HabitatArt, baitArt, habitatArt } from './habitats'
 
 // Finds: tiny pixel items a party Pokémon dug up, drawn from these rows.
 // '.' is clear; other letters index the palette below.
@@ -120,13 +121,28 @@ export class Scene {
   private drops: Drop[] = []
   /** Show a small "!" over Pokémon waiting to be caught (only in the break). */
   markWild = false
+  private habitats: { id: Habitat; x: number; y: number; art: HabitatArt | null }[] = []
+  private decorBlockers: { x: number; y: number; r: number }[] = []
+  private bait: { img: HTMLCanvasElement; x: number; y: number } | null = null
   /** Drawn last, above everything: the catch ring and the thrown ball. */
   overlay?: (g: CanvasRenderingContext2D) => void
 
   constructor() {
     this.island = buildIsland()
-    const gp = this.island.grassPatch
-    // tall grass: tufts on a staggered grid inside an ellipse, like route grass
+    this.addTufts(this.island.grassPatch)
+    // open sea positions for water glints
+    const fp = this.island.footprint
+    for (let y = 2; y < H - 2; y++)
+      for (let x = 2; x < W - 6; x++) {
+        let near = false
+        for (let k = -6; k <= 6 && !near; k += 3) for (let j = -6; j <= 9 && !near; j += 3) near = !!fp[(Math.min(H - 1, Math.max(0, y + k))) * W + Math.min(W - 1, Math.max(0, x + j))]
+        if (!near) this.seaPts.push({ x, y })
+      }
+    for (let i = 0; i < 22; i++) this.spawnGlint(true)
+  }
+
+  /** Tall grass: tufts on a staggered grid inside an ellipse, like route grass. */
+  private addTufts(gp: { x: number; y: number; r: number }) {
     let row = 0
     for (let y = gp.y - gp.r * 0.62; y <= gp.y + gp.r * 0.62; y += 4, row++) {
       for (let x = gp.x - gp.r - 2 + (row % 2) * 3.5; x <= gp.x + gp.r + 2; x += 7) {
@@ -142,15 +158,6 @@ export class Scene {
         this.tufts.push({ x: Math.round(x), y: Math.round(y), phase: hash2(i, 3, 90) * 6.28, blades })
       }
     }
-    // open sea positions for water glints
-    const fp = this.island.footprint
-    for (let y = 2; y < H - 2; y++)
-      for (let x = 2; x < W - 6; x++) {
-        let near = false
-        for (let k = -6; k <= 6 && !near; k += 3) for (let j = -6; j <= 9 && !near; j += 3) near = !!fp[(Math.min(H - 1, Math.max(0, y + k))) * W + Math.min(W - 1, Math.max(0, x + j))]
-        if (!near) this.seaPts.push({ x, y })
-      }
-    for (let i = 0; i < 22; i++) this.spawnGlint(true)
   }
 
   private spawnGlint(randomAge = false) {
@@ -168,13 +175,42 @@ export class Scene {
   /** Place decorations by slot; also keeps their footprints clear of wandering Pokémon. */
   setDecor(slots: Record<string, string | null>) {
     this.decor = []
-    this.island.blockers.length = 0
+    this.decorBlockers = []
     for (const sl of SLOTS) {
       const id = slots[sl.id]
       const art = id ? decorArt(id) : undefined
       if (!art) continue
       this.decor.push({ x: sl.x, y: sl.y, art })
-      this.island.blockers.push({ x: sl.x, y: sl.y, r: art.r })
+      this.decorBlockers.push({ x: sl.x, y: sl.y, r: art.r })
+    }
+    this.rebuildBlockers()
+  }
+  /** Built habitats: the pond and rocks are art, the tall grass is more tufts. */
+  setHabitats(ids: Habitat[]) {
+    for (const id of ids) {
+      if (this.habitats.some((h) => h.id === id)) continue
+      const spot = HABITAT_SPOTS[id]
+      this.habitats.push({ id, x: spot.x, y: spot.y, art: habitatArt(id) })
+      if (id === 'grass') this.addTufts(spot)
+    }
+    this.rebuildBlockers()
+  }
+  hasHabitat(id: Habitat) {
+    return this.habitats.some((h) => h.id === id)
+  }
+  setBait(food: string | null) {
+    this.bait = food ? { img: baitArt(food), x: 112, y: 106 } : null
+  }
+  private rebuildBlockers() {
+    const b = this.island.blockers
+    b.length = 0
+    b.push(...this.decorBlockers)
+    for (const h of this.habitats) {
+      const spot = HABITAT_SPOTS[h.id]
+      if (h.id === 'pond') {
+        // an oval: a row of circles across it
+        for (const dx of [-8, 0, 8]) b.push({ x: spot.x + dx, y: spot.y, r: 5 })
+      } else b.push({ x: spot.x, y: spot.y, r: spot.r - 2 })
     }
   }
 
@@ -264,6 +300,21 @@ export class Scene {
           if (!d.art.glow) d.art.live?.(g, d.x, d.y, this.time, nightness(this.hour))
         },
       })
+    }
+    for (const h of this.habitats) {
+      const art = h.art
+      if (!art) continue
+      items.push({
+        y: art.flat ? -2 : h.y,
+        draw: () => {
+          g.drawImage(art.img, h.x - art.ax, h.y - art.ay)
+          art.live?.(g, h.x, h.y, this.time)
+        },
+      })
+    }
+    if (this.bait) {
+      const bt = this.bait
+      items.push({ y: -1, draw: () => g.drawImage(bt.img, bt.x - 4, bt.y - 4) })
     }
     for (const f of this.finds) {
       const img = FIND_IMG[f.kind]

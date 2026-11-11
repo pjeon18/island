@@ -5,7 +5,8 @@ import './styles.css'
 import { Creature } from './creature'
 import * as cloud from './cloud'
 import { SLOTS, decorDef } from './decor'
-import { BALLS, Ball, Find, Game, GameEvent, Mon, RARE_50, Roster, STONES, Weather, Wild, aStone, stoneName } from './game'
+import { BALLS, Ball, FOODS, Find, Game, GameEvent, HABITATS, Mon, RARE_50, Roster, STONES, Weather, Wild, aStone, stoneName } from './game'
+import { HABITAT_SPOTS } from './habitats'
 import { CatchAnim } from './catch'
 import { Hud, fmtMinutes } from './hud'
 import { H, W, seaCss } from './island'
@@ -138,7 +139,8 @@ let visiting = false
 async function runVisit(rareMult = 1) {
   if (visiting) return
   visiting = true
-  const { dex, level } = game.pickVisitor(rareMult)
+  // a friendly visitor after a 50-minute session can be a rare one
+  const { dex, level } = game.pickVisitor(rareMult, Math.random, { ...game.lure(), long: rareMult > 1 })
   const sp = await ensure(dex)
   const gp = scene.island.grassPatch
   const name = game.name(dex)
@@ -212,6 +214,17 @@ async function spawnWild(w: Wild, arrive: boolean) {
   if (!arrive) {
     const p = scene.freeSpot()
     scene.add(sp, p.x, p.y).wildId = w.id
+    return
+  }
+  const types = game.species(w.dex)?.types ?? []
+  const home = types.includes('water') && scene.hasHabitat('pond') ? HABITAT_SPOTS.pond : (types.includes('rock') || types.includes('ground')) && scene.hasHabitat('rocks') ? HABITAT_SPOTS.rocks : null
+  if (home) {
+    // it climbs out of the pond, or out from behind the rocks
+    const c = scene.add(sp, home.x, home.y + 7)
+    c.wildId = w.id
+    const p = scene.freeSpot({ x: home.x, y: home.y + 20 })
+    c.walkTo(p.x, p.y)
+    c.enter('emerge', 99)
     return
   }
   if (Math.random() < 0.5) {
@@ -589,6 +602,14 @@ function onGame(e: GameEvent) {
       hud.toast(WEATHER_TEXT[e.kind])
       break
     case 'caught':
+      if (e.newSpecies) after(4.2, () => hud.toast('New species. A Star Piece!'))
+      break
+    case 'habitat':
+      scene.setHabitats(game.save.habitats)
+      hud.toast(`${HABITATS.find((h) => h.id === e.id)!.name} built.`)
+      break
+    case 'bait':
+      scene.setBait(e.food)
       break
     case 'visit':
       after(1.2, () => runVisit(e.rareMult))
@@ -800,7 +821,7 @@ function buildDebug() {
     <div class="debug-row">${b('m1', 'Add 1 focused minute')}${b('m10', 'Add 10 minutes')}${b('m60', 'Add 60 minutes')}${b('finish', 'Finish the session')}</div>
     <div class="debug-row">${b('berries', 'Add 3 berries')}${b('shells', 'Add 300 shells')}${b('stone', 'A stone washes ashore')}${b('bond', 'Lead has 10 hours of bond')}${b('visit50', 'Visitor at 50-minute odds')}</div>
     <div class="debug-row">${b('visit', 'Visitor now')}${b('evolve', 'Lead is ready to evolve')}${b('checkin', 'Ask now')}${b('idle', 'Simulate 10 idle minutes')}${b('lock', 'Simulate screen lock')}${b('active', 'Simulate activity')}${b('gap', 'Simulate a 10 minute sleep')}</div>
-    <div class="debug-row">${b('passer', 'Passer-by now')}${b('find', 'A find now')}${b('balls', '+5 of each ball')}${b('w-rain', 'Rain')}${b('w-fog', 'Fog')}${b('w-sun', 'Sun')}${b('w-clear', 'Clear sky')}</div>
+    <div class="debug-row">${b('passer', 'Passer-by now')}${b('find', 'A find now')}${b('balls', '+5 of each ball')}${b('stars', '+5 Star Pieces')}${b('night', 'Night')}${b('w-rain', 'Rain')}${b('w-fog', 'Fog')}${b('w-sun', 'Sun')}${b('w-clear', 'Clear sky')}</div>
     <div class="debug-row"><label class="time"><span>Hour</span><input type="range" min="0" max="24" step="0.1" value="${clockHour()}" /><output></output></label>${b('clock', 'Use my clock')}${b('reset', 'Reset save')}</div>`
   const slider = el.querySelector<HTMLInputElement>('input')!
   const out = el.querySelector('output')!
@@ -834,6 +855,8 @@ function buildDebug() {
     if (d === 'passer') game.passerBy()
     if (d === 'find') game.dig()
     if (d === 'balls') for (const bb of BALLS) game.save.balls[bb.id] += 5
+    if (d === 'stars') game.save.starPieces += 5
+    if (d === 'night') hourOverride = 22
     if (d.startsWith('w-')) {
       const kind = d.slice(2) as Weather
       game.save.weather = { kind, until: kind === 'clear' ? 0 : Date.now() + 20 * 60 * 1000 }
@@ -991,6 +1014,18 @@ async function boot() {
         hud.refreshSheet()
         if (!ok) hud.toast('Idle detection is off.')
       },
+      buildHabitat: (id) => {
+        if (!game.buildHabitat(id)) hud.toast(game.inSession ? 'Build between sessions.' : 'Not enough Star Pieces or shells.')
+        hud.refreshSheet()
+      },
+      buyFood: (id, n) => {
+        if (!game.buyFood(id, n)) hud.toast(game.inSession ? 'The shop opens between sessions.' : 'Not enough shells.')
+        hud.refreshSheet()
+      },
+      setBait: (id) => {
+        if (game.setBait(id)) hud.toast(`${FOODS.find((f) => f.id === id)!.name} is out until your session ends.`)
+        hud.refreshSheet()
+      },
       buyBall: (b, n) => {
         if (!game.buyBall(b, n)) hud.toast(game.inSession ? 'The shop opens between sessions.' : 'Not enough shells.')
         else hud.toast(`${n === 1 ? 'A' : n} ${BALLS.find((x) => x.id === b)!.name}${n === 1 ? '' : 's'}.`)
@@ -1041,6 +1076,9 @@ async function boot() {
     }
   }
   scene.setDecor(game.save.decor.slots)
+  scene.setHabitats(game.save.habitats)
+  scene.setBait(game.save.bait)
+  game.hour = () => hourOverride ?? clockHour()
   syncWild()
   syncFinds()
   scene.weather = game.weather

@@ -4,8 +4,8 @@
 // you choose (befriend, feed, stones, party, decorations, friends) lives in
 // the sheet, and the sheet's choices only unlock between sessions.
 import type { CloudState, Friend, FriendRequest, Me } from './cloud'
-import { CATALOG, SLOTS } from './decor'
-import { BALLS, BERRY_EXP, BOND_FOR_FRIENDSHIP, Ball, Evolution, Game, Mon, PARTY_MAX, aStone, expToNext, stoneName } from './game'
+import { CATALOG, SLOTS, decorDef } from './decor'
+import { BALLS, BERRY_EXP, BOND_FOR_FRIENDSHIP, Ball, DECOR_LOVES, Evolution, FOODS, Game, HABITATS, Habitat, Mon, PARTY_MAX, aStone, expToNext, stoneName } from './game'
 
 const BASE = import.meta.env.BASE_URL
 export const portraitUrl = (dex: number, emo = 'Normal') => `${BASE}sprites/${String(dex).padStart(4, '0')}/${emo}.png`
@@ -67,6 +67,9 @@ export interface HudHandlers {
   storeDecor: (id: string) => void
   enableIdle: () => void
   buyBall: (ball: Ball, n: number) => void
+  buildHabitat: (id: Habitat) => void
+  buyFood: (id: string, n: number) => void
+  setBait: (id: string) => void
   popOut?: () => void
   quit?: () => void
   cloud: {
@@ -483,7 +486,7 @@ export class Hud {
       const known = seen.has(d)
       const from = Object.entries(g.roster).find(([, s]) => s.evolvesTo.some((e) => e.dex === d))
       const how = (() => {
-        if (sp.stage === 1) return sp.rarity === 'starter' ? 'Starter. Rarely visits.' : `${sp.rarity === 'common' ? 'Common' : sp.rarity === 'uncommon' ? 'Uncommon' : 'Rare'} visitor.`
+        if (sp.stage === 1) return `${sp.rarity === 'starter' ? 'Starter.' : `${sp.rarity === 'common' ? 'Common' : sp.rarity === 'uncommon' ? 'Uncommon' : 'Rare'}.`} ${g.lureNotes(d, (id) => decorDef(id)?.name ?? id).join(' ')}`
         if (!from) return ''
         const e = from[1].evolvesTo.find((x) => x.dex === d)!
         const fromName = known || seen.has(Number(from[0])) ? from[1].name : 'another Pokémon'
@@ -511,14 +514,29 @@ export class Hud {
         : placed.has(item.id)
           ? `<button class="px-btn small" data-move="${item.id}" ${locked ? 'disabled' : ''}>Move</button><button class="px-btn small" data-store="${item.id}" ${locked ? 'disabled' : ''}>Put away</button>`
           : `<button class="px-btn small primary" data-place="${item.id}" ${!free || locked ? 'disabled' : ''}>Place</button>`
-      return `<div class="decor-row"><div class="mon-main"><p><strong>${item.name}</strong> <span class="hint">${owned ? (placed.has(item.id) ? 'On the island' : 'Put away') : `${item.price} shells`}</span></p></div><div class="row-actions">${act}</div></div>`
+      const loves = (DECOR_LOVES[item.id] ?? []).map((d) => (g.save.seen.includes(d) ? g.name(d) : '???')).join(', ')
+      return `<div class="decor-row"><div class="mon-main"><p><strong>${item.name}</strong> <span class="hint">${owned ? (placed.has(item.id) ? 'On the island' : 'Put away') : `${item.price} shells`}</span></p>${loves ? `<p class="hint">Loved by ${loves}</p>` : ''}</div><div class="row-actions">${act}</div></div>`
+    }).join('')
+    const star = icon('star-piece', 'ico-s')
+    const shell = icon('shoal-shell', 'ico-s')
+    const habitats = HABITATS.map((h) => {
+      const built = g.save.habitats.includes(h.id)
+      const can = g.save.starPieces >= h.stars && g.save.shells >= h.shells
+      const act = built ? `<span class="hint">Built</span>` : `<button class="px-btn small${can ? ' primary' : ''}" data-habitat="${h.id}" ${!can || locked ? 'disabled' : ''}>${star}${h.stars} ${shell}${h.shells}</button>`
+      return `<div class="decor-row"><div class="mon-main"><p>${h.name}</p><p class="hint">${h.types.map((t) => t[0].toUpperCase() + t.slice(1)).join(', ')} types</p></div><div class="row-actions row">${act}</div></div>`
+    }).join('')
+    const food = FOODS.map((f) => {
+      const have = g.save.foods[f.id] ?? 0
+      return `<div class="decor-row"><span class="shop-ico">${icon(f.id)}</span><div class="mon-main"><p>${f.name} <span class="hint">×${have}</span></p><p class="hint">${f.types.map((t) => t[0].toUpperCase() + t.slice(1)).join(', ')}</p></div><div class="row-actions row"><button class="px-btn small" data-food="${f.id}" ${g.save.shells < f.price || locked ? 'disabled' : ''}>${shell}${f.price}</button><button class="px-btn small primary" data-bait="${f.id}" ${!have || locked || !!g.save.bait ? 'disabled' : ''}>Set out</button></div></div>`
     }).join('')
     const shop = BALLS.map(
       (b) => `<div class="decor-row"><span class="shop-ico">${icon(b.id)}</span><div class="mon-main"><p>${b.name} <span class="hint">×${g.save.balls[b.id]}</span></p></div><div class="row-actions row"><button class="px-btn small${g.save.shells >= b.price ? ' primary' : ''}" data-ball="${b.id}:1" ${g.save.shells < b.price || locked ? 'disabled' : ''}>${icon('shoal-shell', 'ico-s')}${b.price}</button><button class="px-btn small" data-ball="${b.id}:5" ${g.save.shells < b.price * 5 || locked ? 'disabled' : ''}>×5</button></div></div>`,
     ).join('')
     return `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${g.save.shells}</b></span>${g.save.starPieces ? `<span title="Star Pieces">${icon('star-piece')}<b>×${g.save.starPieces}</b></span>` : ''}</p>
       ${locked ? '<p class="note">Locked while focusing.</p>' : ''}
-      <p class="row-title">Shop</p>${shop}
+      <p class="row-title">Habitats</p>${habitats}
+      <p class="row-title">Food</p>${g.save.bait ? `<p class="note">${FOODS.find((f) => f.id === g.save.bait)?.name} is out.</p>` : ''}${food}
+      <p class="row-title">Balls</p>${shop}
       <p class="row-title">Decorations <span class="hint">${free}/${SLOTS.length} spots free</span></p>${rows}`
   }
 
@@ -600,6 +618,12 @@ export class Hud {
       this.friendsCache = null
       return this.renderSheet()
     }
+    const hab = at('habitat')
+    if (hab) return this.h.buildHabitat(hab as Habitat)
+    const food = at('food')
+    if (food) return this.h.buyFood(food, 1)
+    const bait = at('bait')
+    if (bait) return this.h.setBait(bait)
     const ball = at('ball')
     if (ball) {
       const [id, n] = ball.split(':')

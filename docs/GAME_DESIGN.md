@@ -90,13 +90,43 @@ Paul wants all four parts. They build in this order because each one feeds the n
    - The shop with Poké, Great and Ultra Balls bought with shells, and the throw with a timing ring and odds.
    - Moments (finds, weather, party life).
    - Star Pieces.
-2. **Lures and habitats.**
+2. **Lures and habitats.** Built 2026-11-11 with the defaults in the next section.
    - A spawn table driven by session length, time of day, focus quality, weather, habitats, food and decorations.
    - The first buildable habitats: a pond, tall grass and rocks.
    - The island's curated Pokédex of about 50 species.
 3. **Eggs, Day Care, island jobs and expeditions.**
 4. **Island growth, the guardian battle and the second island**, with the three unlock conditions.
 5. **Friends:** visits, trading and gifting, and the study-together bonus. This needs new server functions on Studdy's Supabase, which Paul runs.
+
+## Stage 2 defaults (Paul can change any of these)
+
+These were chosen while building stage 2, since the interview left them open.
+
+- **Roster:** the first island has 54 species. Four lines were added: Poliwag (needs the pond), Geodude (needs the rocks), and Hoothoot and Gastly (night only, 7 pm to 5 am). Pidgey, Starly and Hoppip like mornings, so they are twice as likely from 5 to 10 am.
+- **Session length:** rare Pokémon (Eevee) and the starters only come in 50-minute sessions, or open sessions past 50 minutes.
+- **Habitats**, each on its own fixed spot:
+
+  | Habitat | Cost | Doubles the odds of |
+  |---|---|---|
+  | Tall grass | 2 Star Pieces and 60 shells | bug and grass types |
+  | Rocks | 2 Star Pieces and 80 shells | rock and ground types |
+  | Pond | 3 Star Pieces and 100 shells | water types |
+
+  Water types climb out of the pond, and rock types come out from behind the rocks.
+- **Food:** you set out one before a session, and it is eaten when the session ends. It triples the odds of its types. Each costs 15 shells.
+
+  | Food | Types it draws |
+  |---|---|
+  | Honey | bug, grass, flying |
+  | Cheri Berry | fire, electric |
+  | Pecha Berry | water, ground, normal |
+  | Chesto Berry | ghost, dark, psychic |
+- **Decorations:** each one doubles the odds of the Pokémon that love it. For example, the campfire draws Charmander, the lantern draws Hoothoot and Gastly, and the umbrella draws Squirtle and Psyduck.
+- **Weather** now works by type: rain draws water and electric, sun draws grass and fire, and fog draws ghost, normal and psychic.
+- **Star Pieces:**
+  - Every new species caught gives one. They also come from 10% of finds and every streak milestone.
+  - Building all three habitats takes 7, which is about the first two days of play.
+- **Pokédex:** each species now says how to find it, for example "Uncommon. Needs pond. Likes Pecha Berry."
 
 ## Still open
 

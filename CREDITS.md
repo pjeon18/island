@@ -31,10 +31,19 @@ This is a free, non-commercial fan project with no affiliation.
 - **Vileplume** (#45): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/)
 - **Psyduck** (#54): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Felis-Licht (https://www.deviantart.com/felis-licht/), Morei (https://bsky.app/profile/murpia57.bsky.social)
 - **Golduck** (#55): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, Caitemis (https://caitemis-art.tumblr.com/)
+- **Poliwag** (#60): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Axcel
+- **Poliwhirl** (#61): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain
+- **Poliwrath** (#62): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Magu (@magu_boi), JustAGunk (<@1377429093997477928>)
+- **Geodude** (#74): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JustAGunk (<@1377429093997477928>)
+- **Graveler** (#75): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Tainted#3886
+- **Gastly** (#92): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain
+- **Haunter** (#93): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), PhillipsYoung (https://twitter.com/PhilliYoung196)
 - **Eevee** (#133): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/)
 - **Vaporeon** (#134): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), baronessfaron
 - **Jolteon** (#135): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), dmDash; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), "motherhenna(Helen)" (<@!543717476421074945>), Morei (https://bsky.app/profile/murpia57.bsky.social), Vynnyal (<https://vynnyal.tumblr.com/>), baronessfaron, ShyStarryRain
 - **Flareon** (#136): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Ginnie, JFain; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), LegendaryPhoenix, baronessfaron, Vynnyal (<https://vynnyal.tumblr.com/>), ShyStarryRain
+- **Hoothoot** (#163): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain
+- **Noctowl** (#164): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), G〜 (https://bsky.app/profile/justtr4sh.pmd.social), Magu (@magu_boi)
 - **Mareep** (#179): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Felis-Licht (https://www.deviantart.com/felis-licht/)
 - **Flaaffy** (#180): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), 
 - **Ampharos** (#181): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Soulja (https://twitter.com/OlSoulja)
