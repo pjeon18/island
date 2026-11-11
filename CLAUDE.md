@@ -62,12 +62,15 @@ Read `docs/PLAN.md` first. It holds the approved plan and the decision log. Paul
   - The web app switches to float mode when it sees `__TAURI_INTERNALS__`.
 - `src/hud.ts`: the in-window UI, laid out in island pixels and scaled with the canvas.
   - It has the focus widget, the party chips, the PMD-style dialog queue (portrait plus text), toasts, the Pokémon/Settings/Credits sheet, and the starter picker.
+- `src/page.ts`: the page around the island in the PokéMAPs overworld style (grass, forest, route band, pond). Your Pokémon walk the route; uncaught species stand in the side clearings. Page sprites are Showdown gen5ani gifs in `public/scene/mons` (`node scripts/pull-page-sprites.mjs`); tiles are copied from `../wheremon/public/scene`.
 - `src/main.ts`: orchestration.
   - It syncs the party to the island, runs the visitor and evolution sequences on sim time, wires game events to the HUD, and handles the PiP pop-out.
   - It runs the Web Lock clock ownership and the debug panel.
   - Dev handle: `window.__island` (`game`, `hud`, `scene`, `step(sec)`, `setHour`, `shot(name)`, `runVisit`).
 
 ## Rules
+- UI follows PokéMAPs (`../wheremon/src/styles/tokens.css`): white chrome, M PLUS Rounded 1c, 2.5px ink outlines with a hard 4px lip, IBM Plex Mono for small print. Not the Studdy look (Paul, 2026-11-11).
+- Copy is as short as it can be: no explainer paragraphs, no rules section, one line per message.
 - Ambient motion stays calm: feathered light, slow drift, no flashes.
 - Snappy springs are only for direct presses.
 - Copy is plain full sentences. No emoji.

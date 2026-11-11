@@ -9,6 +9,7 @@ import { Game, GameEvent, Mon, RARE_50, Roster, STONES, aStone, stoneName } from
 import { Hud, fmtMinutes } from './hud'
 import { H, W } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
+import { backdropHtml, paintPageMons, routeHtml } from './page'
 import { Scene } from './scene'
 import { Manifest, Species, loadManifest, loadSpecies } from './sprites'
 
@@ -28,27 +29,20 @@ const app = document.getElementById('app')!
 app.innerHTML = popoutMode
   ? `<div class="pip-stage${floatMode ? ' float' : ''}${floatMode && !tauri ? ' float-preview' : ''}"><div class="window"><canvas class="stage"${tauri ? ' data-tauri-drag-region' : ''}></canvas></div></div>`
   : `
-  <header class="head">
-    <h1>Island</h1>
-    <p>A small island of Pokémon that keeps you company while you study. Start a focus session and your party gains experience for every minute you work. When a session ends, a wild Pokémon comes out of the tall grass.</p>
+  ${backdropHtml()}
+  ${routeHtml()}
+  <header class="topbar">
+    <div class="topbar-in">
+      <h1 class="wordmark">Island</h1>
+      <button class="btn" data-act="popout">Pop out</button>
+    </div>
   </header>
   <main class="stage-wrap">
-    <div class="window"><canvas class="stage"></canvas></div>
-    <div class="below">
-      <button class="btn btn-primary" data-act="popout">Pop out</button>
-      <p>Pop out keeps the island on top of your other windows in Chrome and Edge, so it can sit in the corner of your screen.</p>
-    </div>
+    <div class="frame"><div class="window"><canvas class="stage"></canvas></div></div>
   </main>
-  ${debug ? `<section class="debug"></section>` : ''}
-  <section class="rules">
-    <h2>How your time is counted</h2>
-    <p>Only time inside a focus session counts. You start each session yourself, and every party Pokémon gains one experience point for each focused minute.</p>
-    <p>Time while your computer sleeps or the window is closed is never counted. Every 20 minutes the island asks whether you are still studying, and if nobody answers within two minutes, your party rests and the clock pauses.</p>
-    <p>If you turn on idle detection in Chrome, the island asks only after 10 minutes without keyboard or mouse use, and it pauses right away when your screen locks. The browser shares only whether you are active, never what you are doing.</p>
-    <p>Nothing on the island is for sale, and nothing makes your Pokémon grow faster than your own focused time.</p>
-  </section>
-  <footer class="credits">
-    <p>Pokémon sprites and portraits are from the <a href="https://sprites.pmdcollab.org" target="_blank" rel="noreferrer">PMD Sprite Repository</a>, used under <a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noreferrer">CC BY-NC 4.0</a>. Sprites credited to Chunsoft come from the Pokémon Mystery Dungeon games. Species and evolution data are from <a href="https://pokeapi.co" target="_blank" rel="noreferrer">PokéAPI</a>. Pokémon is © Nintendo, Creatures Inc. and GAME FREAK inc. This is a free fan project with no affiliation.</p>
+  ${debug ? `<section class="debug card"></section>` : ''}
+  <footer class="foot card">
+    <p>Free fan project, not affiliated with Nintendo, Creatures or GAME FREAK. Pokémon © its owners. Island sprites: <a href="https://sprites.pmdcollab.org" target="_blank" rel="noreferrer">PMD Sprite Repository</a> (<a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noreferrer">CC BY-NC 4.0</a>). Page sprites: Pokémon Showdown. Data: PokéAPI.</p>
   </footer>`
 
 const win = app.querySelector<HTMLElement>('.window')!
@@ -178,7 +172,7 @@ async function runVisit(rareMult = 1) {
       hud.say({
         dex,
         emotion: 'Happy',
-        text: `A wild ${name} came out of the tall grass. It is level ${level} and wants to come along.`,
+        text: `A wild ${name} appeared. It wants to join you.`,
         actions: [
           {
             label: 'Befriend',
@@ -198,8 +192,8 @@ async function runVisit(rareMult = 1) {
                 dex,
                 emotion: 'Happy',
                 text: inParty
-                  ? `${name} joined your party. It will grow while you focus.`
-                  : `${name} went to rest in your box. You can bring it into your party between sessions.`,
+                  ? `${name} joined your party.`
+                  : `${name} went to your box.`,
               })
               visiting = false
             },
@@ -211,7 +205,7 @@ async function runVisit(rareMult = 1) {
               v.walkTo(gp.x + 1, gp.y - 4)
               v.enter('leave', 99)
               after(1.2, () => scene.rustleGrass(1.6))
-              hud.say({ text: `${name} went back into the tall grass.`, auto: 3000 })
+              hud.say({ text: `${name} left.`, auto: 3000 })
               visiting = false
             },
           },
@@ -261,7 +255,7 @@ async function nextEvolution() {
           game.stopEvolution(e.mon)
           hud.say({
             dex: e.mon.dex,
-            text: `${game.name(e.mon)} stopped evolving. You can let it evolve later from your Pokémon list.`,
+            text: `${game.name(e.mon)} stopped evolving.`,
           })
         },
       },
@@ -326,7 +320,7 @@ async function showWaves() {
   const names = await cloud.collectWaves()
   if (!names.length) return
   const who = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
-  hud.say({ dex: lead(), emotion: 'Happy', text: `${who} waved while you were studying.`, auto: 5000 })
+  hud.say({ dex: lead(), emotion: 'Happy', text: `${who} waved.`, auto: 5000 })
 }
 
 // ---------- decorations ----------
@@ -349,10 +343,23 @@ function saveDecor() {
 }
 
 // ---------- game events ----------
+function pageMons() {
+  if (popoutMode) return
+  const sv = game.save
+  const byId = new Map(sv.mons.map((m) => [m.id, m.dex]))
+  const party = sv.party.map((id) => byId.get(id)).filter((d): d is number => !!d)
+  const mine = [...new Set([...party, ...sv.mons.map((m) => m.dex)])]
+  const wild = Object.entries(game.roster)
+    .filter(([d, s]) => s.stage === 1 && s.rarity && s.rarity !== 'starter' && !sv.caught.includes(+d))
+    .map(([d]) => +d)
+  paintPageMons(app, mine, wild)
+}
+
 function onGame(e: GameEvent) {
+  pageMons()
   switch (e.type) {
     case 'sessionStart':
-      hud.toast('Your session has started. Your party grows while you focus.')
+      hud.toast('Session started.')
       syncSleep()
       void cloud.sessionBegin()
       break
@@ -360,11 +367,11 @@ function onGame(e: GameEvent) {
       hud.clearQueue((d) => d.text.includes('still studying'))
       void cloud.sessionEnd()
       if (e.complete)
-        hud.toast(`You focused for ${fmtMinutes(e.minutes)}. ${e.berries === 2 ? 'Two berries' : 'A berry'} ripened on the bush.`)
+        hud.toast(`${fmtMinutes(e.minutes)} focused. ${e.berries === 2 ? 'Two berries' : 'A berry'} ripened.`)
       else
         hud.say({
           dex: lead(),
-          text: `You focused for ${fmtMinutes(e.minutes)}. Visitors come at the end of a full session.`,
+          text: `${fmtMinutes(e.minutes)} focused.`,
           auto: 5000,
         })
       syncSleep()
@@ -374,26 +381,26 @@ function onGame(e: GameEvent) {
       after(1.2, () => runVisit(e.rareMult))
       break
     case 'visitCapped':
-      hud.say({ dex: lead(), text: 'That was a lot of focus today. Visitors come back tomorrow, and your party still grows.', auto: 6000 })
+      hud.say({ dex: lead(), text: 'No more visitors today. Your party still grows.', auto: 6000 })
       break
     case 'stone':
       hud.say({
         dex: lead(),
         emotion: 'Happy',
-        text: `You have focused ${e.streak} days in a row. ${aStone(e.item).replace(/^a/, 'A')} washed ashore. You can give it to a Pokémon between sessions.`,
+        text: `${e.streak} days in a row. ${aStone(e.item).replace(/^a/, 'A')} washed ashore.`,
         auto: 7000,
       })
       break
     case 'fed':
       hud.toast(
         e.levels
-          ? `${game.name(e.mon)} ate the berry and grew to level ${e.mon.level}.`
-          : `${game.name(e.mon)} ate the berry and gained ${10} experience.`,
+          ? `${game.name(e.mon)} grew to level ${e.mon.level}.`
+          : `${game.name(e.mon)} gained ${10} EXP.`,
       )
       {
         const c = scene.byMon(e.mon.id)
         if (c && !c.asleep) c.walkTo(c.x, c.y, 'hop')
-        if (game.evolutionDue(e.mon)) hud.say({ dex: e.mon.dex, emotion: 'Happy', text: `${game.name(e.mon)} is ready to evolve. It will evolve once you start focusing.`, auto: 5000 })
+        if (game.evolutionDue(e.mon)) hud.say({ dex: e.mon.dex, emotion: 'Happy', text: `${game.name(e.mon)} evolves when you next focus.`, auto: 5000 })
       }
       publishParty()
       break
@@ -420,8 +427,8 @@ function onGame(e: GameEvent) {
         dex: lead(),
         text:
           e.reason === 'idle'
-            ? 'Your computer has been idle for 10 minutes. Are you still studying? If nobody answers in two minutes, your party will rest.'
-            : 'Are you still studying? If nobody answers in two minutes, your party will rest and the clock will pause.',
+            ? 'Still studying?'
+            : 'Still studying?',
         actions: [{ label: 'I am still here', primary: true, run: () => game.answerStillHere() }],
       })
       break
@@ -432,17 +439,17 @@ function onGame(e: GameEvent) {
       syncSleep()
       const why =
         e.reason === 'gap'
-          ? 'The island paused while you were away. Time while your computer slept or this window was closed does not count.'
+          ? 'Paused while you were away.'
           : e.reason === 'locked'
-            ? 'Your screen locked, so your party is resting and the clock is paused.'
-            : `Nobody answered, so your party is resting and the clock is paused.${e.retractedMin ? ` The last ${fmtMinutes(e.retractedMin)} of idle time were not counted.` : ''}`
+            ? 'Screen locked. The clock paused.'
+            : `The clock paused.${e.retractedMin ? ` The last ${fmtMinutes(e.retractedMin)} did not count.` : ''}`
       hud.say({ dex: lead(), text: why, auto: 7000 })
       break
     }
     case 'back':
       void cloud.sessionBegin()
       if (hud.busy && hud.currentText.includes('still studying')) hud.dismiss()
-      hud.toast('Welcome back. The clock is running again.')
+      hud.toast('Welcome back.')
       syncSleep()
       break
     case 'partyChanged':
@@ -523,7 +530,7 @@ function fitInto(w: Window) {
 }
 function plainPopOut() {
   window.open(`${location.pathname}?popout`, 'island', `width=${W * 2},height=${H * 2}`)
-  hud.toast('This browser cannot keep a window on top, so the island opened in an ordinary window.')
+  hud.toast('This browser cannot keep windows on top.')
 }
 async function popOut() {
   const dpip = window.documentPictureInPicture
@@ -637,6 +644,7 @@ async function boot() {
   manifest = m
   game = new Game((roster as { species: Roster }).species)
   scene.hour = clockHour()
+  pageMons()
 
   hud = new Hud(
     win,
@@ -649,7 +657,7 @@ async function boot() {
         if (!s.length) return game.endSession(true)
         hud.say({
           dex: lead(),
-          text: 'End this session now? Your focused minutes stay counted, but visitors only come at the end of a full session.',
+          text: 'End now? Visitors only come after a full session.',
           actions: [
             { label: 'End session', run: () => game.endSession(false) },
             { label: 'Keep going', primary: true, run: () => {} },
@@ -672,22 +680,22 @@ async function boot() {
         })
         candidates = []
         after(2.4, () => scene.rustleGrass(1.4))
-        hud.say({ dex, emotion: 'Happy', text: `${name} will study with you. Press Start focusing when you are ready.` })
+        hud.say({ dex, emotion: 'Happy', text: `${name} will study with you.` })
       },
       setLength: (sec) => {
         game.save.settings.length = sec
         game.persist()
       },
       toggleParty: (id, on) => {
-        if (!game.setInParty(id, on)) hud.toast('You can change your party between sessions.')
+        if (!game.setInParty(id, on)) hud.toast('Change your party between sessions.')
       },
       feed: (id) => {
-        if (!game.feed(id)) hud.toast(game.inSession ? 'You can feed berries between sessions.' : 'There are no ripe berries yet. A finished session ripens one.')
+        if (!game.feed(id)) hud.toast(game.inSession ? 'Feed between sessions.' : 'No berries yet.')
         hud.refreshSheet()
       },
       giveStone: (id, item) => {
         const m = game.mon(id)
-        if (m && game.giveStone(id, item)) hud.say({ dex: m.dex, text: `${game.name(m)} is holding the ${stoneName(item)}. It will evolve once you start focusing.`, auto: 5000 })
+        if (m && game.giveStone(id, item)) hud.say({ dex: m.dex, text: `${game.name(m)} evolves when you next focus.`, auto: 5000 })
         hud.refreshSheet()
       },
       takeStone: (id) => {
@@ -697,11 +705,11 @@ async function boot() {
       buyDecor: (id) => {
         const d = decorDef(id)
         if (!d || game.inSession || game.save.decor.owned.includes(id)) return
-        if (!game.spendShells(d.price)) return hud.toast('You need more shells. You earn one for every focused minute.')
+        if (!game.spendShells(d.price)) return hud.toast('Not enough shells.')
         game.save.decor.owned.push(id)
         const slot = freeSlotAfter()
         if (slot) game.save.decor.slots[slot] = id
-        hud.toast(slot ? `The ${d.name.toLowerCase()} is on your island.` : `You bought the ${d.name.toLowerCase()}. Put something away to make room for it.`)
+        hud.toast(slot ? `Placed.` : `Bought. Put something away to make room.`)
         saveDecor()
       },
       placeDecor: (id) => {
@@ -713,7 +721,7 @@ async function boot() {
       moveDecor: (id) => {
         const from = decorSlotOf(id)
         const to = freeSlotAfter(from)
-        if (!from || !to || game.inSession) return hud.toast('There is no free spot to move it to.')
+        if (!from || !to || game.inSession) return hud.toast('No free spot.')
         game.save.decor.slots[from] = null
         game.save.decor.slots[to] = id
         saveDecor()
@@ -738,14 +746,14 @@ async function boot() {
       allowEvolution: (id) => {
         const mon = game.mon(id)
         if (mon) game.allowEvolution(mon)
-        hud.toast('It will evolve during your next session.')
+        hud.toast('It evolves next session.')
       },
       enableIdle: async () => {
         const ok = await enableIdleDetection(presence)
         game.save.settings.detector = ok
         game.persist()
         hud.refreshSheet()
-        if (!ok) hud.toast('Idle detection was not allowed, so the island will keep asking every 20 minutes.')
+        if (!ok) hud.toast('Idle detection is off.')
       },
       popOut: popoutMode ? undefined : popOut,
       quit: tauri ? () => void invoke?.('plugin:window|close', { label: 'main' }) : undefined,
@@ -809,9 +817,9 @@ async function boot() {
 function creditsHtml() {
   const names = (xs: { name: string }[]) => xs.map((a) => a.name).join(', ')
   const rows = Object.values(manifest.species)
-    .map((s) => `<li><strong>${s.name}</strong>: sprite by ${names(s.credits.sprite)}; portrait by ${names(s.credits.portrait)}.</li>`)
+    .map((s) => `<li><strong>${s.name}</strong> ${names(s.credits.sprite)} / ${names(s.credits.portrait)}</li>`)
     .join('')
-  return `<p>Sprites and portraits are from the PMD Sprite Repository (sprites.pmdcollab.org), used under CC BY-NC 4.0. Sprites credited to Chunsoft come from the Pokémon Mystery Dungeon games. Species and evolution data are from PokéAPI. Pokémon is © Nintendo, Creatures Inc. and GAME FREAK inc. This is a free fan project with no affiliation.</p><ul>${rows}</ul>`
+  return `<p>PMD Sprite Repository, CC BY-NC 4.0. Sprite / portrait artists:</p><ul>${rows}</ul>`
 }
 
 window.__island = {

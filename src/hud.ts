@@ -159,11 +159,11 @@ export class Hud {
                  <button class="px-btn primary small" data-f="start">Start focusing</button>${segs}`
               : `<button class="px-btn primary" data-f="start">Start focusing</button>${segs}`
             : s.state === 'running'
-              ? `<div class="px-panel clock"><span class="clock-t"></span><span class="clock-l">${s.length ? 'Focusing' : 'Focusing, open session'}</span></div>
+              ? `<div class="px-panel clock"><span class="clock-t"></span><span class="clock-l">${s.length ? 'Focusing' : 'Open'}</span></div>
                  <button class="px-btn small" data-f="end">End session</button>`
               : s.state === 'asking'
                 ? `<div class="px-panel clock"><span class="clock-t"></span><span class="clock-l">Waiting for you</span></div>
-                   <button class="px-btn primary small" data-f="still">I am still here</button>`
+                   <button class="px-btn primary small" data-f="still">I'm here</button>`
                 : `<div class="px-panel clock away"><span class="clock-t"></span><span class="clock-l">Paused</span></div>
                    <button class="px-btn primary small" data-f="back">I am back</button>`
       if (!this.sheet.hidden) this.renderSheet()
@@ -249,8 +249,8 @@ export class Hud {
     this.starter.hidden = false
     this.starter.innerHTML = `
       <div class="px-panel starter-panel">
-        <p class="starter-title">Choose the Pokémon that will study with you.</p>
-        <p class="starter-sub">It gains experience only while you focus.</p>
+        <p class="starter-title">Pick a partner.</p>
+        
         <div class="starter-row">
           ${options.map((d) => `<button class="starter-pick" data-dex="${d}"><img src="${portraitUrl(d)}" alt="" /><span>${g.name(d)}</span></button>`).join('')}
         </div>
@@ -311,19 +311,19 @@ export class Hud {
     const s = g.save
     const stones = Object.entries(s.bag).filter(([, n]) => n > 0)
     const inv = `<p class="inv"><span>Berries <b>${s.berries}</b></span><span>Shells <b>${s.shells}</b></span>${stones.map(([k, n]) => `<span>${stoneName(k)} <b>${n}</b></span>`).join('')}</p>`
-    const locked = g.inSession ? `<p class="note">You can feed, give stones and change your party between sessions.</p>` : ''
+    const locked = g.inSession ? `<p class="note">Locked while focusing.</p>` : ''
     const order = [...g.party, ...s.mons.filter((m) => !s.party.includes(m.id))]
-    return inv + locked + order.map((m) => this.monRow(m)).join('') + `<p class="note">${s.mons.length} Pokémon on your island. Up to ${PARTY_MAX} can be in your party, and only they gain experience while you focus.</p>`
+    return inv + locked + order.map((m) => this.monRow(m)).join('') + `<p class="note">Party ${g.party.length}/${PARTY_MAX}</p>`
   }
   private evoText(m: Mon) {
     const g = this.game
     const opts = g.evolutionOptions(m)
-    if (!opts.length) return 'It does not evolve further on this island.'
+    if (!opts.length) return 'Final form.'
     const lv = opts.filter((e) => e.level).map((e) => `at level ${e.level} into ${g.name(e.dex)}`)
     const st = opts.filter((e) => e.item).map((e) => `with ${aStone(e.item!)} into ${g.name(e.dex)}`)
     const fr = opts.filter((e) => e.friendship).map((e) => `by friendship ${e.time ? `during the ${e.time} ` : ''}into ${g.name(e.dex)}`)
-    const bond = fr.length ? ` Friendship needs ${fmtMinutes(BOND_FOR_FRIENDSHIP)} of focus together; you have ${fmtMinutes(Math.min(m.focusedMin, BOND_FOR_FRIENDSHIP))}.` : ''
-    return `It evolves ${list([...lv, ...st, ...fr])}.${bond}`
+    const bond = fr.length ? ` Bond ${fmtMinutes(Math.min(m.focusedMin, BOND_FOR_FRIENDSHIP))} of ${fmtMinutes(BOND_FOR_FRIENDSHIP)}.` : ''
+    return `Evolves ${list([...lv, ...st, ...fr])}.${bond}`
   }
   private monRow(m: Mon) {
     const g = this.game
@@ -332,10 +332,10 @@ export class Hud {
     const open = this.openMon === m.id
     const pct = Math.round((m.exp / expToNext(m.level)) * 100)
     const status = m.heldItem
-      ? `Holding ${aStone(m.heldItem)}. It evolves when your next session starts.`
+      ? `Holding ${aStone(m.heldItem)}.`
       : m.noEvolve
-        ? 'It is waiting until you let it evolve.'
-        : `Focused together for ${fmtMinutes(m.focusedMin)}.`
+        ? 'Ready to evolve.'
+        : `${fmtMinutes(m.focusedMin)} together`
     let detail = ''
     if (open) {
       const locked = g.inSession
@@ -352,9 +352,9 @@ export class Hud {
         <div class="mon-detail">
           <p class="hint">${this.evoText(m)}</p>
           <div class="row-actions">
-            ${btn(`data-feed="${m.id}"`, `Feed a berry (+${BERRY_EXP} EXP)`, locked || s.berries <= 0, true)}
+            ${btn(`data-feed="${m.id}"`, `Feed +${BERRY_EXP} EXP`, locked || s.berries <= 0, true)}
             ${usable.length && !m.heldItem ? btn(`data-stones="${m.id}"`, 'Give a stone', locked) : ''}
-            ${m.heldItem ? btn(`data-take="${m.id}"`, 'Take the stone back', locked) : ''}
+            ${m.heldItem ? btn(`data-take="${m.id}"`, 'Take stone', locked) : ''}
             ${m.noEvolve ? btn(`data-allow="${m.id}"`, 'Let it evolve') : ''}
             ${partyBtn}
           </div>
@@ -388,24 +388,24 @@ export class Hud {
         return `<button class="dex-cell ${cls}${this.dexPick === d ? ' on' : ''}" data-dex="${d}" aria-label="${seen.has(d) ? g.name(d) : 'Unknown'}">${seen.has(d) ? `<img src="${portraitUrl(d)}" alt="" />` : `<span>${d}</span>`}</button>`
       })
       .join('')
-    let caption = 'Tap a Pokémon to see how to find it.'
+    let caption = ''
     if (this.dexPick) {
       const d = this.dexPick
       const sp = g.species(d)
       const known = seen.has(d)
       const from = Object.entries(g.roster).find(([, s]) => s.evolvesTo.some((e) => e.dex === d))
       const how = (() => {
-        if (sp.stage === 1) return sp.rarity === 'starter' ? 'It can be a starter, and rarely it visits from the tall grass.' : `It visits from the tall grass. It is ${sp.rarity === 'common' ? 'common' : sp.rarity === 'uncommon' ? 'uncommon' : 'rare'}.`
+        if (sp.stage === 1) return sp.rarity === 'starter' ? 'Starter. Rarely visits.' : `${sp.rarity === 'common' ? 'Common' : sp.rarity === 'uncommon' ? 'Uncommon' : 'Rare'} visitor.`
         if (!from) return ''
         const e = from[1].evolvesTo.find((x) => x.dex === d)!
         const fromName = known || seen.has(Number(from[0])) ? from[1].name : 'another Pokémon'
-        if (e.level) return `It evolves from ${fromName} at level ${e.level}.`
-        if (e.item) return `It evolves from ${fromName} with ${aStone(e.item)}.`
-        return `It evolves from ${fromName} by friendship${e.time ? ` during the ${e.time}` : ''}.`
+        if (e.level) return `${fromName}, level ${e.level}.`
+        if (e.item) return `${fromName} with ${aStone(e.item)}.`
+        return `${fromName}, friendship${e.time ? ` by ${e.time}` : ''}.`
       })()
       caption = `<strong>${known ? sp.name : `No. ${d}`}</strong>. ${how}`
     }
-    return `<p class="note">You have seen ${seen.size} and befriended ${caught.size} of the ${all.length} Pokémon that live around the island.</p>
+    return `<p class="note">Seen ${seen.size} · Caught ${caught.size} · ${all.length}</p>
       <div class="dex-grid">${cells}</div><p class="hint dex-cap">${caption}</p>`
   }
 
@@ -426,22 +426,22 @@ export class Hud {
       return `<div class="decor-row"><div class="mon-main"><p><strong>${item.name}</strong> <span class="hint">${owned ? (placed.has(item.id) ? 'On the island' : 'Put away') : `${item.price} shells`}</span></p><p class="hint">${item.blurb}</p></div><div class="row-actions">${act}</div></div>`
     }).join('')
     return `<p class="inv"><span>Shells <b>${g.save.shells}</b></span><span>${free} of ${SLOTS.length} spots free</span></p>
-      <p class="note">You earn one shell for every focused minute. Decorations are only for looks, and they never change what visits or how fast anyone grows.${locked ? ' You can decorate between sessions.' : ''}</p>${rows}`
+      ${locked ? '<p class="note">Locked while focusing.</p>' : ''}${rows}`
   }
 
   private friendsTab() {
     const c = this.h.cloud
     const st = c.state()
-    if (st === 'off') return `<p class="note">Friends need the online service, which is not set up in this copy of the island.</p>`
+    if (st === 'off') return `<p class="note">Friends are not available here.</p>`
     if (st === 'signedOut')
-      return `<p class="row-title">See your friends' islands</p>
-        <p class="note">Sign in with the email you use for Studdy. Your Studdy friends become your island friends, and they can see your party and when you are studying. They never see what you work on.</p>
+      return `
+        <p class="note">Sign in with your Studdy email.</p>
         <form class="inline-form" data-form="signin"><input class="px-input" type="email" name="email" placeholder="you@example.com" required /><button class="px-btn small primary">Send a link</button></form>`
     if (st === 'needsName')
       return `<p class="row-title">Choose a name</p>
-        <p class="note">Friends find you by this name. It is shared with Studdy.</p>
+        <p class="note">Pick a name friends can find.</p>
         <form class="inline-form" data-form="name"><input class="px-input" name="name" maxlength="20" placeholder="Your name" required /><button class="px-btn small primary">Save</button></form>`
-    if (st === 'missingSchema') return `<p class="note">You are signed in, but the island's part of the online service is not set up yet.</p>`
+    if (st === 'missingSchema') return `<p class="note">Friends are not set up yet.</p>`
     const me = c.me()!
     const fc = this.friendsCache
     const reqs = (fc?.requests ?? [])
@@ -450,14 +450,14 @@ export class Hud {
     const rows = (fc?.friends ?? [])
       .map((f) => {
         const party = f.party.map((p) => `<span class="mini"><img src="${portraitUrl(p.dex)}" alt="" /><i>${p.level}</i></span>`).join('')
-        const status = f.studying ? 'Studying now.' : f.dayMin ? `Focused ${fmtMinutes(f.dayMin)} in the last day.` : 'Not studying right now.'
+        const status = f.studying ? 'Studying now' : f.dayMin ? `${fmtMinutes(f.dayMin)} today` : ''
         const waveBtn = f.studying && !this.game.inSession ? `<button class="px-btn small" data-wave="${f.id}">Wave</button>` : ''
         return `<div class="friend-row${f.studying ? ' live' : ''}"><div class="mon-main"><p><strong>${esc(f.name)}</strong> <span class="hint">@${esc(f.handle)}</span></p><p class="hint">${status} ${f.dexCount ? `Pokédex: ${f.dexCount}.` : ''}</p></div><div class="mini-party">${party}</div>${waveBtn}</div>`
       })
       .join('')
-    return `<p class="note">You are signed in as ${esc(me.name)} (@${esc(me.handle)}). Friends see your party and whether you are studying, never what you work on.</p>
+    return `<p class="note">@${esc(me.handle)}</p>
       ${reqs}
-      ${fc ? rows || `<p class="note">No friends yet. Add someone by their Studdy handle.</p>` : `<p class="note">Loading your friends…</p>`}
+      ${fc ? rows || `<p class="note">No friends yet.</p>` : `<p class="note">Loading…</p>`}
       ${fc?.error ? `<p class="note">${esc(fc.error)}</p>` : ''}
       <form class="inline-form" data-form="add"><input class="px-input" name="handle" maxlength="21" placeholder="@handle" required /><button class="px-btn small">Add friend</button></form>
       <button class="px-btn small quiet" data-act="signout">Sign out</button>`
@@ -472,22 +472,17 @@ export class Hud {
     return `
       <p class="row-title">Session length</p>
       <div class="segs wide">
-        <button class="seg${len === 1500 ? ' on' : ''}" data-len="25">25 minutes</button>
-        <button class="seg${len === 3000 ? ' on' : ''}" data-len="50">50 minutes</button>
+        <button class="seg${len === 1500 ? ' on' : ''}" data-len="25">25 min</button>
+        <button class="seg${len === 3000 ? ' on' : ''}" data-len="50">50 min</button>
         <button class="seg${len === null ? ' on' : ''}" data-len="open">Open</button>
       </div>
-      <p class="note">A finished session brings a visitor and ripens a berry. A 50-minute session ripens two berries and makes rare visitors two and a half times as likely. In an open session, a visitor comes every 30 focused minutes. Visitors stop after 12 a day.</p>
-      <p class="row-title">Your focus</p>
-      <p class="note">Today you have focused for ${fmtMinutes(g.todayMinutes())}.${streak ? ` You have focused ${streak} day${streak === 1 ? '' : 's'} in a row.` : ''} Stones wash ashore on the 3rd, 7th, 14th and 30th day in a row.</p>
-      <p class="row-title">Noticing when you step away</p>
+      <p class="row-title">Today</p>
+      <p class="note">${fmtMinutes(g.todayMinutes())} focused${streak ? ` · ${streak} day${streak === 1 ? '' : 's'} in a row` : ''}</p>
       ${
-        det
-          ? `<p class="note">Idle detection is on. If your computer sees no keyboard or mouse use for 10 minutes, the island asks whether you are still studying. If the screen locks, the clock pauses right away.</p>`
-          : `<p class="note">The island asks whether you are still studying every 20 minutes. ${idleOk ? 'If you turn on idle detection, it only asks after 10 minutes without keyboard or mouse use. The browser shares only whether you are active, never what you are doing.' : ''}</p>
-             ${idleOk ? `<button class="px-btn small" data-act="idle">Turn on idle detection</button>` : ''}`
+        !det && idleOk ? `<p class="row-title">Idle detection</p><button class="px-btn small" data-act="idle">Turn on</button>` : ''
       }
-      ${this.h.popOut ? `<p class="row-title">Window</p><button class="px-btn small" data-act="popout">Pop out the island</button>` : ''}
-      ${this.h.quit ? `<p class="row-title">Window</p><p class="note">Drag the island to move it. Your progress is saved.</p><button class="px-btn small" data-act="quit">Close the island</button>` : ''}
+      ${this.h.popOut ? `<p class="row-title">Window</p><button class="px-btn small" data-act="popout">Pop out</button>` : ''}
+      ${this.h.quit ? `<p class="row-title">Window</p><button class="px-btn small" data-act="quit">Close</button>` : ''}
       <p class="row-title">Credits</p>
       <div class="credits-body">${this.credits()}</div>`
   }
