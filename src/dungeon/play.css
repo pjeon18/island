@@ -47,3 +47,7 @@ html, body { margin: 0; height: 100%; background: #07080a; overflow: hidden; }
 .dg-items b { font-weight: 400; color: var(--gold-edge); }
 .dg-deep { display: block; width: 40px; height: 40px; margin: 0 auto 2px; image-rendering: pixelated; border: 2px solid var(--edge2); background: #e0eefa; }
 .dg-msg .dg-row { flex-wrap: wrap; }
+
+/* co-op: the room code */
+.dg-room { font-weight: 400; color: var(--gold-edge); letter-spacing: 2px; }
+.dg-code { font: 16px/1 'Press Start 2P', monospace; width: 6.5ch; padding: 6px 8px; text-transform: uppercase; letter-spacing: 3px; border: 2px solid var(--edge); background: #fff; color: var(--ink); }

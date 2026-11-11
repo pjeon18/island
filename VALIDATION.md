@@ -1,5 +1,9 @@
 # Validation
 
+## Co-op dungeons (2026-11-11)
+- Two tabs on one machine, room TEST, over the public relays: the guest's hello reached the host, its two Pokémon replaced the host's third, and Enter started both on the same seeded floor. The guest received about 15 snapshots a second and drew all 4 party Pokémon and the floor's enemies; its own lead moved locally and the host saw the same position; its Hyper Voice ran on the host. Stairs moved both to the same B2 and, after a fix, placed the guest at the new start. A guest in a background tab stayed connected (heartbeat); closing the guest's tab was noticed by the host within about 12 seconds and its Pokémon fought on.
+- Not checked: two different machines or networks (campus Wi-Fi may block peer-to-peer; there is no relay fallback yet), the host leaving mid-run on the guest's side, loot and the special catch on the guest's save, and lag on a slow connection.
+
 ## Dungeon v2 (2026-11-11)
 - Generated floors render in both themes (Glacier Grotto ice, Pier Hollow cave) with torches or crystals, ponds, grass, rocks, traps that show only in light, pots and chests. Stairs from B1 to B3 and into the hand-made boss floor worked; the run state survives as `island-dungeon-run`.
 - An autopilot (stairs-seeking, fights what is awake, eats berries) at the intended level: Glacier Grotto at Lv48 cleared B1 (20 to 35 s) and B2 (34 to 52 s) and reached the boss floor once in 2.5 simulated minutes; Lapras at Lv48 against a full-health Lv48 party got down to 17% before the party fell. Pier Hollow at Lv30 cleared B1 and B2. Losses came from undodged telegraphs (the bot dashes poorly); after that, minibosses were eased (5× HP, softer burst, one helper, no level bonus) and stairs heal fully.

@@ -22,6 +22,7 @@ import { Light, applyLighting, normalMapFor } from '../lighting'
 import { Species, dirFrom, drawFrame, frameAt, loadManifest, loadSpecies } from '../sprites'
 import { generateFloor } from './gen'
 import { DungeonMap, Entity, TILE, TrapKind, bakeMap, walkableTile } from './map'
+import { type Event as NetEvent, type Hello, type Input, type Net, type Snap, type Start, type TeamMon, connectRoom, makeRoomCode } from './net'
 
 const VW = 320
 const VH = 180
@@ -79,6 +80,10 @@ interface Actor {
   dashDir: [number, number]
   phase: number // boss phases 1..3
   summoned: boolean
+  owner?: string // co-op: the guest's peer id for the guest's Pokémon
+  reviveT: number // co-op: seconds a partner has stood beside this fainted one
+  tx?: number // guest: where the host says it is (drawn easing toward it)
+  ty?: number
 }
 interface Shot {
   x: number
@@ -194,6 +199,16 @@ let nextId = 1
 const gate = params.get('gate') as IslandId | null
 const test = params.get('map') === 'play'
 let run: Run
+// co-op by room code: the host runs the dungeon; the guest moves its own lead and draws the host's snapshots
+const roomCode = params.get('room')
+const mode: 'solo' | 'host' | 'guest' = roomCode ? (params.has('host') ? 'host' : 'guest') : 'solo'
+let net: Net | null = null
+let guestPeer: string | null = null // host: the guest in the room
+let guestLeadId = -1 // both: the guest's lead actor
+let coop = false // host: a guest started the run with you (enemies are tougher)
+const mine = new Set<number>() // guest: actor ids you control
+let guestActs: string[] = [] // guest: button presses to send
+let heardAt = performance.now() // co-op: the last message from the other player (a closed tab can take a while to report)
 
 // a boss has 2.5 times a turn-based guardian's HP: in real time a whole party hits it at once.
 // A miniboss has five times a normal enemy's.
@@ -207,7 +222,7 @@ function makeActor(side: Actor['side'], dex: number, level: number, sp: Species,
   if (side === 'you') st.hp = Math.round(st.hp * PARTY_HP)
   return {
     id: nextId++, side, dex, name, level, types, sp, x, y, dir: 0, hp: st.hp, maxHp: st.hp, atk: st.atk, cd: Math.random() * 0.6, cd1: 0, cd2: boss ? 4 : mini ? 3 : 0, moving: false,
-    t: Math.random() * 3, hurt: 0, hop: 0, awake: false, boss, mini, dead: false, fade: 0, sleep: 0, dash: 0, dashCd: 0, dashDir: [0, 1], phase: 1, summoned: false,
+    t: Math.random() * 3, hurt: 0, hop: 0, awake: false, boss, mini, dead: false, fade: 0, sleep: 0, dash: 0, dashCd: 0, dashDir: [0, 1], phase: 1, summoned: false, reviveT: 0,
   }
 }
 
@@ -519,6 +534,7 @@ function updateThings() {
         }
       }
       th.open = true
+      if (mode === 'host' && guestPeer) net?.sendEvent({ kind: 'chest', big: !!th.big })
       const lines = lootChest(!!th.big)
       run.found.push(...lines)
       toast(lines.join(' '))
@@ -603,6 +619,7 @@ function update(dt: number) {
     a.cd1 -= dt
     a.cd2 -= dt
     a.dashCd -= dt
+    a.dash = Math.max(0, a.dash - dt)
     a.sleep = Math.max(0, a.sleep - dt)
     if (a.dead) a.fade = Math.min(1, a.fade + dt * 1.5)
   }
@@ -621,7 +638,6 @@ function update(dt: number) {
   if (keys.has('s') || keys.has('arrowdown')) my++
   if (me.sleep > 0) mx = my = 0
   if (me.dash > 0) {
-    me.dash -= dt
     move(me, me.dashDir[0] * 230 * dt, me.dashDir[1] * 230 * dt)
     me.moving = true
   } else {
@@ -633,12 +649,14 @@ function update(dt: number) {
     }
   }
   // followers keep near the lead and fight what is close, finding their way around walls
+  const gLead = guestLeadId >= 0 ? party.find((q) => q.id === guestLeadId && q.owner) : undefined
   party.forEach((p, i) => {
-    if (p === me || p.dead || p.sleep > 0) return
+    if (p === me || p === gLead || p.dead || p.sleep > 0) return
+    const L = p.owner && gLead && !gLead.dead ? gLead : me
     const foe = nearest(p, alive(foes).filter((f) => f.awake), 90)
-    let tx = me.x + (i % 2 ? -14 : 14)
-    let ty = me.y + 10
-    let toLead = true
+    let tx = L.x + (i % 2 ? -14 : 14)
+    let ty = L.y + 10
+    let toLead = L === me
     if (foe && dist(p, foe) > range(p) - 6) {
       tx = foe.x
       ty = foe.y
@@ -691,6 +709,21 @@ function update(dt: number) {
   const fighting = alive(foes).some((f) => f.awake && party.some((p) => !p.dead && dist(p, f) < 140))
   calm = fighting ? 0 : calm + dt
   if (calm > 3) for (const p of party) if (!p.dead) p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.015 * dt)
+  if (coop) {
+    const leads = [me, gLead].filter((x): x is Actor => !!x && !x.dead)
+    for (const p of party) {
+      if (!p.dead) continue
+      const near = leads.some((l) => dist(l, p) < 16)
+      p.reviveT = near ? p.reviveT + dt : 0
+      if (p.reviveT > 3) {
+        p.dead = false
+        p.fade = 0
+        p.reviveT = 0
+        p.hp = Math.round(p.maxHp * 0.3)
+        pops.push({ x: p.x, y: p.y - 26, text: `${p.name} is back up!`, t: 0, col: '#a8f0a8' })
+      }
+    }
+  }
 
   // shots fly and hit the first body of the other side
   for (const s of shots) {
@@ -714,7 +747,7 @@ function update(dt: number) {
   pops = pops.filter((p) => (p.t += dt) < 1.1)
   // stairs down (once the miniboss is down), or the exit (once the boss is down)
   const guarded = foes.some((f) => f.mini && !f.dead)
-  if (exit && dist(me, exit) < 12) {
+  if (exit && (dist(me, exit) < 12 || (gLead && !gLead.dead && dist(gLead, exit) < 12))) {
     if (map === hand) {
       if (bossDown) end(true)
     } else if (guarded) {
@@ -724,12 +757,36 @@ function update(dt: number) {
       }
     } else void downstairs()
   }
+  if (mode === 'host' && guestPeer && time - snapAt > 1 / 15) {
+    snapAt = time
+    snapsOut++
+    net?.sendSnap(snapshot())
+  }
   renderHud()
+}
+let snapAt = 0
+let snapsOut = 0
+/** What the guest needs to draw this moment (positions are whole pixels). */
+function snapshot(): Snap {
+  const flags = (a: Actor) => (a.moving ? 1 : 0) | (a.hop > 0 ? 2 : 0) | (a.hurt > 0 ? 4 : 0) | (a.dead ? 8 : 0) | (a.sleep > 0 ? 16 : 0) | (a.dash > 0 ? 32 : 0)
+  return {
+    a: [...party, ...foes].map((a) => [a.id, a.side === 'you' ? 1 : 0, a.dex, Math.round(a.x), Math.round(a.y), a.dir, Math.round(a.hp), Math.round(a.maxHp), flags(a), a.level, a.boss ? 1 : a.mini ? 2 : 0, a.name, +a.fade.toFixed(2), +a.cd1.toFixed(1), +a.cd2.toFixed(1), a.awake ? 1 : 0]),
+    s: shots.map((x) => [Math.round(x.x), Math.round(x.y), x.type]),
+    w: warnings.map((w) => [w.kind === 'lane' ? 1 : 0, Math.round(w.x), Math.round(w.y), w.r, Math.round(w.x2 ?? 0), Math.round(w.y2 ?? 0), +w.t.toFixed(2), w.at, w.col]),
+    r: rings.filter((r) => r.t < 0.5).map((r) => [Math.round(r.x), Math.round(r.y), r.max, r.col, +r.t.toFixed(2)]),
+    p: pops.map((p) => [Math.round(p.x), Math.round(p.y), p.text, +p.t.toFixed(2), p.col]),
+    tr: traps.map((t) => [+t.t.toFixed(2), +t.cd.toFixed(1), t.used ? 1 : 0]),
+    th: things.map((t) => [t.kind === 'pot' ? 0 : 1, t.open ? 1 : 0, t.big ? 1 : 0, Math.round(t.x), Math.round(t.y)]),
+    bd: bossDown ? 1 : 0,
+    it: run.items,
+    f: run.floor,
+    sh: +shake.toFixed(2),
+  } as unknown as Snap
 }
 
 // ---------- floors and the run ----------
 function saveRun() {
-  if (test) return
+  if (test || mode !== 'solo') return
   run.hp = {}
   for (const p of party) if (p.monId) run.hp[p.monId] = p.dead ? 0 : p.hp / p.maxHp
   try {
@@ -737,6 +794,7 @@ function saveRun() {
   } catch {}
 }
 function clearRun() {
+  if (mode !== 'solo') return // co-op runs are never saved, so they never clear a solo one
   try {
     localStorage.removeItem(RUN_KEY)
   } catch {}
@@ -770,6 +828,7 @@ async function loadFloor(n: number) {
   })
   const mk = (e: Entity) => makeActor('foe', e.dex!, e.level ?? 10, species.get(e.dex!)!, game.species(e.dex!)?.types ?? ['normal'], game.name(e.dex!), e.x * TILE + 8, e.y * TILE + 12, e.kind === 'boss', e.kind === 'miniboss')
   foes = map.entities.filter((e) => (e.kind === 'enemy' || e.kind === 'boss' || e.kind === 'miniboss') && e.dex && species.get(e.dex)).map(mk)
+  if (coop) for (const f of foes) f.hp = f.maxHp = Math.round(f.maxHp * (f.boss ? 1.75 : 1.5))
   const ex = map.entities.find((e) => e.kind === 'exit' || e.kind === 'stairs')
   exit = ex ? { x: ex.x * TILE + 8, y: ex.y * TILE + 8 } : null
   bossDown = !foes.some((f) => f.boss)
@@ -794,6 +853,7 @@ async function downstairs() {
   }
   run.floor++
   saveRun()
+  if (mode === 'host' && guestPeer) net?.sendEvent({ kind: 'floor', floor: run.floor })
   view.style.transition = 'opacity .35s ease'
   view.style.opacity = '0'
   await new Promise((r) => setTimeout(r, 380))
@@ -802,6 +862,159 @@ async function downstairs() {
   toast(run.floor >= FLOORS ? `${hand.name}: the deepest floor.` : `${hand.name} B${run.floor}. The stairs saved your run.`)
   state = 'play'
   stepping = false
+}
+
+// ---------- co-op: the guest ----------
+const actors = new Map<number, Actor>() // guest: everyone the host has told us about
+const loadingSp = new Set<number>()
+function loadSp(dex: number) {
+  if (species.has(dex) || loadingSp.has(dex)) return
+  loadingSp.add(dex)
+  void loadSpecies(manifest, String(dex).padStart(4, '0')).then((sp) => species.set(dex, sp))
+}
+/** The guest builds the same floor from the shared seed; the host's snapshots fill it. */
+async function guestFloor(n: number) {
+  run.floor = n
+  map = floorMap(n)
+  baked = bakeMap(map)
+  const need = new Set<number>(map.entities.filter((e) => e.dex).map((e) => e.dex!))
+  await Promise.all([...need].filter((d) => !species.has(d)).map(async (d) => species.set(d, await loadSpecies(manifest, String(d).padStart(4, '0')))))
+  const ex = map.entities.find((e) => e.kind === 'exit' || e.kind === 'stairs')
+  exit = ex ? { x: ex.x * TILE + 8, y: ex.y * TILE + 8 } : null
+  traps = map.entities.filter((e) => e.kind === 'trap').map((e) => ({ kind: e.trap ?? 'spikes', x: e.x * TILE + 8, y: e.y * TILE + 10, t: 0, cd: 0, hitThisCycle: new Set<number>(), used: false }))
+  // the host's next snapshot moves everyone (our lead included) to the new floor
+  const me = actors.get(guestLeadId)
+  if (me) me.tx = undefined
+  hudKey = ''
+}
+let snapsIn = 0
+let snapsUsed = 0
+function applySnap(raw: Snap) {
+  snapsIn++
+  heardAt = performance.now()
+  const s = raw as unknown as {
+    a: [number, number, number, number, number, number, number, number, number, number, number, string, number, number, number, number][]
+    s: [number, number, string][]
+    w: [number, number, number, number, number, number, number, number, string][]
+    r: [number, number, number, string, number][]
+    p: [number, number, string, number, string][]
+    tr: [number, number, number][]
+    th: [number, number, number, number, number][]
+    bd: number
+    it: Items
+    f: number
+    sh: number
+  }
+  if (!map || !run || s.f !== run.floor) return
+  snapsUsed++
+  const seen = new Set<number>()
+  for (const [id, you, dex, x, y, dir, hp, maxHp, fl, level, kind, name, fade, cd1, cd2, awake] of s.a) {
+    let a = actors.get(id)
+    if (!a) {
+      const sp = species.get(dex)
+      if (!sp) {
+        loadSp(dex)
+        continue
+      }
+      a = makeActor(you ? 'you' : 'foe', dex, level, sp, game.species(dex)?.types ?? ['normal'], name, x, y, kind === 1, kind === 2)
+      a.id = id
+      actors.set(id, a)
+    }
+    if (a.dex !== dex && species.get(dex)) {
+      a.dex = dex
+      a.sp = species.get(dex)!
+    }
+    const mineLead = id === guestLeadId
+    // our own lead moves here; only a big jump (a new floor) comes from the host
+    if (!mineLead || a.tx === undefined || Math.hypot(a.x - x, a.y - y) > 64) {
+      if (mineLead || a.tx === undefined) {
+        a.x = x
+        a.y = y
+      }
+      a.tx = x
+      a.ty = y
+      if (!mineLead) a.dir = dir
+    }
+    a.hp = hp
+    a.maxHp = maxHp
+    if (!mineLead) a.moving = !!(fl & 1)
+    if (fl & 2) a.hop = Math.max(a.hop, 0.15)
+    if (fl & 4) a.hurt = Math.max(a.hurt, 0.1)
+    a.dead = !!(fl & 8)
+    a.sleep = fl & 16 ? 0.2 : 0
+    if (!mineLead && fl & 32) a.dash = 0.05
+    a.fade = fade
+    a.cd1 = cd1
+    a.cd2 = cd2
+    a.awake = !!awake
+    seen.add(id)
+  }
+  for (const id of [...actors.keys()]) if (!seen.has(id)) actors.delete(id)
+  party = [...actors.values()].filter((a) => a.side === 'you')
+  foes = [...actors.values()].filter((a) => a.side === 'foe')
+  lead = Math.max(0, party.findIndex((a) => a.id === guestLeadId))
+  const someone = party[0]
+  shots = someone ? s.s.map(([x, y, type]) => ({ x, y, vx: 0, vy: 0, side: 'you' as const, from: someone, mult: 1, type, life: 1 })) : []
+  warnings = s.w.map(([lane, x, y, r, x2, y2, t, at, col]) => ({ kind: lane ? ('lane' as const) : ('circle' as const), x, y, r, x2, y2, t, at, col, land: () => {} }))
+  rings.length = 0
+  for (const [x, y, max, col, t] of s.r) rings.push({ x, y, r: 0, max, col, t })
+  pops = s.p.map(([x, y, text, t, col]) => ({ x, y, text, t, col }))
+  s.tr.forEach(([t, cd, used], i) => {
+    if (traps[i]) Object.assign(traps[i], { t, cd, used: !!used })
+  })
+  things = s.th.map(([chest, open, big, x, y]) => ({ kind: chest ? ('chest' as const) : ('pot' as const), open: !!open, big: !!big, x, y }))
+  bossDown = !!s.bd
+  run.items = s.it
+  shake = Math.max(shake, s.sh)
+}
+let inputAt = 0
+function guestUpdate(dt: number) {
+  time += dt
+  shake = Math.max(0, shake - dt)
+  for (const a of actors.values()) {
+    a.t += dt
+    a.hurt = Math.max(0, a.hurt - dt)
+    a.hop = Math.max(0, a.hop - dt)
+    a.dash = Math.max(0, a.dash - dt)
+    a.dashCd -= dt
+    if (a.id !== guestLeadId && a.tx !== undefined && a.ty !== undefined) {
+      // others ease toward where the host says they are
+      const k = Math.min(1, dt * 12)
+      a.x += (a.tx - a.x) * k
+      a.y += (a.ty! - a.y) * k
+    }
+  }
+  for (const r of rings) r.t += dt
+  for (const p of pops) p.t += dt
+  const me = actors.get(guestLeadId)
+  if (state !== 'play' || !me || me.dead) {
+    renderHud()
+    return
+  }
+  let mx = 0
+  let my = 0
+  if (keys.has('a') || keys.has('arrowleft')) mx--
+  if (keys.has('d') || keys.has('arrowright')) mx++
+  if (keys.has('w') || keys.has('arrowup')) my--
+  if (keys.has('s') || keys.has('arrowdown')) my++
+  if (me.sleep > 0) mx = my = 0
+  if (me.dash > 0) {
+    move(me, me.dashDir[0] * 230 * dt, me.dashDir[1] * 230 * dt)
+    me.moving = true
+  } else {
+    me.moving = !!(mx || my)
+    if (me.moving) {
+      const k = (64 * dt) / Math.hypot(mx, my)
+      move(me, mx * k, my * k)
+      me.dashDir = [mx / Math.hypot(mx, my), my / Math.hypot(mx, my)]
+    }
+  }
+  // after a new floor, wait for the host to place us before sending positions again
+  if (time - inputAt > 1 / 20 && me.tx !== undefined) {
+    inputAt = time
+    net?.sendInput({ id: guestLeadId, floor: run.floor, x: Math.round(me.x), y: Math.round(me.y), dir: me.dir, moving: me.moving, acts: guestActs.splice(0) })
+  }
+  renderHud()
 }
 
 // ---------- drawing ----------
@@ -882,6 +1095,7 @@ function drawThing(g: CanvasRenderingContext2D, th: Thing, cx: number, cy: numbe
 }
 function render() {
   const me = party[lead]
+  if (!me || !baked) return
   const sx = shake > 0 ? Math.round((Math.random() - 0.5) * 4) : 0
   const sy = shake > 0 ? Math.round((Math.random() - 0.5) * 3) : 0
   const cx = Math.round(Math.max(0, Math.min(map.w * TILE - VW, me.x - VW / 2))) + sx
@@ -1003,6 +1217,7 @@ const hpClass = (p: number) => (p > 0.5 ? '' : p > 0.2 ? 'mid' : 'low')
 let hudKey = ''
 function renderHud() {
   const me = party[lead]
+  if (!me || !run) return
   const boss = foes.find((f) => f.boss || (f.mini && f.awake && !f.dead))
   const it = run.items
   const key = party.map((p) => `${Math.round(p.hp)}:${p.dead}`).join() + `|${lead}|${boss?.hp}:${boss?.awake}|${Math.ceil(me.cd1)}:${Math.ceil(me.cd2)}:${Math.ceil(me.dashCd * 4)}|${it.oran}${it.sitrus}${it.seed}${it.elixir}|${run.floor}`
@@ -1042,6 +1257,7 @@ function end(win: boolean) {
   if (state === 'won' || state === 'lost') return
   state = win ? 'won' : 'lost'
   clearRun()
+  if (mode === 'host' && guestPeer) net?.sendEvent({ kind: 'end', win })
   const found = run.found.length ? `<p class="dg-dim">Found: ${run.found.join(' ')}</p>` : ''
   if (!win) {
     message(`<p>Your party was carried out of ${hand.name}.</p>${found}<p class="dg-dim">Levels come from focus. Study, then try again.</p>`, [
@@ -1052,12 +1268,13 @@ function end(win: boolean) {
   }
   const boss = foes.find((f) => f.boss)
   let text = `<p>You cleared ${hand.name}!</p>`
-  if (gate && game.save.island === gate && !game.save.guardians.includes(gate)) {
-    game.save.guardians.push(gate)
+  const g = run.gate
+  if (g && game.save.island === g && !game.save.guardians.includes(g)) {
+    game.save.guardians.push(g)
     game.save.starPieces += 3
     game.persist()
     const joined = game.guardianJoins()
-    const next = ISLANDS.find((i) => i.unlock?.from === gate)
+    const next = ISLANDS.find((i) => i.unlock?.from === g)
     text += `<p>${joined ? `${game.name(joined)} joins you. ` : ''}3 Star Pieces.${next ? ` One step closer to ${next.name}.` : ''}</p>`
   } else if (test) text += `<p class="dg-dim">Test play: nothing was saved.</p>`
   else if (boss) text += `<p>${boss.name} is beaten.</p>`
@@ -1111,8 +1328,22 @@ addEventListener('keydown', (e) => {
     }
     hudKey = ''
   }
-  if (me.sleep > 0) return
-  if (k === ' ' && me.dashCd <= 0) {
+  if (mode === 'guest') {
+    // the guest dashes here (it moves itself) and sends its presses to the host
+    if (k === ' ' && me.dashCd <= 0 && me.sleep <= 0) {
+      me.dash = 0.16
+      me.dashCd = 1.2
+      guestActs.push('dash')
+    }
+    if (['1', '2', 'q', 'e'].includes(k)) guestActs.push(k)
+    return
+  }
+  act(me, k === ' ' ? 'dash' : k)
+})
+/** A button press for one lead: dash, the two moves, a berry, an Elixir. */
+function act(me: Actor, k: string) {
+  if (me.sleep > 0 || me.dead) return
+  if (k === 'dash' && me.dashCd <= 0) {
     me.dash = 0.16
     me.dashCd = 1.2
   }
@@ -1129,7 +1360,7 @@ addEventListener('keydown', (e) => {
     me.cd2 = 9
     burst(me, 1.5, 44, BURST[me.types[0]] ?? 'Hyper Voice')
   }
-})
+}
 addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()))
 addEventListener('blur', () => keys.clear())
 function pause() {
@@ -1153,6 +1384,7 @@ async function boot() {
   const [mf, roster] = await Promise.all([loadManifest(), fetch(`${BASE}data/roster.json?v=${__BUILD__}`).then((r) => r.json())])
   manifest = mf
   game = new Game((roster as { species: Roster }).species)
+  if (mode === 'guest') return bootGuest()
   const id = params.get('id') ?? 'test'
   hand = test ? JSON.parse(localStorage.getItem('island-dungeon-play') ?? 'null') : params.get('id') ? await (await fetch(`${BASE}dungeons/${id}.json?v=${__BUILD__}`)).json() : null
   if (!hand) return message('<p>That dungeon could not be found.</p>', [{ label: 'Back to the island', gold: true, run: home }])
@@ -1189,6 +1421,11 @@ async function boot() {
     saveRun()
     state = 'play'
     toast(map === hand ? `${hand.name}: the deepest floor.` : `${hand.name} B${run.floor}.`)
+    // co-op: tell the guest the seed and which Pokémon are theirs (their lead first)
+    if (mode === 'host' && guestPeer) {
+      const theirs = party.filter((p) => p.owner === guestPeer)
+      net?.sendStart({ dungeon: id, gate, seed: run.seed, floor: run.floor, mine: [guestLeadId, ...theirs.filter((p) => p.id !== guestLeadId).map((p) => p.id)] }, guestPeer)
+    }
   }
   // a preview of B1 behind the intro (the real run, with its own seed, starts on Enter)
   run = saved ?? fresh()
@@ -1200,6 +1437,7 @@ async function boot() {
   const berries = Math.min(2, game.save.berries)
   const intro = `<p>${hand.name}</p><p class="dg-dim">${test ? 'One floor (test play).' : `Three floors, then ${boss ? `${game.name(boss.dex!)} (Lv${boss.level})` : 'the deepest floor'}. Levels about ${Math.min(...lv) - 6} to ${Math.max(...lv)}.`}</p><p class="dg-dim">${charges ? `Lantern charges: ${charges}. Entering lights one, and its chests open.` : 'No Lantern charge: chests stay shut. Finish a 25-minute session to light one.'}</p>`
   const enter = (bring: boolean) => {
+    coop = mode === 'host' && !!guestPeer
     const r = fresh()
     if (!test) r.charged = game.useLantern()
     if (bring && berries) {
@@ -1209,7 +1447,12 @@ async function boot() {
     }
     void start(r)
   }
-  if (saved && !test)
+  const enterButtons = [
+    ...(berries ? [{ label: `Enter with ${berries} Oran Berr${berries === 1 ? 'y' : 'ies'}`, gold: true, run: () => enter(true) }] : []),
+    { label: 'Enter', gold: !berries, run: () => enter(false) },
+  ]
+  if (mode === 'host') hostLobby(id, intro, enterButtons)
+  else if (saved && !test)
     message(`<p>${hand.name}</p><p class="dg-dim">Your run is waiting on ${saved.floor >= FLOORS ? 'the deepest floor' : `B${saved.floor}`}.</p>`, [
       { label: 'Continue', gold: true, run: () => void start(saved!) },
       { label: 'Start over', run: () => (clearRun(), enter(false)) },
@@ -1217,19 +1460,176 @@ async function boot() {
     ])
   else
     message(intro, [
-      ...(berries ? [{ label: `Enter with ${berries} Oran Berr${berries === 1 ? 'y' : 'ies'}`, gold: true, run: () => enter(true) }] : []),
-      { label: 'Enter', gold: !berries, run: () => enter(false) },
+      ...enterButtons,
+      ...(test ? [] : [{ label: 'Play with a friend', run: () => friendMenu(id) }]),
       { label: 'Back to the island', run: home },
     ])
+  startLoop()
+}
+function startLoop() {
+  // a host whose window is hidden keeps the dungeon running for its guest (timers still tick, if slower)
+  let hiddenAt = performance.now()
+  setInterval(() => {
+    const now = performance.now()
+    if (mode === 'host' && document.hidden && state === 'play') update(Math.min(0.25, (now - hiddenAt) / 1000))
+    hiddenAt = now
+  }, 50)
   let last = performance.now()
   const loop = (now: number) => {
     const dt = Math.min(0.05, (now - last) / 1000)
     last = now
-    if (state !== 'paused' && state !== 'busy') update(dt)
+    if (state !== 'paused' && state !== 'busy') (mode === 'guest' ? guestUpdate : update)(dt)
     render()
     requestAnimationFrame(loop)
   }
   requestAnimationFrame(loop)
+}
+
+// ---------- co-op: the lobby ----------
+/** Host a room (a new code) or join one by typing a friend's code. */
+function friendMenu(id: string) {
+  const back = () => location.reload()
+  message('<p>Play with a friend</p><p class="dg-dim">Two of you, two Pokémon each. Enemies are tougher, and each of you keeps your own loot.</p>', [
+    { label: 'Host a room', gold: true, run: () => (location.href = `${location.pathname}?id=${encodeURIComponent(id)}${gate ? `&gate=${gate}` : ''}&room=${makeRoomCode()}&host=1`) },
+    {
+      label: 'Join a room',
+      run: () => {
+        message('<p>Type the room code your friend sees.</p><input class="dg-code" maxlength="4" autocomplete="off" spellcheck="false" />', [
+          { label: 'Join', gold: true, run: () => {
+            const code = (document.querySelector<HTMLInputElement>('.dg-code')?.value ?? '').trim().toUpperCase()
+            if (code.length === 4) location.href = `${location.pathname}?room=${code}`
+            else friendMenu(id)
+          } },
+          { label: 'Back', run: back },
+        ])
+        setTimeout(() => document.querySelector<HTMLInputElement>('.dg-code')?.focus(), 30)
+      },
+    },
+    { label: 'Back', run: back },
+  ])
+}
+/** The host waits in its room; when a friend joins, their two Pokémon take the place of your third. */
+function hostLobby(id: string, intro: string, enterButtons: { label: string; gold?: boolean; run: () => void }[]) {
+  net = connectRoom(roomCode!)
+  let joined = ''
+  const solo = () => (location.href = `${location.pathname}?id=${encodeURIComponent(id)}${gate ? `&gate=${gate}` : ''}`)
+  const show = () => {
+    hud.querySelectorAll('.dg-msg').forEach((m) => m.remove())
+    if (guestPeer) message(`${intro}<p>${joined}</p>`, [...enterButtons, { label: 'Back to the island', run: home }])
+    else
+      message(`<p>Room <b class="dg-room">${roomCode}</b></p><p class="dg-dim">Ask your friend to open a dungeon door, choose Play with a friend, then Join a room, and type ${roomCode}.</p><p class="dg-dim">Waiting for them…</p>`, [
+        { label: 'Play alone', run: solo },
+        { label: 'Back to the island', run: home },
+      ])
+  }
+  net.onHello(async (h, peer) => {
+    if (guestPeer || state !== 'intro') return
+    guestPeer = peer
+    await Promise.all(h.team.map(async (m) => species.set(m.dex, species.get(m.dex) ?? (await loadSpecies(manifest, String(m.dex).padStart(4, '0'))))))
+    // two each: your strongest two, then theirs
+    party = party.slice(0, 2)
+    for (const m of h.team.slice(0, 2)) {
+      const a = makeActor('you', m.dex, m.level, species.get(m.dex)!, m.types, m.name, party[0].x, party[0].y)
+      a.owner = peer
+      party.push(a)
+    }
+    guestLeadId = party[2]?.id ?? -1
+    joined = `Your friend joined with ${h.team.slice(0, 2).map((m) => `${m.name} (Lv${m.level})`).join(' and ')}.`
+    hudKey = ''
+    show()
+  })
+  net.onInput((inp, peer) => {
+    if (peer === guestPeer) heardAt = performance.now()
+    if (peer !== guestPeer || inp.floor !== run.floor || state !== 'play') return
+    const a = party.find((p) => p.id === inp.id && p.owner === peer)
+    if (!a) return
+    if (!a.dead && a.sleep <= 0) {
+      a.x = inp.x
+      a.y = inp.y
+      a.dir = inp.dir
+      a.moving = inp.moving
+    }
+    for (const k of inp.acts) act(a, k)
+  })
+  const guestLeft = (peer: string) => {
+    if (peer !== guestPeer) return
+    guestPeer = null
+    for (const p of party) if (p.owner === peer) p.owner = undefined
+    if (state === 'intro') {
+      party = party.filter((p) => !p.owner && party.indexOf(p) < 2)
+      show()
+    } else toast('Your friend left. Their Pokémon fight on with you.')
+  }
+  net.onPeerLeave(guestLeft)
+  // nothing from the guest for 10 seconds during the run: they've gone
+  setInterval(() => {
+    if (guestPeer && state === 'play' && performance.now() - heardAt > 10000) guestLeft(guestPeer)
+  }, 2000)
+  show()
+}
+/** The guest: send our team, wait for the host to start, then play on their run. */
+async function bootGuest() {
+  if (game.inSession) return message('<p>Finish your focus session first. Dungeons are for breaks.</p>', [{ label: 'Back to the island', gold: true, run: home }])
+  const team = pickParty().slice(0, 2)
+  await Promise.all(team.map(async (m) => species.set(m.dex, await loadSpecies(manifest, String(m.dex).padStart(4, '0')))))
+  hud.innerHTML = `<div class="dg-party"></div><div class="dg-panel dg-boss" hidden></div><div class="dg-moves"></div><div class="dg-panel dg-toast"></div>
+    <div class="dg-panel dg-floor"></div><div class="dg-panel dg-items"></div>
+    <div class="dg-panel dg-keys"><p>WASD move</p><p>Space dash</p><p>1 2 moves</p><p>Esc pause</p></div>`
+  net = connectRoom(roomCode!)
+  message(`<p>Room <b class="dg-room">${roomCode}</b></p><p class="dg-dim">Joining. You go in together when your friend starts.</p>`, [{ label: 'Back to the island', run: home }])
+  const hello: Hello = { name: 'friend', team: team.map((m): TeamMon => ({ dex: m.dex, level: m.level, name: game.name(m), types: game.species(m.dex)?.types ?? ['normal'] })) }
+  net.sendHello(hello)
+  const timer = setInterval(() => net!.sendHello(hello), 1500)
+  net.onStart(async (st: Start) => {
+    if (run) return
+    clearInterval(timer)
+    hand = await (await fetch(`${BASE}dungeons/${st.dungeon}.json?v=${__BUILD__}`)).json()
+    run = { dungeon: st.dungeon, gate: st.gate as IslandId | null, floor: st.floor, seed: st.seed, charged: game.useLantern(), items: { oran: 0, sitrus: 0, seed: 0, elixir: 0 }, hp: {}, found: [] }
+    for (const i of st.mine) mine.add(i)
+    guestLeadId = st.mine[0]
+    await Promise.all(hand.entities.filter((e) => e.dex).map(async (e) => species.set(e.dex!, species.get(e.dex!) ?? (await loadSpecies(manifest, String(e.dex).padStart(4, '0'))))))
+    await guestFloor(st.floor)
+    hud.querySelectorAll('.dg-msg').forEach((m) => m.remove())
+    state = 'play'
+    toast(`${hand.name} B${st.floor}, with your friend.${run.charged ? ' Your Lantern is lit.' : ''}`)
+  })
+  net.onSnap(applySnap)
+  net.onEvent(async (e: NetEvent) => {
+    if (!run) return
+    if (e.kind === 'floor' && e.floor) {
+      state = 'busy'
+      view.style.transition = 'opacity .35s ease'
+      view.style.opacity = '0'
+      await guestFloor(e.floor)
+      view.style.opacity = '1'
+      state = 'play'
+      toast(map === hand ? `${hand.name}: the deepest floor.` : `${hand.name} B${e.floor}.`)
+    }
+    if (e.kind === 'chest') {
+      if (run.charged) {
+        const lines = lootChest(!!e.big)
+        run.found.push(...lines)
+        toast(lines.join(' '))
+      } else toast('Your friend opened a chest. Light a Lantern charge to share the loot.')
+    }
+    if (e.kind === 'end') end(!!e.win)
+  })
+  const hostLeft = () => {
+    if (state === 'won' || state === 'lost') return
+    state = 'lost'
+    message('<p>Your friend left, so the run ended.</p>', [{ label: 'Back to the island', gold: true, run: home }])
+  }
+  net.onPeerLeave(hostLeft)
+  setInterval(() => {
+    if (run && (state === 'play' || state === 'busy') && performance.now() - heardAt > 10000) hostLeft()
+  }, 2000)
+  // a hidden tab stops drawing, but still tells the host it's here
+  setInterval(() => {
+    const me = actors.get(guestLeadId)
+    if (document.hidden && run && state === 'play' && me && me.tx !== undefined)
+      net?.sendInput({ id: guestLeadId, floor: run.floor, x: Math.round(me.x), y: Math.round(me.y), dir: me.dir, moving: false, acts: guestActs.splice(0) })
+  }, 1000)
+  startLoop()
 }
 void boot()
 ;(window as unknown as { __dungeon: unknown }).__dungeon = {
@@ -1259,6 +1659,9 @@ void boot()
   },
   get baked() {
     return baked
+  },
+  get net() {
+    return { mode, snapsIn, snapsUsed, snapsOut, size: mode === 'host' && run && party.length ? JSON.stringify(snapshot()).length : 0, guestLeadId, guestPeer, actors: actors.size, peers: net?.peers(), time }
   },
   get warnings() {
     return warnings
