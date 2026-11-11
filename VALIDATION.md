@@ -1,5 +1,26 @@
 # Validation
 
+## Stage 1, catching (2026-11-11)
+
+Built from `docs/GAME_DESIGN.md`. Checked in the browser with `?debug` and `__island.step()`.
+
+- **Passers-by:** one arrives every 12 focused minutes, from the tall grass or up the pier, with a short toast. At most 5 wait at once and 24 a day. A full 25-minute session brought 2. The odds favour rare Pokémon after a 50-minute session (`RARE_50`) and are cut to 0.6x after a step-away. Weather doubles the weight of the species it draws.
+- **Waiting:** while you focus, tapping one says it is waiting for your break. When the session ends, a "!" appears over each, and a message says how many are waiting. Starting the next session sends the ones still waiting away (checked: 2 left at the start).
+- **Catching:**
+  - Tapping a waiting Pokémon opens the catch window: its portrait and level, the three balls with counts, Throw and Run.
+  - The ring breathes between 22 and 6 island pixels. Its colour shows the odds with the chosen ball at that moment.
+  - Throw works by button, by clicking the island, or with Space or Enter. Escape runs.
+  - Checked frame by frame: the ball arcs in, the Pokémon glows and goes inside, the ball drops and wobbles. A catch shows three stars and "Gotcha!", into the party if there is room, otherwise the box. A break-free (forced) shows it popping back out and "Oh no! … broke free!".
+- **Odds:** base by rarity (common 0.7, uncommon 0.5, rare 0.35, starter 0.3), plus 0.08 per earlier miss. Then ×1, ×1.5 or ×2 for Poké, Great or Ultra Ball, then ×0.7 to ×1.3 for the throw. Capped at 0.97.
+- **Shop:** Poké 8, Great 25, Ultra 60 shells, ×1 or ×5, at the top of the Island menu. Locked during focus. New and old saves start with 5 Poké Balls.
+- **Finds:** every 9 focused minutes there is a 60% chance a party Pokémon walks over and digs something up: shells (5 to 15), an Oran Berry, a Poké Ball, or a Star Piece (5%). Each is a tiny pixel item that twinkles now and then. Tap to pick it up, any time. At most 6 lie on the island.
+- **Weather:** checked every 15 focused minutes, with a 45% chance of rain, fog or sun for 10 to 25 minutes. It fades in and out over about 4 seconds, with no flashes or lightning. Rain darkens the island and adds streaks and splashes, fog adds a wash and drifting bands, and sun adds warmth and slow light shafts. It is drawn inside the float mask.
+- **Party life:** every 25 to 55 seconds two awake party Pokémon either run over and hop together or nap side by side under the tree. Checked: both happened over 150 simulated seconds.
+- **Visitors:** the old end-of-session visitor now comes after only 25% of full sessions.
+- **Star Pieces** show in the bag and the Island menu. They buy nothing yet (stage 2: habitats).
+
+**Not checked:** catching in the Tauri desktop pet. The canvas is a drag region there, so a click may start a window drag instead of a throw; it needs a real Rust build.
+
 ## The loop pass, T2 and T3 (2026-11-11)
 
 **How it was checked:**

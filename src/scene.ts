@@ -5,6 +5,36 @@ import { H, IslandLayout, PAL, W, buildIsland, paintBush, paintLantern, paintTre
 import { hash2, rng } from './pixel'
 import { DecorArt, SLOTS, decorArt } from './decor'
 import type { Species } from './sprites'
+import type { FindKind, Weather } from './game'
+
+// Finds: tiny pixel items a party Pokémon dug up, drawn from these rows.
+// '.' is clear; other letters index the palette below.
+const FIND_ART: Record<FindKind, { rows: string[]; pal: Record<string, string> }> = {
+  shells: { rows: ['..ab.', '.abba', 'abbcb', '.ccc.'], pal: { a: '#a86c58', b: '#f8e4d0', c: '#d8a088' } },
+  berry: { rows: ['..g..', '.aba.', 'abbba', '.aaa.'], pal: { g: '#48a848', a: '#2858b8', b: '#5898f0' } },
+  'poke-ball': { rows: ['.ara.', 'arrra', 'kkwkk', 'awwwa', '.aaa.'], pal: { a: '#383838', r: '#e83838', k: '#282828', w: '#f8f8f8' } },
+  'star-piece': { rows: ['..o..', '.oyo.', 'oywyo', '.oyo.', '..o..'], pal: { o: '#c07818', y: '#f8d040', w: '#fff8c8' } },
+}
+function paintFind(kind: FindKind) {
+  const { rows, pal } = FIND_ART[kind]
+  const c = document.createElement('canvas')
+  c.width = rows[0].length
+  c.height = rows.length
+  const g = c.getContext('2d')!
+  rows.forEach((r, y) => [...r].forEach((ch, x) => {
+    if (ch === '.') return
+    g.fillStyle = pal[ch]
+    g.fillRect(x, y, 1, 1)
+  }))
+  return c
+}
+const FIND_IMG = Object.fromEntries((Object.keys(FIND_ART) as FindKind[]).map((k) => [k, paintFind(k)])) as Record<FindKind, HTMLCanvasElement>
+interface Drop {
+  x: number
+  y: number
+  vy: number
+  life: number
+}
 
 interface Tuft {
   x: number
@@ -83,6 +113,15 @@ export class Scene {
   private rand = rng(7)
   private seaPts: { x: number; y: number }[] = []
   private decor: { x: number; y: number; art: DecorArt }[] = []
+  finds: { id: string; kind: FindKind; x: number; y: number }[] = []
+  weather: Weather = 'clear'
+  private wk = 0 // how far the current weather has rolled in, 0..1
+  private shown: Weather = 'clear'
+  private drops: Drop[] = []
+  /** Show a small "!" over Pokémon waiting to be caught (only in the break). */
+  markWild = false
+  /** Drawn last, above everything: the catch ring and the thrown ball. */
+  overlay?: (g: CanvasRenderingContext2D) => void
 
   constructor() {
     this.island = buildIsland()
@@ -171,6 +210,20 @@ export class Scene {
 
   update(dt: number) {
     this.time += dt
+    // weather rolls in and out slowly (about 4 s), never switches
+    if (this.weather !== this.shown) {
+      this.wk = Math.max(0, this.wk - dt / 4)
+      if (this.wk === 0) this.shown = this.weather
+    } else this.wk = Math.min(1, this.wk + dt / 4)
+    if (this.shown === 'rain' && this.wk > 0) {
+      while (this.drops.length < 130 * this.wk) this.drops.push({ x: this.rand() * (W + 40), y: -this.rand() * H, vy: 70 + this.rand() * 30, life: 0 })
+    }
+    for (const d of this.drops) {
+      d.y += d.vy * dt
+      d.x -= d.vy * 0.25 * dt
+    }
+    // when the rain eases off, the drops already falling finish their fall
+    this.drops = this.drops.filter((d) => d.y < H + 4)
     this.rustle = Math.max(0, this.rustle - dt)
     for (const c of this.creatures) c.update(dt, this.creatures)
     this.creatures = this.creatures.filter((c) => c.state !== 'gone')
@@ -212,6 +265,10 @@ export class Scene {
         },
       })
     }
+    for (const f of this.finds) {
+      const img = FIND_IMG[f.kind]
+      items.push({ y: f.y, draw: () => g.drawImage(img, Math.round(f.x - img.width / 2), Math.round(f.y - img.height)) })
+    }
     for (const c of this.creatures) items.push({ y: c.y, draw: () => c.draw(g) })
     items.sort((a, b) => a.y - b.y)
     for (const it of items) it.draw()
@@ -229,6 +286,7 @@ export class Scene {
     g.globalCompositeOperation = 'multiply'
     g.fillStyle = lightAt(this.hour)
     g.fillRect(0, 0, W, H)
+    this.drawWeather(g)
     if (this.float) {
       g.globalCompositeOperation = 'destination-in'
       g.drawImage(this.mask, 0, 0)
@@ -291,6 +349,106 @@ export class Scene {
       if (gl) d.art.live?.(g, d.x, d.y, this.time, night)
     }
     for (const c of this.creatures) c.drawZs(g)
+
+    // finds twinkle now and then: one soft pixel that fades in and out
+    for (const f of this.finds) {
+      const k = ((this.time + hash2(Math.round(f.x), Math.round(f.y), 3) * 5) % 5) / 5
+      if (k > 0.14) continue
+      g.globalAlpha = Math.sin((k / 0.14) * Math.PI)
+      g.fillStyle = '#ffffff'
+      g.fillRect(Math.round(f.x) + 1, Math.round(f.y) - 6, 1, 1)
+      g.fillRect(Math.round(f.x), Math.round(f.y) - 7, 3, 1)
+      g.fillRect(Math.round(f.x) + 1, Math.round(f.y) - 8, 1, 3)
+      g.globalAlpha = 1
+    }
+    // a small "!" over each Pokémon waiting to be caught
+    if (this.markWild)
+      for (const c of this.creatures) {
+        if (!c.wildId || c.hidden || c.state === 'leave' || c.state === 'gone') continue
+        const bob = Math.round(Math.sin(this.time * 2.2 + c.x) * 0.8)
+        const x = Math.round(c.x) - 3
+        const y = Math.round(c.y - Math.min(c.sp.anims.Idle.ay, 28)) - 7 + bob
+        g.fillStyle = '#2c4c70'
+        g.fillRect(x, y, 7, 8)
+        g.fillStyle = '#f8f8f8'
+        g.fillRect(x + 1, y + 1, 5, 6)
+        g.fillStyle = '#2c4c70'
+        g.fillRect(x + 3, y + 8, 1, 1)
+        g.fillStyle = '#e03838'
+        g.fillRect(x + 3, y + 2, 1, 3)
+        g.fillRect(x + 3, y + 6, 1, 1)
+      }
+    this.overlay?.(g)
+  }
+
+  /** Rain, fog or a sunny spell, faded in by wk. Calm: no flashes, no lightning. */
+  private drawWeather(g: CanvasRenderingContext2D) {
+    const k = this.wk
+    if (k <= 0 || this.shown === 'clear') return
+    if (this.shown === 'rain') {
+      g.globalCompositeOperation = 'multiply'
+      g.fillStyle = `rgba(120, 140, 175, ${0.55 * k})`
+      g.fillRect(0, 0, W, H)
+      g.globalCompositeOperation = 'source-over'
+      g.fillStyle = `rgba(220, 236, 255, ${0.7 * k})`
+      for (const d of this.drops) {
+        const x = Math.round(d.x)
+        const y = Math.round(d.y)
+        g.fillRect(x, y, 1, 1)
+        g.fillRect(x + 1, y - 1, 1, 2)
+        g.fillRect(x + 2, y - 3, 1, 2)
+      }
+      // small splashes where drops land
+      g.fillStyle = `rgba(230, 242, 255, ${0.55 * k})`
+      for (let i = 0; i < 14; i++) {
+        const t = (this.time * 3 + i * 0.37) % 1
+        const px = Math.floor(hash2(i, Math.floor(this.time * 3 + i * 0.37), 9) * W)
+        const py = Math.floor(hash2(i, Math.floor(this.time * 3 + i * 0.37), 11) * H)
+        const r = t < 0.5 ? 1 : 2
+        g.fillRect(px - r, py, 1, 1)
+        g.fillRect(px + r, py, 1, 1)
+      }
+    } else if (this.shown === 'fog') {
+      // wide soft bands that drift sideways
+      g.fillStyle = `rgba(226, 234, 242, ${0.38 * k})`
+      g.fillRect(0, 0, W, H)
+      for (let i = 0; i < 4; i++) {
+        const y = 20 + i * 44 + Math.sin(this.time / 9 + i) * 6
+        const x = ((this.time * (3 + i)) % (W + 160)) - 80
+        const grad = g.createRadialGradient(x, y, 0, x, y, 90)
+        grad.addColorStop(0, `rgba(240, 244, 248, ${0.75 * k})`)
+        grad.addColorStop(1, 'rgba(240, 244, 248, 0)')
+        g.fillStyle = grad
+        g.fillRect(x - 90, y - 90, 180, 180)
+        const x2 = x - (W + 160) / 2
+        const grad2 = g.createRadialGradient(x2, y + 20, 0, x2, y + 20, 90)
+        grad2.addColorStop(0, `rgba(240, 244, 248, ${0.65 * k})`)
+        grad2.addColorStop(1, 'rgba(240, 244, 248, 0)')
+        g.fillStyle = grad2
+        g.fillRect(x2 - 90, y - 70, 180, 180)
+      }
+    } else if (this.shown === 'sun') {
+      g.globalCompositeOperation = 'lighter'
+      const grad = g.createRadialGradient(W * 0.85, -10, 0, W * 0.85, -10, 220)
+      grad.addColorStop(0, `rgba(255, 224, 150, ${0.42 * k})`)
+      grad.addColorStop(1, 'rgba(255, 224, 150, 0)')
+      g.fillStyle = grad
+      g.fillRect(0, 0, W, H)
+      // slow diagonal shafts of light from the top right
+      for (let i = 0; i < 3; i++) {
+        const sway = Math.sin(this.time / 7 + i * 2) * 0.04
+        g.fillStyle = `rgba(255, 236, 180, ${(0.07 + sway) * k})`
+        g.beginPath()
+        const x0 = W * (0.55 + i * 0.16)
+        g.moveTo(x0, 0)
+        g.lineTo(x0 + 18, 0)
+        g.lineTo(x0 - 70, H)
+        g.lineTo(x0 - 100, H)
+        g.closePath()
+        g.fill()
+      }
+      g.globalCompositeOperation = 'source-over'
+    }
   }
 
   private drawWater(g: CanvasRenderingContext2D, night: number, lagoonOnly = false) {

@@ -5,7 +5,7 @@
 // the sheet, and the sheet's choices only unlock between sessions.
 import type { CloudState, Friend, FriendRequest, Me } from './cloud'
 import { CATALOG, SLOTS } from './decor'
-import { BERRY_EXP, BOND_FOR_FRIENDSHIP, Evolution, Game, Mon, PARTY_MAX, aStone, expToNext, stoneName } from './game'
+import { BALLS, BERRY_EXP, BOND_FOR_FRIENDSHIP, Ball, Evolution, Game, Mon, PARTY_MAX, aStone, expToNext, stoneName } from './game'
 
 const BASE = import.meta.env.BASE_URL
 export const portraitUrl = (dex: number, emo = 'Normal') => `${BASE}sprites/${String(dex).padStart(4, '0')}/${emo}.png`
@@ -66,6 +66,7 @@ export interface HudHandlers {
   moveDecor: (id: string) => void
   storeDecor: (id: string) => void
   enableIdle: () => void
+  buyBall: (ball: Ball, n: number) => void
   popOut?: () => void
   quit?: () => void
   cloud: {
@@ -82,6 +83,16 @@ export interface HudHandlers {
 }
 
 type Tab = 'mons' | 'dex' | 'island' | 'friends' | 'more'
+export interface CatchOpts {
+  dex: number
+  name: string
+  level: number
+  ball: Ball
+  balls: Record<Ball, number>
+  onBall: (b: Ball) => void
+  onThrow: () => void
+  onRun: () => void
+}
 
 const fmtClock = (sec: number) => {
   sec = Math.max(0, Math.floor(sec))
@@ -119,6 +130,8 @@ export class Hud {
   private friendsCache: { friends: Friend[]; requests: FriendRequest[]; error?: string } | null = null
   private lastFocusKey = ''
   private lastPartyKey = ''
+  private catchEl!: HTMLElement
+  private catchOpts: CatchOpts | null = null
 
   constructor(host: HTMLElement, private game: Game, private h: HudHandlers, private credits: () => string) {
     this.el = document.createElement('div')
@@ -133,6 +146,7 @@ export class Hud {
         <div class="hud-dialog-body"><p class="hud-text"></p><div class="hud-actions"></div><i class="hud-next" aria-hidden="true"></i></div>
       </div>
       <div class="hud-sheet" hidden></div>
+      <div class="hud-catch px-panel" hidden></div>
       <div class="hud-starter" hidden></div>`
     host.append(this.el)
     this.focus = this.el.querySelector('.hud-focus')!
@@ -162,6 +176,15 @@ export class Hud {
         this.h.setLength(v === 'open' ? null : Number(v) * 60)
         this.lastFocusKey = ''
       }
+    })
+    this.catchEl = this.el.querySelector('.hud-catch')!
+    this.catchEl.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-c]')
+      if (!b || !this.catchOpts) return
+      const c = b.dataset.c!
+      if (c === 'throw') this.catchOpts.onThrow()
+      else if (c === 'run') this.catchOpts.onRun()
+      else this.catchOpts.onBall(c as Ball)
     })
     this.sheet.addEventListener('click', (e) => void this.onSheetClick(e))
     this.sheet.addEventListener('submit', (e) => void this.onSheetSubmit(e))
@@ -285,6 +308,23 @@ export class Hud {
     this.toastTimer = window.setTimeout(() => this.toastEl.classList.remove('show'), 3800)
   }
 
+  // ---------- catching ----------
+  /** The catch window: pick a ball, then throw while the ring is small. */
+  showCatch(o: CatchOpts) {
+    this.catchOpts = o
+    this.closeSheet()
+    const balls = BALLS.map((b) => `<button class="ball-pick${o.ball === b.id ? ' on' : ''}" data-c="${b.id}" ${o.balls[b.id] ? '' : 'disabled'} title="${b.name}">${icon(b.id)}<span>×${o.balls[b.id]}</span></button>`).join('')
+    this.catchEl.innerHTML = `
+      <div class="catch-head"><img class="catch-face" src="${portraitUrl(o.dex)}" alt="" /><p>Wild ${o.name}<br /><span class="hint">Lv${o.level}</span></p></div>
+      <div class="catch-balls">${balls}</div>
+      <div class="catch-actions"><button class="px-btn primary" data-c="throw">Throw</button><button class="px-btn" data-c="run">Run</button></div>`
+    this.catchEl.hidden = false
+  }
+  hideCatch() {
+    this.catchOpts = null
+    this.catchEl.hidden = true
+  }
+
   // ---------- starter ----------
   showStarter(options: number[]) {
     const g = this.game
@@ -357,7 +397,8 @@ export class Hud {
     const g = this.game
     const s = g.save
     const stones = Object.entries(s.bag).filter(([, n]) => n > 0)
-    const inv = `<p class="inv"><span title="Oran Berries">${icon('oran-berry')}<b>×${s.berries}</b></span><span title="Shells">${icon('shoal-shell')}<b>×${s.shells}</b></span>${stones.map(([k, n]) => `<span title="${stoneName(k)}">${icon(k)}<b>×${n}</b></span>`).join('')}</p>`
+    const balls = BALLS.filter((b) => s.balls[b.id] > 0).map((b) => `<span title="${b.name}">${icon(b.id)}<b>×${s.balls[b.id]}</b></span>`).join('')
+    const inv = `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${s.shells}</b></span>${s.starPieces ? `<span title="Star Pieces">${icon('star-piece')}<b>×${s.starPieces}</b></span>` : ''}<span title="Oran Berries">${icon('oran-berry')}<b>×${s.berries}</b></span>${balls}${stones.map(([k, n]) => `<span title="${stoneName(k)}">${icon(k)}<b>×${n}</b></span>`).join('')}</p>`
     const locked = g.inSession ? `<p class="note">Locked while focusing.</p>` : ''
     const order = [...g.party, ...s.mons.filter((m) => !s.party.includes(m.id))]
     return inv + locked + order.map((m) => this.monRow(m)).join('') + `<p class="note">Party ${g.party.length}/${PARTY_MAX}</p>`
@@ -472,8 +513,13 @@ export class Hud {
           : `<button class="px-btn small primary" data-place="${item.id}" ${!free || locked ? 'disabled' : ''}>Place</button>`
       return `<div class="decor-row"><div class="mon-main"><p><strong>${item.name}</strong> <span class="hint">${owned ? (placed.has(item.id) ? 'On the island' : 'Put away') : `${item.price} shells`}</span></p></div><div class="row-actions">${act}</div></div>`
     }).join('')
-    return `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${g.save.shells}</b></span><span>${free}/${SLOTS.length} spots free</span></p>
-      ${locked ? '<p class="note">Locked while focusing.</p>' : ''}${rows}`
+    const shop = BALLS.map(
+      (b) => `<div class="decor-row"><span class="shop-ico">${icon(b.id)}</span><div class="mon-main"><p>${b.name} <span class="hint">×${g.save.balls[b.id]}</span></p></div><div class="row-actions row"><button class="px-btn small${g.save.shells >= b.price ? ' primary' : ''}" data-ball="${b.id}:1" ${g.save.shells < b.price || locked ? 'disabled' : ''}>${icon('shoal-shell', 'ico-s')}${b.price}</button><button class="px-btn small" data-ball="${b.id}:5" ${g.save.shells < b.price * 5 || locked ? 'disabled' : ''}>×5</button></div></div>`,
+    ).join('')
+    return `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${g.save.shells}</b></span>${g.save.starPieces ? `<span title="Star Pieces">${icon('star-piece')}<b>×${g.save.starPieces}</b></span>` : ''}</p>
+      ${locked ? '<p class="note">Locked while focusing.</p>' : ''}
+      <p class="row-title">Shop</p>${shop}
+      <p class="row-title">Decorations <span class="hint">${free}/${SLOTS.length} spots free</span></p>${rows}`
   }
 
   private friendsTab() {
@@ -552,6 +598,12 @@ export class Hud {
     if (act === 'signout') {
       await this.h.cloud.signOut()
       this.friendsCache = null
+      return this.renderSheet()
+    }
+    const ball = at('ball')
+    if (ball) {
+      const [id, n] = ball.split(':')
+      this.h.buyBall(id as Ball, Number(n))
       return this.renderSheet()
     }
     const len = at('len')

@@ -1,4 +1,7 @@
-// The rules, kept apart from drawing. docs/LOOP.md is the pricing law:
+// The rules, kept apart from drawing. docs/GAME_DESIGN.md is the loop (stage 1,
+// catching: passers-by arrive while you focus and wait for your break, balls
+// come from the shop, a throw's odds depend on the ball and the timing ring).
+// docs/LOOP.md is the pricing law:
 // one focused minute is the only unit. Each minute gives every party Pokémon
 // 1 EXP and you 1 shell; level L → L+1 costs L EXP; a finished session brings
 // a visitor and ripens berries; streaks wash stones ashore; bond unlocks
@@ -45,8 +48,31 @@ export interface Session {
   askReason?: 'idle' | 'checkin'
   idleSince?: number
   nextCheck: number // credited seconds at which the next check-in is due
-  nextVisit: number // credited seconds at which an open session gets a visitor
+  nextVisit: number // credited seconds at which an open session ripens a berry
+  nextPasser?: number // credited seconds at which the next passer-by arrives
+  nextFind?: number // credited seconds at which a party Pokémon may find something
+  nextWeather?: number
+  clean?: boolean // no step-aways so far: a focused session draws better passers-by
 }
+
+/** A wild Pokémon that came by during focus and waits on the island for your break. */
+export interface Wild {
+  id: string
+  dex: number
+  level: number
+  tries: number // failed throws make the next one a little likelier
+}
+export type Ball = 'poke-ball' | 'great-ball' | 'ultra-ball'
+export type FindKind = 'shells' | 'berry' | 'poke-ball' | 'star-piece'
+/** Something a party Pokémon dug up, lying on the island until you pick it up. */
+export interface Find {
+  id: string
+  kind: FindKind
+  n: number
+  x?: number
+  y?: number
+}
+export type Weather = 'clear' | 'rain' | 'fog' | 'sun'
 
 export interface Save {
   v: 1
@@ -64,6 +90,12 @@ export interface Save {
   visits: { day: string; count: number }
   stonesPaid: string[] // `${day}:${streak}` milestones already paid
   breakUntil: number | null
+  wild: Wild[]
+  balls: Record<Ball, number>
+  starPieces: number
+  finds: Find[]
+  weather: { kind: Weather; until: number }
+  passers: { day: string; count: number }
 }
 
 export const PARTY_MAX = 3
@@ -82,6 +114,21 @@ export const BREAK_SECONDS = 5 * 60
 export const STREAK_STONES = [3, 7, 14, 30]
 export const RARE_50 = 3.3 // rare-weight multiplier for a finished 50-minute session
 export const STONES = ['thunder-stone', 'water-stone', 'fire-stone', 'leaf-stone', 'ice-stone', 'sun-stone']
+// catching (docs/GAME_DESIGN.md, stage 1)
+export const PASSER_EVERY = 12 * 60 // a passer-by every 12 focused minutes
+export const WILD_MAX = 5 // at most this many wait on the island at once
+export const PASSERS_PER_DAY = 24
+export const FIND_EVERY = 9 * 60
+export const WEATHER_EVERY = 15 * 60
+export const FRIENDLY_VISIT_CHANCE = 0.25 // the old visitor, now a minor extra after a full session
+export const BALLS: { id: Ball; name: string; price: number; mult: number }[] = [
+  { id: 'poke-ball', name: 'Poké Ball', price: 8, mult: 1 },
+  { id: 'great-ball', name: 'Great Ball', price: 25, mult: 1.5 },
+  { id: 'ultra-ball', name: 'Ultra Ball', price: 60, mult: 2 },
+]
+const CATCH_BASE: Record<Rarity, number> = { common: 0.7, uncommon: 0.5, rare: 0.35, starter: 0.3 }
+// weather draws certain Pokémon (stage 2 will move this into types and habitats)
+const WEATHER_LIKES: Record<Weather, number[]> = { clear: [], rain: [7, 54, 194, 179, 403], sun: [1, 4, 43, 187], fog: [133, 10, 396] }
 const KEY = 'island-save-v1'
 
 export const expToNext = (level: number) => level
@@ -115,6 +162,12 @@ export function emptySave(): Save {
     visits: { day: '', count: 0 },
     stonesPaid: [],
     breakUntil: null,
+    wild: [],
+    balls: { 'poke-ball': 5, 'great-ball': 0, 'ultra-ball': 0 },
+    starPieces: 0,
+    finds: [],
+    weather: { kind: 'clear', until: 0 },
+    passers: { day: '', count: 0 },
   }
 }
 
@@ -149,6 +202,11 @@ export type GameEvent =
   | { type: 'stone'; item: string; streak: number }
   | { type: 'fed'; mon: Mon; levels: number }
   | { type: 'retract'; minutes: number }
+  | { type: 'passer'; wild: Wild }
+  | { type: 'wildLeave'; ids: string[] }
+  | { type: 'find'; find: Find }
+  | { type: 'weather'; kind: Weather }
+  | { type: 'caught'; wild: Wild; mon: Mon }
 
 export class Game {
   save: Save
@@ -390,9 +448,17 @@ export class Game {
       state: 'running',
       nextCheck: CHECKIN_EVERY,
       nextVisit: OPEN_VISIT_EVERY,
+      nextPasser: PASSER_EVERY,
+      nextFind: FIND_EVERY,
+      nextWeather: WEATHER_EVERY,
+      clean: true,
     }
+    // the Pokémon that waited through the break go on their way
+    const leaving = this.save.wild.map((w) => w.id)
+    this.save.wild = []
     this.persist()
     this.emit({ type: 'sessionStart' })
+    if (leaving.length) this.emit({ type: 'wildLeave', ids: leaving })
     // a stone given in the break, or a friendship reached, pays off now
     for (const m of this.party) {
       const to = this.evolutionDue(m)
@@ -412,8 +478,8 @@ export class Game {
     }
     this.persist()
     this.emit({ type: 'sessionEnd', minutes: s.granted, complete, berries })
-    // a weight of 3.3 makes a rare visitor about 2.5 times as likely once the table renormalises
-    if (complete) this.requestVisit(s.length && s.length >= 50 * 60 ? RARE_50 : 1)
+    // the old end-of-session visitor is now a minor extra; passers-by are the main way in
+    if (complete && Math.random() < FRIENDLY_VISIT_CHANCE) this.requestVisit(s.length && s.length >= 50 * 60 ? RARE_50 : 1)
   }
 
   private requestVisit(rareMult: number) {
@@ -460,12 +526,123 @@ export class Game {
       this.emit({ type: 'minute', n })
     }
     this.persist()
+    this.moments(s)
+    if (!this.save.session) return
     if (s.length && s.credited >= s.length) return this.endSession(true)
     if (!s.length && s.credited >= s.nextVisit) {
       s.nextVisit += OPEN_VISIT_EVERY
       this.save.berries = Math.min(BERRIES_MAX, this.save.berries + 1)
-      this.requestVisit(1)
     }
+  }
+
+  // ---------- moments during focus ----------
+  private moments(s: Session, rand = Math.random) {
+    s.nextPasser ??= PASSER_EVERY
+    s.nextFind ??= FIND_EVERY
+    s.nextWeather ??= WEATHER_EVERY
+    if (s.credited >= s.nextPasser) {
+      s.nextPasser += PASSER_EVERY
+      this.passerBy(s)
+    }
+    if (s.credited >= s.nextFind) {
+      s.nextFind += FIND_EVERY
+      if (rand() < 0.6) this.dig(rand)
+    }
+    if (s.credited >= s.nextWeather) {
+      s.nextWeather += WEATHER_EVERY
+      if (this.save.weather.until < this.now() && rand() < 0.45) {
+        const r = rand()
+        const kind: Weather = r < 0.45 ? 'rain' : r < 0.7 ? 'fog' : 'sun'
+        this.save.weather = { kind, until: this.now() + (10 + rand() * 15) * 60 * 1000 }
+        this.persist()
+        this.emit({ type: 'weather', kind })
+      }
+    }
+  }
+  get weather(): Weather {
+    return this.save.weather.until > this.now() ? this.save.weather.kind : 'clear'
+  }
+  passersToday() {
+    return this.save.passers.day === dayKey(this.now()) ? this.save.passers.count : 0
+  }
+  /** A wild Pokémon arrives and settles in to wait for your break. */
+  passerBy(s = this.save.session) {
+    if (this.save.wild.length >= WILD_MAX || this.passersToday() >= PASSERS_PER_DAY) return null
+    // longer sessions and sessions without step-aways draw rarer Pokémon
+    const long = s?.length && s.length >= 50 * 60 ? RARE_50 : 1
+    const mult = long * (s && s.clean === false ? 0.6 : 1)
+    const { dex, level } = this.pickVisitor(mult, Math.random, WEATHER_LIKES[this.weather])
+    this.save.passers = { day: dayKey(this.now()), count: this.passersToday() + 1 }
+    const w: Wild = { id: Math.random().toString(36).slice(2, 10), dex, level, tries: 0 }
+    this.save.wild.push(w)
+    this.persist()
+    this.emit({ type: 'passer', wild: w })
+    return w
+  }
+  /** A party Pokémon digs something up. */
+  dig(rand = Math.random) {
+    if (this.save.finds.length >= 6) return null
+    const r = rand()
+    const f: Find =
+      r < 0.6
+        ? { id: '', kind: 'shells', n: 5 + Math.floor(rand() * 11) }
+        : r < 0.82
+          ? { id: '', kind: 'berry', n: 1 }
+          : r < 0.95
+            ? { id: '', kind: 'poke-ball', n: 1 }
+            : { id: '', kind: 'star-piece', n: 1 }
+    f.id = Math.random().toString(36).slice(2, 10)
+    this.save.finds.push(f)
+    this.persist()
+    this.emit({ type: 'find', find: f })
+    return f
+  }
+  collectFind(id: string) {
+    const i = this.save.finds.findIndex((f) => f.id === id)
+    if (i < 0) return null
+    const [f] = this.save.finds.splice(i, 1)
+    if (f.kind === 'shells') this.save.shells += f.n
+    if (f.kind === 'berry') this.save.berries = Math.min(BERRIES_MAX, this.save.berries + f.n)
+    if (f.kind === 'poke-ball') this.save.balls['poke-ball'] += f.n
+    if (f.kind === 'star-piece') this.save.starPieces += f.n
+    this.persist()
+    return f
+  }
+
+  // ---------- catching ----------
+  buyBall(ball: Ball, n = 1) {
+    const def = BALLS.find((b) => b.id === ball)
+    if (!def || this.save.session) return false
+    if (!this.spendShells(def.price * n)) return false
+    this.save.balls[ball] += n
+    this.persist()
+    return true
+  }
+  /** The odds before the throw, for colouring the ring. */
+  catchChance(w: Wild, ball: Ball, quality = 0.5) {
+    const sp = this.species(w.dex)
+    const base = CATCH_BASE[sp?.rarity ?? 'common'] + w.tries * 0.08
+    const mult = BALLS.find((b) => b.id === ball)?.mult ?? 1
+    // a perfect throw is worth 1.3x, a poor one 0.7x: a bad throw can still work
+    return Math.min(0.97, base * mult * (0.7 + 0.6 * quality))
+  }
+  /** Throw a ball at a waiting Pokémon. Only between sessions. */
+  throwBall(id: string, ball: Ball, quality: number, rand = Math.random): { caught: boolean; shakes: number; mon?: Mon } | null {
+    const w = this.save.wild.find((x) => x.id === id)
+    if (!w || this.save.session || this.save.balls[ball] <= 0) return null
+    this.save.balls[ball]--
+    const p = this.catchChance(w, ball, quality)
+    const caught = rand() < p
+    if (!caught) {
+      w.tries++
+      this.persist()
+      // it breaks free after zero, one or two shakes; closer odds shake longer
+      return { caught, shakes: Math.min(2, Math.floor(rand() * 3 * p + 0.3)) }
+    }
+    this.save.wild = this.save.wild.filter((x) => x !== w)
+    const mon = this.addMon(w.dex, w.level)
+    this.emit({ type: 'caught', wild: w, mon })
+    return { caught, shakes: 3, mon }
   }
 
   /** Debug and tests: credit focused minutes directly. */
@@ -522,6 +699,7 @@ export class Game {
       }
     }
     s.state = 'away'
+    s.clean = false
     s.askSince = undefined
     this.persist()
     this.emit({ type: 'away', reason, retractedMin: retracted })
@@ -543,7 +721,7 @@ export class Game {
    * 50-minute session, a 3-day streak and a long day. Species you have never
    * befriended are a little likelier, so the Pokédex keeps moving.
    */
-  pickVisitor(rareMult = 1, rand = Math.random): { dex: number; level: number } {
+  pickVisitor(rareMult = 1, rand = Math.random, likes: number[] = []): { dex: number; level: number } {
     const caughtLines = new Set(this.save.caught.map((d) => this.species(d)?.line))
     const starterLine = this.save.mons[0] ? this.species(this.save.mons[0].dex)?.line : undefined
     const boost = rareMult * (1 + (this.streak() >= 3 ? 0.6 : 0) + (this.todayMinutes() >= 120 ? 0.4 : 0))
@@ -554,6 +732,7 @@ export class Game {
       // base odds per visit: rare about 4%, each other starter about 2%
       let w = s.rarity === 'common' ? 10 : s.rarity === 'uncommon' ? 5 * Math.sqrt(boost) : s.rarity === 'rare' ? 4 * boost : 2 * boost
       if (caughtLines.has(s.line)) w *= 0.5
+      if (likes.includes(Number(k))) w *= 2.5
       table.push({ dex: Number(k), w, rarity: s.rarity })
     }
     const total = table.reduce((a, b) => a + b.w, 0)

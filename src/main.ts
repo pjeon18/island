@@ -5,7 +5,8 @@ import './styles.css'
 import { Creature } from './creature'
 import * as cloud from './cloud'
 import { SLOTS, decorDef } from './decor'
-import { Game, GameEvent, Mon, RARE_50, Roster, STONES, aStone, stoneName } from './game'
+import { BALLS, Ball, Find, Game, GameEvent, Mon, RARE_50, Roster, STONES, Weather, Wild, aStone, stoneName } from './game'
+import { CatchAnim } from './catch'
 import { Hud, fmtMinutes } from './hud'
 import { H, W, seaCss } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
@@ -41,6 +42,7 @@ let manifest: Manifest
 let game: Game
 let hud: Hud
 const scene = new Scene()
+scene.overlay = (gg) => catching?.draw(gg)
 scene.float = floatMode
 const species = new Map<number, Species>()
 const loading = new Map<number, Promise<Species>>()
@@ -200,6 +202,218 @@ async function runVisit(rareMult = 1) {
   })
 }
 
+// ---------- passers-by, finds and catching (GAME_DESIGN.md stage 1) ----------
+const wildCreature = (id: string) => scene.creatures.find((c) => c.wildId === id && c.state !== 'gone')
+/** Put a waiting Pokémon on the island; `arrive` walks it in from the tall grass or up the pier. */
+async function spawnWild(w: Wild, arrive: boolean) {
+  if (wildCreature(w.id)) return
+  const sp = await ensure(w.dex)
+  if (wildCreature(w.id) || !game.save.wild.some((x) => x.id === w.id)) return
+  if (!arrive) {
+    const p = scene.freeSpot()
+    scene.add(sp, p.x, p.y).wildId = w.id
+    return
+  }
+  if (Math.random() < 0.5) {
+    const gp = scene.island.grassPatch
+    scene.rustleGrass(2)
+    const c = scene.add(sp, gp.x + 1, gp.y - 4)
+    c.wildId = w.id
+    const p = scene.freeSpot({ x: gp.x + 34, y: gp.y })
+    c.walkTo(p.x, p.y)
+    c.enter('emerge', 99)
+  } else {
+    const d = scene.island.dock
+    const c = scene.add(sp, d.x + d.w / 2, d.y1 - 1)
+    c.wildId = w.id
+    const p = scene.freeSpot({ x: d.x + d.w / 2, y: d.y0 - 22 })
+    c.walkTo(p.x, p.y)
+  }
+}
+function wildLeaves(c: Creature) {
+  if (Math.random() < 0.5) {
+    const gp = scene.island.grassPatch
+    c.walkTo(gp.x + 1, gp.y - 4)
+    after(2, () => scene.rustleGrass(1.4))
+  } else {
+    const d = scene.island.dock
+    c.walkTo(d.x + d.w / 2, d.y1 - 1)
+  }
+  c.enter('leave', 99)
+}
+function syncWild() {
+  for (const w of game.save.wild) void spawnWild(w, false)
+  for (const c of scene.creatures)
+    if (c.wildId && c !== catching?.c && c.state !== 'leave' && !game.save.wild.some((w) => w.id === c.wildId)) wildLeaves(c)
+  scene.markWild = !game.inSession && !catching
+}
+function syncFinds() {
+  for (const f of game.save.finds) {
+    if (f.x != null) continue
+    const p = scene.freeSpot()
+    f.x = Math.round(p.x)
+    f.y = Math.round(p.y)
+    game.persist()
+  }
+  scene.finds = game.save.finds.map((f) => ({ id: f.id, kind: f.kind, x: f.x!, y: f.y! }))
+}
+/** A party Pokémon walks over and digs the find up. */
+function digUp(f: Find) {
+  const p = scene.freeSpot()
+  f.x = Math.round(p.x)
+  f.y = Math.round(p.y)
+  game.persist()
+  const digger = scene.creatures.filter((c) => c.monId && !c.asleep && c.state !== 'still')[0]
+  if (!digger) return syncFinds()
+  digger.walkTo(f.x + 7, f.y, 'nod')
+  digger.onArrive = () => {
+    digger.dir = 6
+    syncFinds()
+    hud.toast(`${digger.name} found something.`)
+  }
+}
+const FIND_TEXT: Record<Find['kind'], (n: number) => string> = {
+  shells: (n) => `+${n} shells`,
+  berry: () => 'An Oran Berry',
+  'poke-ball': () => 'A Poké Ball',
+  'star-piece': () => 'A Star Piece',
+}
+const WEATHER_TEXT: Record<Weather, string> = { clear: 'The sky cleared.', rain: 'It started to rain.', fog: 'Fog rolled in.', sun: 'The sun came out.' }
+
+let catching: CatchAnim | null = null
+let catchBall: Ball = 'poke-ball'
+let lastCaught: Mon | undefined
+function openCatch(c: Creature) {
+  const w = game.save.wild.find((x) => x.id === c.wildId)
+  if (!w || catching || evo) return
+  const have = BALLS.filter((b) => game.save.balls[b.id] > 0)
+  if (!have.length) return hud.say({ dex: w.dex, text: 'You have no balls. Buy some in the Town Map shop.', auto: 5000 })
+  if (!game.save.balls[catchBall]) catchBall = have[0].id
+  hud.closeSheet()
+  c.hold(true)
+  catching = new CatchAnim(c, catchBall, (q) => game.catchChance(w, catchBall, q), (r) => finishCatch(c, w, r.caught))
+  scene.markWild = false
+  showCatchUI(w)
+}
+function showCatchUI(w: Wild) {
+  hud.showCatch({
+    dex: w.dex,
+    name: game.name(w.dex),
+    level: w.level,
+    ball: catchBall,
+    balls: { ...game.save.balls },
+    onBall: (b) => {
+      catchBall = b
+      if (catching) catching.ball = b
+      showCatchUI(w)
+    },
+    onThrow: throwNow,
+    onRun: cancelCatch,
+  })
+}
+function throwNow() {
+  if (!catching || catching.phase !== 'aim') return
+  const c = catching.c
+  const id = c.wildId!
+  const dex = game.save.wild.find((x) => x.id === id)?.dex
+  adopt = dex ? { dex, c } : null // if it is caught into the party, this creature becomes the party member
+  const res = game.throwBall(id, catchBall, catching.quality)
+  if (adopt?.c === c) adopt = null
+  if (!res) return cancelCatch()
+  lastCaught = res.mon
+  if (res.caught) c.wildId = undefined
+  hud.hideCatch()
+  catching.throw({ caught: res.caught, shakes: res.shakes })
+}
+function cancelCatch() {
+  if (!catching) return
+  catching.c.hold(false)
+  catching = null
+  hud.hideCatch()
+  scene.markWild = !game.inSession
+}
+function finishCatch(c: Creature, w: Wild, caught: boolean) {
+  catching = null
+  scene.markWild = !game.inSession
+  const name = game.name(w.dex)
+  if (!caught) {
+    c.hold(false)
+    hud.say({ dex: w.dex, text: `Oh no! ${name} broke free!`, auto: 3500 })
+    return
+  }
+  const m = lastCaught
+  const inParty = !!m && game.save.party.includes(m.id)
+  if (inParty) {
+    c.hidden = false
+    c.hold(false)
+    c.walkTo(c.x, c.y, 'hop')
+  } else scene.remove(c)
+  hud.say({ dex: w.dex, emotion: 'Happy', text: inParty ? `Gotcha! ${name} was caught!` : `Gotcha! ${name} was caught and sent to your box.`, auto: 4500 })
+  hud.refreshSheet()
+  publishParty()
+}
+canvas.addEventListener('click', (e) => {
+  if (!game) return
+  const r = canvas.getBoundingClientRect()
+  const x = ((e.clientX - r.left) / r.width) * W
+  const y = ((e.clientY - r.top) / r.height) * H
+  if (catching) return throwNow()
+  const f = scene.finds.find((f) => Math.abs(f.x - x) < 6 && y > f.y - 9 && y < f.y + 3)
+  if (f) {
+    const got = game.collectFind(f.id)
+    syncFinds()
+    if (got) hud.toast(FIND_TEXT[got.kind](got.n))
+    hud.refreshSheet()
+    return
+  }
+  const c = scene.creatures.find((c) => c.wildId && !c.hidden && c.state !== 'leave' && Math.abs(c.x - x) < 11 && y > c.y - 26 && y < c.y + 3)
+  if (!c) return
+  if (game.inSession) return hud.toast(`${c.name} is waiting for your break.`)
+  openCatch(c)
+})
+canvas.addEventListener('mousemove', (e) => {
+  if (!game) return
+  const r = canvas.getBoundingClientRect()
+  const x = ((e.clientX - r.left) / r.width) * W
+  const y = ((e.clientY - r.top) / r.height) * H
+  const over =
+    !!catching ||
+    scene.finds.some((f) => Math.abs(f.x - x) < 6 && y > f.y - 9 && y < f.y + 3) ||
+    scene.creatures.some((c) => c.wildId && !c.hidden && Math.abs(c.x - x) < 11 && y > c.y - 26 && y < c.y + 3)
+  canvas.style.cursor = over ? 'pointer' : ''
+})
+window.addEventListener('keydown', (e) => {
+  if (!catching) return
+  if (e.code === 'Space' || e.code === 'Enter') {
+    e.preventDefault()
+    throwNow()
+  } else if (e.code === 'Escape') cancelCatch()
+})
+
+/** Party life: now and then two Pokémon play together or nap side by side. */
+function partyLife() {
+  after(25 + Math.random() * 30, partyLife)
+  if (catching || evo || game.save.session?.state === 'away') return
+  const free = scene.creatures.filter((c) => c.monId && !c.asleep && (c.state === 'idle' || c.state === 'look'))
+  if (free.length < 2) return
+  const [a, b] = free.sort(() => Math.random() - 0.5)
+  if (Math.random() < 0.6) {
+    // play: one runs up to the other, and both hop
+    a.walkTo(b.x + (a.x < b.x ? -9 : 9), b.y, 'hop')
+    a.onArrive = () => {
+      b.dir = a.x < b.x ? 6 : 2
+      b.walkTo(b.x, b.y, 'hop')
+    }
+  } else {
+    // nap together in the tree's shade
+    const t = scene.island.tree
+    const p = { x: t.x - 6, y: t.y + 10 }
+    if (!scene.island.walkable(p.x, p.y) || !scene.island.walkable(p.x + 10, p.y)) return
+    a.walkTo(p.x, p.y, 'lay')
+    b.walkTo(p.x + 10, p.y, 'lay')
+  }
+}
+
 // ---------- evolution ----------
 interface Evo {
   mon: Mon
@@ -332,6 +546,8 @@ function onGame(e: GameEvent) {
   switch (e.type) {
     case 'sessionStart':
       hud.toast('Session started.')
+      cancelCatch()
+      scene.markWild = false
       syncSleep()
       void cloud.sessionBegin()
       break
@@ -347,7 +563,32 @@ function onGame(e: GameEvent) {
           auto: 5000,
         })
       syncSleep()
+      scene.markWild = true
+      if (game.save.wild.length)
+        after(e.complete ? 2.5 : 1, () => {
+          const n = game.save.wild.length
+          if (n) hud.say({ dex: game.save.wild[0].dex, text: n === 1 ? `${game.name(game.save.wild[0].dex)} is waiting. Tap it to throw a ball.` : `${n} Pokémon are waiting. Tap one to throw a ball.`, auto: 5500 })
+        })
       after(6, () => void showWaves())
+      break
+    case 'passer':
+      void spawnWild(e.wild, true)
+      hud.toast(`${game.name(e.wild.dex)} came by.`)
+      break
+    case 'wildLeave':
+      for (const id of e.ids) {
+        const c = wildCreature(id)
+        if (c) wildLeaves(c)
+      }
+      break
+    case 'find':
+      digUp(e.find)
+      break
+    case 'weather':
+      scene.weather = e.kind
+      hud.toast(WEATHER_TEXT[e.kind])
+      break
+    case 'caught':
       break
     case 'visit':
       after(1.2, () => runVisit(e.rareMult))
@@ -426,6 +667,8 @@ function onGame(e: GameEvent) {
       break
     case 'partyChanged':
       syncParty()
+      syncWild()
+      syncFinds()
       scene.setDecor(game.save.decor.slots)
       hud.refreshSheet()
       publishParty()
@@ -456,6 +699,7 @@ function tick(dt: number) {
   scene.update(dt)
   runTimers()
   stepEvolution(dt)
+  catching?.update(dt)
 }
 function frame(now: number) {
   lastFrameAt = now
@@ -478,7 +722,10 @@ setInterval(() => {
 // Lock lets only one of them run the clock; the other mirrors the save.
 let clockOwner = !('locks' in navigator)
 if ('locks' in navigator) navigator.locks.request('island-clock', () => ((clockOwner = true), new Promise<void>(() => {})))
-setInterval(() => clockOwner && game?.beat(), 1000)
+setInterval(() => {
+  if (clockOwner) game?.beat()
+  if (game && scene.weather !== game.weather) scene.weather = game.weather
+}, 1000)
 // the page around the canvas takes the open sea's colour as the light changes, so there is no seam
 if (!floatMode)
   setInterval(() => {
@@ -492,6 +739,8 @@ window.addEventListener('storage', (e) => {
   game.reload()
   syncParty()
   syncSleep()
+  syncWild()
+  syncFinds()
 })
 
 // ---------- pop out ----------
@@ -551,6 +800,7 @@ function buildDebug() {
     <div class="debug-row">${b('m1', 'Add 1 focused minute')}${b('m10', 'Add 10 minutes')}${b('m60', 'Add 60 minutes')}${b('finish', 'Finish the session')}</div>
     <div class="debug-row">${b('berries', 'Add 3 berries')}${b('shells', 'Add 300 shells')}${b('stone', 'A stone washes ashore')}${b('bond', 'Lead has 10 hours of bond')}${b('visit50', 'Visitor at 50-minute odds')}</div>
     <div class="debug-row">${b('visit', 'Visitor now')}${b('evolve', 'Lead is ready to evolve')}${b('checkin', 'Ask now')}${b('idle', 'Simulate 10 idle minutes')}${b('lock', 'Simulate screen lock')}${b('active', 'Simulate activity')}${b('gap', 'Simulate a 10 minute sleep')}</div>
+    <div class="debug-row">${b('passer', 'Passer-by now')}${b('find', 'A find now')}${b('balls', '+5 of each ball')}${b('w-rain', 'Rain')}${b('w-fog', 'Fog')}${b('w-sun', 'Sun')}${b('w-clear', 'Clear sky')}</div>
     <div class="debug-row"><label class="time"><span>Hour</span><input type="range" min="0" max="24" step="0.1" value="${clockHour()}" /><output></output></label>${b('clock', 'Use my clock')}${b('reset', 'Reset save')}</div>`
   const slider = el.querySelector<HTMLInputElement>('input')!
   const out = el.querySelector('output')!
@@ -580,6 +830,15 @@ function buildDebug() {
       const item = (useful.length ? useful : STONES)[Math.floor(Math.random() * (useful.length || STONES.length))]
       game.save.bag[item] = (game.save.bag[item] ?? 0) + 1
       hud.toast(`${aStone(item).replace(/^a/, 'A')} washed ashore.`)
+    }
+    if (d === 'passer') game.passerBy()
+    if (d === 'find') game.dig()
+    if (d === 'balls') for (const bb of BALLS) game.save.balls[bb.id] += 5
+    if (d.startsWith('w-')) {
+      const kind = d.slice(2) as Weather
+      game.save.weather = { kind, until: kind === 'clear' ? 0 : Date.now() + 20 * 60 * 1000 }
+      scene.weather = game.weather
+      hud.toast(WEATHER_TEXT[kind])
     }
     if (d === 'bond' && game.party[0]) game.party[0].focusedMin = Math.max(game.party[0].focusedMin, 600)
     game.persist()
@@ -732,6 +991,10 @@ async function boot() {
         hud.refreshSheet()
         if (!ok) hud.toast('Idle detection is off.')
       },
+      buyBall: (b, n) => {
+        if (!game.buyBall(b, n)) hud.toast(game.inSession ? 'The shop opens between sessions.' : 'Not enough shells.')
+        else hud.toast(`${n === 1 ? 'A' : n} ${BALLS.find((x) => x.id === b)!.name}${n === 1 ? '' : 's'}.`)
+      },
       popOut: popoutMode ? undefined : popOut,
       quit: tauri ? () => void invoke?.('plugin:window|close', { label: 'main' }) : undefined,
     },
@@ -778,6 +1041,10 @@ async function boot() {
     }
   }
   scene.setDecor(game.save.decor.slots)
+  syncWild()
+  syncFinds()
+  scene.weather = game.weather
+  after(20, partyLife)
   if (clockOwner) game.beat() // settles any time that passed while the island was closed
   void cloud.initCloud().then(() => {
     cloud.onCloud(() => hud.refreshSheet())

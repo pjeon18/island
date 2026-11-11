@@ -2,7 +2,7 @@
 
 This is a Pokémon collecting and leveling idle game. It lives in a small always-on-top window while you study. Party Pokémon gain EXP and evolve only during focus time you start yourself. It is kin to Studdy (`../studdy`): focused minutes are the only unit, and nothing can be bought that speeds anything up.
 
-Read `docs/PLAN.md` first. It holds the approved plan and the decision log. Paul makes every final call: give options with a recommendation, then wait.
+Read `docs/GAME_DESIGN.md` first: it is the game loop and core features from Paul's interview (2026-11-11) and the build stages. Then `docs/PLAN.md` for the original plan and decision log. It holds the approved plan and the decision log. Paul makes every final call: give options with a recommendation, then wait.
 
 ## State
 - **T0, the motion study, is built** (2026-11-11).
@@ -33,7 +33,7 @@ Read `docs/PLAN.md` first. It holds the approved plan and the decision log. Paul
 - `?popout` shows the window-only view. `?float` previews the desktop-pet mode in a browser.
 - `npm run desktop` runs the Tauri app, and `npm run desktop:build` builds the .app and .dmg. Both need Rust.
 - `.env` (gitignored) holds Studdy's public Supabase URL, anon key and Turnstile site key. Without it, the online part switches off.
-- `?debug` adds demo controls below the window: add focused minutes, finish the session, a visitor, the lead ready to evolve, an ask or idle prompt, screen lock, activity, a sleep gap, the hour, and reset.
+- `?debug` adds demo controls below the window, including passer-by now, a find now, +5 of each ball, and the weather: add focused minutes, finish the session, a visitor, the lead ready to evolve, an ask or idle prompt, screen lock, activity, a sleep gap, the hour, and reset.
 
 ## Map
 - `src/island.ts`: the island, painted pixel by pixel into a static base (`PAL`, `buildIsland`), plus the props: tree, bush and lantern.
@@ -54,6 +54,7 @@ Read `docs/PLAN.md` first. It holds the approved plan and the decision log. Paul
   - `island_publish` sends the party (the server clamps it). Friends come through `island_friends`, which reuses Studdy's friend requests.
   - Waves arrive at your next break.
   - Every call no-ops politely when the island's tables are missing (the `missingSchema` state).
+- `src/catch.ts`: the throw on the canvas (stage 1): the breathing ring coloured by the odds, the ball's arc, entering, wobbles, stars or a break-free. `main.ts` owns the flow (`openCatch`, `throwNow`, `finishCatch`, `spawnWild`, `digUp`, `partyLife`); the rules are in `game.ts` (`passerBy`, `dig`, `collectFind`, `buyBall`, `catchChance`, `throwBall`, weather).
 - `src/decor.ts`: the decoration catalog, the six fixed `SLOTS`, and pixel-art painters, with a glow or live animation per item.
 - `supabase/island.sql`: additive island_* tables and functions on Studdy's project. It was tested on Postgres 16 with stubbed auth (see VALIDATION.md).
 - `src-tauri/`: the desktop pet.

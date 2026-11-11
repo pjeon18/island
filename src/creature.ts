@@ -27,6 +27,8 @@ export class Creature {
   zs: { x: number; y: number; t: number }[] = []
   onArrive?: () => void
   monId?: string // set for party members
+  wildId?: string // set for passers-by waiting to be caught
+  hidden = false // inside a thrown ball
   white = 0 // 0..1, the evolution glow
   private next?: State
 
@@ -226,7 +228,7 @@ export class Creature {
   }
 
   draw(g: CanvasRenderingContext2D) {
-    if (this.state === 'gone') return
+    if (this.state === 'gone' || this.hidden) return
     const { a, t, loop } = this.anim()
     // soft contact shadow, sized by the species' PMD shadow size
     const rx = [4, 6, 8][this.sp.meta.shadowSize] ?? 6
