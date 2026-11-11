@@ -33,6 +33,12 @@ const TABS: [Tab, string, string][] = [
   ['friends', 'Friends', itemUrl('pal-pad')],
   ['more', 'More', ''],
 ]
+/** Sub-tabs inside a menu, so each view stays short instead of one long scroll. */
+const SUBS: Partial<Record<Tab, [string, string][]>> = {
+  mons: [['party', 'Party'], ['helpers', 'Helpers'], ['box', 'Box'], ['eggs', 'Eggs'], ['bag', 'Bag']],
+  island: [['map', 'Island'], ['habitats', 'Habitats'], ['decor', 'Decor'], ['shop', 'Shop']],
+  more: [['focus', 'Focus'], ['settings', 'Settings'], ['credits', 'Credits']],
+}
 const tabIcon = (src: string) => (src ? `<img class="ico" src="${src}" alt="" />` : `<span class="dots"><i></i><i></i><i></i></span>`)
 
 export interface DialogAction {
@@ -383,6 +389,8 @@ export class Hud {
       if (a === 'pet') return this.h.pet(this.summaryId)
       if (a === 'feed') return this.h.feed(this.summaryId)
       if (a === 'more') {
+        const r = this.game.roleOf(this.summaryId)
+        this.sub.mons = r === 'party' ? 'party' : r === 'box' ? 'box' : 'helpers'
         this.openMon = this.summaryId
         this.hideSummary()
         this.openSheet('mons')
@@ -393,6 +401,7 @@ export class Hud {
 
   // ---------- cheats (testing) ----------
   /** Show or hide the Cheats window: every event, one button each. */
+  private cheatGroup = 0
   toggleCheats(groups: { title: string; items: [string, string][] }[], run: (id: string) => void) {
     const el = this.el.querySelector<HTMLElement>('.hud-cheats')!
     if (!el.hidden) {
@@ -400,17 +409,29 @@ export class Hud {
       return
     }
     this.closeSheet()
-    el.innerHTML = `<div class="sheet-head"><p class="sheet-title">Cheats</p><button class="close-x" data-c-close aria-label="Close"></button></div>
-      <div class="sheet-body">${groups.map((g) => `<p class="row-title">${g.title}</p><div class="row-actions">${g.items.map(([id, label]) => `<button class="px-btn small" data-cheat="${id}">${label}</button>`).join('')}</div>`).join('')}</div>`
+    this.hideSummary()
+    // one tab per group, so the window never scrolls
+    const draw = () => {
+      const gr = groups[this.cheatGroup] ?? groups[0]
+      el.innerHTML = `<div class="sheet-head"><p class="sheet-title">Cheats</p><button class="close-x" data-c-close aria-label="Close"></button></div>
+        <div class="segs subtabs">${groups.map((g, i) => `<button class="seg${i === this.cheatGroup ? ' on' : ''}" data-c-group="${i}">${g.title}</button>`).join('')}</div>
+        <div class="sheet-body"><div class="row-actions">${gr.items.map(([id, label]) => `<button class="px-btn small" data-cheat="${id}">${label}</button>`).join('')}</div></div>`
+    }
     el.onclick = (e) => {
       const t = e.target as HTMLElement
       if (t.closest('[data-c-close]')) {
         el.hidden = true
         return
       }
+      const gi = t.closest<HTMLElement>('[data-c-group]')?.dataset.cGroup
+      if (gi != null) {
+        this.cheatGroup = Number(gi)
+        return draw()
+      }
       const id = t.closest<HTMLElement>('[data-cheat]')?.dataset.cheat
       if (id) run(id)
     }
+    draw()
     el.hidden = false
   }
 
@@ -461,8 +482,22 @@ export class Hud {
     if (this.tab === 'friends' && !this.sheet.hidden) this.renderSheet()
   }
 
+  private sub: Partial<Record<Tab, string>> = {}
+  private lastView = ''
+  private subOf(tab: Tab) {
+    return this.sub[tab] ?? SUBS[tab]?.[0][0] ?? ''
+  }
   private renderSheet() {
     const title = TABS.find(([id]) => id === this.tab)![1]
+    const subs = SUBS[this.tab]
+    const cur = this.subOf(this.tab)
+    const count = (id: string) => {
+      const s = this.game.save
+      if (this.tab !== 'mons') return ''
+      const n = id === 'box' ? s.mons.filter((m) => this.game.roleOf(m.id) === 'box').length : id === 'eggs' ? s.eggs.length : id === 'helpers' ? this.game.helpers.length + (s.expedition ? 1 : 0) : 0
+      return n ? ` ${n}` : ''
+    }
+    const bar = subs ? `<div class="segs subtabs">${subs.map(([id, label]) => `<button class="seg${id === cur ? ' on' : ''}" data-sub="${id}">${label}${count(id)}</button>`).join('')}</div>` : ''
     const body =
       this.tab === 'mons'
         ? this.monsTab()
@@ -473,39 +508,57 @@ export class Hud {
             : this.tab === 'friends'
               ? this.friendsTab()
               : this.moreTab()
-    const scroll = this.sheet.querySelector('.sheet-body')?.scrollTop ?? 0
+    const view = `${this.tab}:${cur}`
+    const scroll = view === this.lastView ? (this.sheet.querySelector('.sheet-body')?.scrollTop ?? 0) : 0
+    this.lastView = view
     this.sheet.innerHTML = `
       <div class="px-panel sheet-panel">
         <div class="sheet-head"><p class="sheet-title">${title}</p><button class="close-x" data-act="close" aria-label="Close"></button></div>
+        ${bar}
         <div class="sheet-body">${this.note ? `<p class="note flash">${esc(this.note)}</p>` : ''}${body}</div>
       </div>`
     const sb = this.sheet.querySelector('.sheet-body')
     if (sb) sb.scrollTop = scroll
   }
 
-  // Pokémon: party first, then the box; tap a row for its choices
+  // Pokémon, in sub-tabs: Party, Helpers, Box, Eggs, Bag
   private monsTab() {
     const g = this.game
     const s = g.save
-    const stones = Object.entries(s.bag).filter(([, n]) => n > 0)
-    const balls = BALLS.filter((b) => s.balls[b.id] > 0).map((b) => `<span title="${b.name}">${icon(b.id)}<b>×${s.balls[b.id]}</b></span>`).join('')
-    const inv = `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${s.shells}</b></span>${s.starPieces ? `<span title="Star Pieces">${icon('star-piece')}<b>×${s.starPieces}</b></span>` : ''}<span title="Oran Berries">${icon('oran-berry')}<b>×${s.berries}</b></span>${balls}${stones.map(([k, n]) => `<span title="${stoneName(k)}">${icon(k)}<b>×${n}</b></span>`).join('')}</p>`
     const locked = g.inSession ? `<p class="note">Locked while focusing.</p>` : ''
-    const eggs = s.eggs.length
-      ? `<p class="row-title">Eggs <span class="hint">${s.eggs.length}/${EGG_MAX}</span></p>` +
-        s.eggs.map((e, i) => `<div class="decor-row"><span class="shop-ico">${icon('lucky-egg')}</span><div class="mon-main"><p>Egg</p><span class="bar"><i style="width:${Math.round((e.progress / e.need) * 100)}%"></i></span><p class="hint">${i < EGG_MAX ? `${e.progress}/${e.need} min` : 'Waiting for room'}</p></div></div>`).join('')
-      : ''
-    const helpers = s.mons.filter((m) => { const r = g.roleOf(m.id); return r !== 'party' && r !== 'box' })
-    const box = s.mons.filter((m) => g.roleOf(m.id) === 'box')
-    const jobs = JOBS.map((j) => {
-      const who = s.jobs[j.id] && g.mon(s.jobs[j.id]!)
-      return `<p class="hint">${j.name}: ${who ? `${g.name(who)}, every ${jobEvery(j, who.level)} min` : `free (${j.types.map((t) => t[0].toUpperCase() + t.slice(1)).join(' or ')}${j.needsDecor ? ', needs the campfire' : ''})`}</p>`
-    }).join('')
-    const dc = s.daycare.ids.filter(Boolean).length
-    return inv + locked + eggs +
-      `<p class="row-title">Party <span class="hint">${g.party.length}/${PARTY_MAX}</span></p>` + g.party.map((m) => this.monRow(m)).join('') +
-      `<p class="row-title">Helpers</p><p class="hint">Day Care: ${dc}/2${dc === 2 ? `, an egg every ${DAYCARE_EVERY} min` : ''}</p>${jobs}` + helpers.map((m) => this.monRow(m)).join('') +
-      (box.length ? `<p class="row-title">Box</p>` + box.map((m) => this.monRow(m)).join('') : '')
+    const view = this.subOf('mons')
+    if (view === 'party') return locked + g.party.map((m) => this.monRow(m)).join('') + `<p class="hint">Party ${g.party.length}/${PARTY_MAX}. Tap one for its choices.</p>`
+    if (view === 'helpers') {
+      const helpers = s.mons.filter((m) => { const r = g.roleOf(m.id); return r !== 'party' && r !== 'box' })
+      const dc = s.daycare.ids.filter(Boolean).length
+      const jobs = JOBS.map((j) => {
+        const who = s.jobs[j.id] && g.mon(s.jobs[j.id]!)
+        return `<div class="job-row"><span>${j.name}</span><span class="hint">${who ? `${g.name(who)}, every ${jobEvery(j, who.level)} min` : `${j.types.map((t) => t[0].toUpperCase() + t.slice(1)).join(' or ')}${j.needsDecor ? ', campfire' : ''}`}</span></div>`
+      }).join('')
+      return locked + `<div class="job-row"><span>Day Care</span><span class="hint">${dc}/2${dc === 2 ? `, egg every ${DAYCARE_EVERY} min` : ''}</span></div>${jobs}` + (helpers.length ? helpers.map((m) => this.monRow(m)).join('') : `<p class="hint">Nobody is helping yet. Pick one in Box or Party.</p>`)
+    }
+    if (view === 'box') {
+      const box = s.mons.filter((m) => g.roleOf(m.id) === 'box')
+      if (!box.length) return `<p class="hint">The box is empty.</p>`
+      const picked = box.find((m) => m.id === this.openMon)
+      const grid = box.map((m) => `<button class="box-cell${m.id === this.openMon ? ' on' : ''}" data-open="${m.id}" title="${esc(g.name(m))}"><img src="${portraitUrl(m.dex)}" alt="" /><span>Lv${m.level}</span></button>`).join('')
+      return locked + `<div class="box-grid">${grid}</div>` + (picked ? this.monRow(picked) : `<p class="hint">Tap one for its choices.</p>`)
+    }
+    if (view === 'eggs')
+      return s.eggs.length
+        ? s.eggs.map((e, i) => `<div class="decor-row"><span class="shop-ico">${icon('lucky-egg')}</span><div class="mon-main"><p>Egg</p><span class="bar"><i style="width:${Math.round((e.progress / e.need) * 100)}%"></i></span><p class="hint">${i < EGG_MAX ? `${e.progress}/${e.need} min` : 'Waiting for room'}</p></div></div>`).join('') + `<p class="hint">${s.eggs.length}/${EGG_MAX} in the nest. They warm while you focus.</p>`
+        : `<p class="hint">No eggs. They come from the Day Care, finds, streaks and trips.</p>`
+    // the bag: everything you carry, as a grid
+    const item = (id: string, name: string, n: number) => `<div class="bag-cell" title="${name}">${icon(id)}<span>${name}</span><b>×${n}</b></div>`
+    const cells = [
+      item('shoal-shell', 'Shells', s.shells),
+      item('star-piece', 'Star Pieces', s.starPieces),
+      item('oran-berry', 'Oran Berries', s.berries),
+      ...BALLS.map((b) => item(b.id, b.name, s.balls[b.id])),
+      ...FOODS.filter((f) => s.foods[f.id]).map((f) => item(f.id, f.name, s.foods[f.id]!)),
+      ...Object.entries(s.bag).filter(([, n]) => n > 0).map(([k, n]) => item(k, stoneName(k), n)),
+    ]
+    return `<div class="bag-grid">${cells.join('')}</div>`
   }
   private evoText(m: Mon) {
     const g = this.game
@@ -653,10 +706,10 @@ export class Hud {
       const act = !owned
         ? `<button class="px-btn small${g.save.shells >= item.price ? ' primary' : ''}" data-buy="${item.id}" ${g.save.shells < item.price || locked ? 'disabled' : ''}>${icon('shoal-shell', 'ico-s')}${item.price}</button>`
         : placed.has(item.id)
-          ? `<button class="px-btn small" data-move="${item.id}" ${locked ? 'disabled' : ''}>Move</button><button class="px-btn small" data-store="${item.id}" ${locked ? 'disabled' : ''}>Put away</button>`
+          ? `<button class="px-btn small" data-move="${item.id}" ${locked ? 'disabled' : ''}>Move</button><button class="px-btn small" data-store="${item.id}" ${locked ? 'disabled' : ''}>Store</button>`
           : `<button class="px-btn small primary" data-place="${item.id}" ${!free || locked ? 'disabled' : ''}>Place</button>`
       const loves = (DECOR_LOVES[item.id] ?? []).map((d) => (g.save.seen.includes(d) ? g.name(d) : '???')).join(', ')
-      return `<div class="decor-row"><div class="mon-main"><p><strong>${item.name}</strong> <span class="hint">${owned ? (placed.has(item.id) ? 'On the island' : 'Put away') : `${item.price} shells`}</span></p>${loves ? `<p class="hint">Loved by ${loves}</p>` : ''}</div><div class="row-actions">${act}</div></div>`
+      return `<div class="decor-card${placed.has(item.id) ? ' on' : ''}" title="${loves ? `Loved by ${loves}` : ''}"><p>${item.name}</p><p class="hint">${owned ? (placed.has(item.id) ? 'Placed' : 'Stored') : 'Shop'}</p><div class="row-actions">${act}</div></div>`
     }).join('')
     const star = icon('star-piece', 'ico-s')
     const shell = icon('shoal-shell', 'ico-s')
@@ -669,18 +722,18 @@ export class Hud {
     }).join('')
     const food = FOODS.map((f) => {
       const have = g.save.foods[f.id] ?? 0
-      return `<div class="decor-row"><span class="shop-ico">${icon(f.id)}</span><div class="mon-main"><p>${f.name} <span class="hint">×${have}</span></p><p class="hint">${f.types.map((t) => t[0].toUpperCase() + t.slice(1)).join(', ')}</p></div><div class="row-actions row"><button class="px-btn small" data-food="${f.id}" ${g.save.shells < f.price || locked ? 'disabled' : ''}>${shell}${f.price}</button><button class="px-btn small primary" data-bait="${f.id}" ${!have || locked || !!g.save.bait ? 'disabled' : ''}>Set out</button></div></div>`
+      return `<div class="decor-row tight" title="Draws ${f.types.join(', ')} types"><span class="shop-ico">${icon(f.id)}</span><div class="mon-main"><p>${f.name} <span class="hint">×${have}</span></p></div><div class="row-actions row"><button class="px-btn small" data-food="${f.id}" ${g.save.shells < f.price || locked ? 'disabled' : ''}>${shell}${f.price}</button><button class="px-btn small primary" data-bait="${f.id}" ${!have || locked || !!g.save.bait ? 'disabled' : ''}>Set out</button></div></div>`
     }).join('')
     const shop = BALLS.map(
-      (b) => `<div class="decor-row"><span class="shop-ico">${icon(b.id)}</span><div class="mon-main"><p>${b.name} <span class="hint">×${g.save.balls[b.id]}</span></p></div><div class="row-actions row"><button class="px-btn small${g.save.shells >= b.price ? ' primary' : ''}" data-ball="${b.id}:1" ${g.save.shells < b.price || locked ? 'disabled' : ''}>${icon('shoal-shell', 'ico-s')}${b.price}</button><button class="px-btn small" data-ball="${b.id}:5" ${g.save.shells < b.price * 5 || locked ? 'disabled' : ''}>×5</button></div></div>`,
+      (b) => `<div class="decor-row tight"><span class="shop-ico">${icon(b.id)}</span><div class="mon-main"><p>${b.name} <span class="hint">×${g.save.balls[b.id]}</span></p></div><div class="row-actions row"><button class="px-btn small${g.save.shells >= b.price ? ' primary' : ''}" data-ball="${b.id}:1" ${g.save.shells < b.price || locked ? 'disabled' : ''}>${icon('shoal-shell', 'ico-s')}${b.price}</button><button class="px-btn small" data-ball="${b.id}:5" ${g.save.shells < b.price * 5 || locked ? 'disabled' : ''}>×5</button></div></div>`,
     ).join('')
-    return `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${g.save.shells}</b></span>${g.save.starPieces ? `<span title="Star Pieces">${icon('star-piece')}<b>×${g.save.starPieces}</b></span>` : ''}</p>
-      ${locked ? '<p class="note">Locked while focusing.</p>' : ''}
-      ${this.islandsHtml()}
-      <p class="row-title">Habitats</p>${habitats}
-      <p class="row-title">Food</p>${g.save.bait ? `<p class="note">${FOODS.find((f) => f.id === g.save.bait)?.name} is out.</p>` : ''}${food}
-      <p class="row-title">Balls</p>${shop}
-      <p class="row-title">Decorations <span class="hint">${free}/${open.length} spots free</span></p>${rows}`
+    const view = this.subOf('island')
+    if (view === 'map') return this.islandsHtml()
+    const wallet = `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${g.save.shells}</b></span><span title="Star Pieces">${icon('star-piece')}<b>×${g.save.starPieces}</b></span></p>${locked ? '<p class="note">Locked while focusing.</p>' : ''}`
+    if (view === 'habitats') return `${wallet}${habitats}`
+    if (view === 'decor') return `${wallet.replace('</p>', `<span>${free}/${open.length} spots free</span></p>`)}<div class="decor-grid">${rows}</div>`
+    return `${wallet}<p class="row-title">Balls</p>${shop}
+      <p class="row-title">Food</p>${g.save.bait ? `<p class="note">${FOODS.find((f) => f.id === g.save.bait)?.name} is out until the session ends.</p>` : ''}${food}`
   }
 
   private sendTo: string | null = null
@@ -739,6 +792,13 @@ export class Hud {
     const det = g.save.settings.detector
     const idleOk = typeof (window as unknown as { IdleDetector?: unknown }).IdleDetector === 'function'
     const streak = g.streak()
+    const view = this.subOf('more')
+    if (view === 'credits') return `<div class="credits-body">${this.credits()}</div>`
+    if (view === 'settings')
+      return `<p class="row-title">Sound</p><button class="px-btn small" data-act="sound">Cries ${g.save.settings.sound === false ? 'off' : 'on'}</button>
+      ${this.h.popOut ? `<p class="row-title">Window</p><button class="px-btn small" data-act="popout">Pop out</button>` : ''}
+      ${this.h.quit ? `<p class="row-title">Window</p><button class="px-btn small" data-act="quit">Close</button>` : ''}
+      ${this.h.cheats ? `<p class="row-title">Testing</p><button class="px-btn small" data-act="cheats">Cheats</button> <span class="hint">or press \`</span>` : ''}`
     return `
       <p class="row-title">Session length</p>
       <div class="segs wide">
@@ -748,15 +808,7 @@ export class Hud {
       </div>
       <p class="row-title">Today</p>
       <p class="note">${fmtMinutes(g.todayMinutes())} focused${streak ? ` · ${streak} day${streak === 1 ? '' : 's'} in a row` : ''}</p>
-      ${
-        !det && idleOk ? `<p class="row-title">Idle detection</p><button class="px-btn small" data-act="idle">Turn on</button>` : ''
-      }
-      ${this.h.popOut ? `<p class="row-title">Window</p><button class="px-btn small" data-act="popout">Pop out</button>` : ''}
-      ${this.h.quit ? `<p class="row-title">Window</p><button class="px-btn small" data-act="quit">Close</button>` : ''}
-      <p class="row-title">Sound</p><button class="px-btn small" data-act="sound">Cries ${g.save.settings.sound === false ? 'off' : 'on'}</button>
-      ${this.h.cheats ? `<p class="row-title">Testing</p><button class="px-btn small" data-act="cheats">Cheats</button>` : ''}
-      <p class="row-title">Credits</p>
-      <div class="credits-body">${this.credits()}</div>`
+      ${!det && idleOk ? `<p class="row-title">Idle detection</p><button class="px-btn small" data-act="idle">Turn on</button>` : ''}`
   }
 
   private async onSheetClick(e: Event) {
@@ -766,6 +818,11 @@ export class Hud {
     if (btn?.disabled) return
     const tab = at('tab')
     if (tab) return this.openSheet(tab as Tab)
+    const subAt = at('sub')
+    if (subAt) {
+      this.sub[this.tab] = subAt
+      return this.renderSheet()
+    }
     const act = at('act')
     if (act === 'close') return this.closeSheet()
     if (act === 'idle') return this.h.enableIdle()

@@ -1132,12 +1132,12 @@ const CHEATS: { title: string; items: [string, string][] }[] = [
   { title: 'Moments', items: [['find', 'A find'], ['w-rain', 'Rain'], ['w-fog', 'Fog'], ['w-sun', 'Sun'], ['w-snow', 'Snow'], ['w-clear', 'Clear sky']] },
   { title: 'Time', items: [['h-7', 'Morning'], ['h-13', 'Noon'], ['h-19', 'Dusk'], ['h-22', 'Night'], ['clock', 'My clock']] },
   { title: 'Growth', items: [['evolve', 'Lead ready to evolve'], ['stone', 'A stone washes ashore'], ['bond', 'Lead: 10 h bond'], ['lv20', 'Party to Lv 20'], ['strong', 'Party to Lv 34']] },
-  { title: 'Eggs and helpers', items: [['egg', 'An egg'], ['daycare-egg', 'Day Care egg now'], ['hatch-now', 'Hatch eggs now'], ['jobs-now', 'Jobs pay out now'], ['expedition-back', 'Expedition returns']] },
+  { title: 'Eggs', items: [['egg', 'An egg'], ['daycare-egg', 'Day Care egg now'], ['hatch-now', 'Hatch eggs now'], ['jobs-now', 'Jobs pay out now'], ['expedition-back', 'Expedition returns']] },
   { title: 'Friends', items: [['fakefriend', 'A friend studies too'], ['fakewave', 'A friend waves'], ['fakegift', 'Gifts arrive']] },
   { title: 'Items', items: [['shells', '+300 shells'], ['stars', '+5 Star Pieces'], ['balls', '+5 of each ball'], ['berries', '+3 berries'], ['foods', '+3 of each food']] },
   { title: 'Progress', items: [['hours', '+5 focused hours'], ['dexfill', 'Catch 70% of this dex'], ['unlock', 'Unlock Frost Isle'], ['guardian-reset', 'Un-beat this guardian'], ['dungeon', 'Enter the dungeon'], ['sail-frost', 'Sail to Frost Isle'], ['sail-home', 'Sail home']] },
-  { title: 'Step away', items: [['checkin', 'Ask "still studying?"'], ['idle', '10 idle minutes'], ['lock', 'Screen lock'], ['active', 'Activity'], ['gap', 'A 10-minute sleep']] },
-  { title: 'Danger', items: [['reset', 'Reset save']] },
+  { title: 'Away', items: [['checkin', 'Ask "still studying?"'], ['idle', '10 idle minutes'], ['lock', 'Screen lock'], ['active', 'Activity'], ['gap', 'A 10-minute sleep']] },
+  { title: 'Reset', items: [['reset', 'Reset save']] },
 ]
 function cheat(d: string) {
   if (!game.hasStarter && d !== 'reset') return hud.toast('Pick a starter first.')
