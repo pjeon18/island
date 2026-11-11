@@ -1,7 +1,7 @@
 // Step-away detection. With permission, Chrome's Idle Detection API reports
 // only two things, system-wide: whether you are active or idle, and whether the
 // screen is locked. Nothing about what you are doing or which app is open.
-// Without permission, the island asks "Still studying?" every 20 minutes.
+// Without permission, the island asks "Still studying?" at 1 and 2 hours (sessions end at 3).
 import { IDLE_THRESHOLD } from './game'
 
 interface IdleDetectorLike extends EventTarget {

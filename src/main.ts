@@ -964,7 +964,9 @@ function onGame(e: GameEvent) {
       hud.clearQueue((d) => d.text.includes('still studying'))
       void cloud.sessionEnd()
       game.note('focus', `Focused for ${fmtMinutes(e.minutes)}.${e.complete ? ` ${e.berries === 2 ? 'Two berries' : 'A berry'} ripened.` : ''}`, { n: e.minutes, dex: lead() })
-      if (e.complete)
+      if (e.capped)
+        hud.say({ dex: lead(), text: "Three hours focused. That's the most one session counts, so take a real break. Start another whenever you're ready.", wait: true })
+      else if (e.complete)
         hud.toast(`${fmtMinutes(e.minutes)} focused. ${e.berries === 2 ? 'Two berries' : 'A berry'} ripened.`)
       else
         hud.say({

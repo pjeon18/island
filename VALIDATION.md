@@ -1,5 +1,11 @@
 # Validation
 
+## Check-ins and the 3-hour cap (2026-11-11)
+- Driven with a fake clock in the browser. In an Open session, "Still studying?" came at 60 and 120 minutes; answering 3 minutes later credited those 3 minutes. The session ended itself at 180 minutes as complete (`capped`), with Wooper's line about taking a real break.
+- An unanswered check-in paused the clock after 10 minutes, with no time taken back.
+- A 30-minute gap (a sleeping computer) paused the session on wake, with none of the gap credited.
+- Not checked on real hardware: lid-close sleep and the lock screen with idle detection.
+
 ## The new-player opening and Wooper's tour (2026-11-11)
 - **Prologue.** A fresh save starts on the black screen with no island or clouds showing. The time question shows the real clock ("It's 14:40.") and "No idea."; both replies continue. The four starters sit on one row at a 720 px window, with no name overflowing. Choosing Charmander, Squirtle or Pikachu made it the only party member; the black faded into the held clouds, which then parted.
 - **Tour, full path.** Wooper walked out of the tall grass and spoke. "I'll help" sent in a Pidgey, and the "Tap it" instruction sat top left, clear of the island. The throw caught it, and the game's "Gotcha!" line finished before Wooper went on. The gift gave exactly 100 shells and 3 Star Pieces, the Pond's price. The pulse moved map button → Habitats → Pond, and the pond was built. The focus widget appeared at the 'focus' step, the pulse moved to Start focusing and then the Journal, and Wooper joined as the third party member: one Wooper on the island, adopted rather than duplicated. The Journal recorded the passer-by, the catch, the pond and Wooper.

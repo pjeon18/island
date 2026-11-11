@@ -246,8 +246,12 @@ export const PARTY_MAX = 3
 export const START_LEVEL = 5
 export const MAX_GAP = 90 // seconds: a beat is worth at most this much wall time
 export const AWAY_GAP = 5 * 60 // a gap this long means you were gone
-export const CHECKIN_EVERY = 20 * 60 // without idle detection
-export const ANSWER_WINDOW = 2 * 60
+// Paul, 2026-11-11: a check-in can land in your most focused minutes, so ask rarely and
+// wait long. Without idle detection, "Still studying?" comes at 1 and 2 hours; you have
+// 10 minutes to answer (the wait counts when you do); every session ends itself at 3 hours.
+export const CHECKIN_EVERY = 60 * 60 // without idle detection
+export const ANSWER_WINDOW = 10 * 60
+export const MAX_SESSION = 3 * 60 * 60
 export const IDLE_THRESHOLD = 10 * 60 // idle detector threshold
 export const OPEN_VISIT_EVERY = 30 * 60
 export const BERRY_EXP = 10
@@ -351,7 +355,7 @@ export type GameEvent =
   | { type: 'levelUp'; mon: Mon }
   | { type: 'evolveReady'; mon: Mon; to: number }
   | { type: 'sessionStart' }
-  | { type: 'sessionEnd'; minutes: number; complete: boolean; berries: number }
+  | { type: 'sessionEnd'; minutes: number; complete: boolean; berries: number; capped?: boolean }
   | { type: 'visit'; rareMult: number }
   | { type: 'visitCapped' }
   | { type: 'ask'; reason: 'idle' | 'checkin' }
@@ -732,7 +736,7 @@ export class Game {
     }
   }
 
-  endSession(complete = false) {
+  endSession(complete = false, capped = false) {
     const s = this.save.session
     if (!s) return
     this.save.session = null
@@ -747,7 +751,7 @@ export class Game {
       this.save.breakUntil = this.now() + BREAK_SECONDS * 1000
     }
     this.persist()
-    this.emit({ type: 'sessionEnd', minutes: s.granted, complete, berries })
+    this.emit({ type: 'sessionEnd', minutes: s.granted, complete, berries, capped })
     // the old end-of-session visitor is now a minor extra; passers-by are the main way in
     if (complete && Math.random() < FRIENDLY_VISIT_CHANCE) this.requestVisit(s.length && s.length >= 50 * 60 ? RARE_50 : 1, this.lure(s))
   }
@@ -975,6 +979,7 @@ export class Game {
     this.moments(s)
     if (!this.save.session) return
     if (s.length && s.credited >= s.length) return this.endSession(true)
+    if (s.credited >= MAX_SESSION) return this.endSession(true, true)
     if (!s.length && s.credited >= s.nextVisit) {
       s.nextVisit += OPEN_VISIT_EVERY
       this.save.berries = Math.min(BERRIES_MAX, this.save.berries + 1)

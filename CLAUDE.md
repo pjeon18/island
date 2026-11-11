@@ -46,7 +46,7 @@ Read `docs/GAME_DESIGN.md` first: it is the game loop and core features from Pau
   - The ground point comes from the Shadow sheet.
 - `src/game.ts`: the rules and the save (`island-save-v1`).
   - Sessions credit real wall time per beat, capped at 90 s. A gap over 5 minutes means away.
-  - Check-ins come every 20 minutes. With the idle detector, an unanswered idle question takes back 10 minutes, and EXP never de-levels.
+  - Without the idle detector, "Still studying?" comes at 1 and 2 hours (`CHECKIN_EVERY`), with 10 minutes to answer (`ANSWER_WINDOW`); the wait counts when you answer, and an unanswered one pauses the clock. Every session ends itself at 3 hours, counted as complete (`MAX_SESSION`; Paul, 2026-11-11, after Studdy sessions left running piled up 30 hours). A sleeping or locked computer pauses it: a gap over 5 minutes on wake (`AWAY_GAP`), or the lock screen with idle detection. With the idle detector, an unanswered idle question takes back 10 minutes, and EXP never de-levels.
   - Level L costs L EXP. Visitors are drawn by weighted rarity.
 - `src/presence.ts`: the Idle Detection API wrapper (active or idle, locked or unlocked only).
 - `src/cloud.ts`: the online half (T2).
