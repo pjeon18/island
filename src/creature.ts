@@ -29,6 +29,8 @@ export class Creature {
   monId?: string // set for party members
   wildId?: string // set for passers-by waiting to be caught
   hidden = false // inside a thrown ball
+  anchor?: { x: number; y: number; r: number } // helpers stay near their job; r 0 = stand still
+  glowOut = false // fade the white glow away (a hatchling)
   white = 0 // 0..1, the evolution glow
   private next?: State
 
@@ -76,6 +78,16 @@ export class Creature {
   }
 
   private pickWander(others: Creature[]) {
+    const an = this.anchor
+    if (an) {
+      if (an.r === 0) return null
+      for (let tries = 0; tries < 20; tries++) {
+        const x = an.x + (this.rand() - 0.5) * 2 * an.r
+        const y = an.y + (this.rand() - 0.5) * an.r
+        if (this.island.walkable(x, y) && !others.some((o) => o !== this && Math.hypot(o.x - x, o.y - y) < 10)) return { x, y }
+      }
+      return null
+    }
     for (let tries = 0; tries < 30; tries++) {
       const a = this.rand() * Math.PI * 2
       const r = 14 + this.rand() * 40
@@ -95,6 +107,10 @@ export class Creature {
 
   update(dt: number, others: Creature[]) {
     this.t += dt
+    if (this.glowOut) {
+      this.white = Math.max(0, this.white - dt / 0.9)
+      if (this.white === 0) this.glowOut = false
+    }
     for (const z of this.zs) z.t += dt
     this.zs = this.zs.filter((z) => z.t < 3.2)
 

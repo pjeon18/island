@@ -5,7 +5,7 @@
 // the sheet, and the sheet's choices only unlock between sessions.
 import type { CloudState, Friend, FriendRequest, Me } from './cloud'
 import { CATALOG, SLOTS, decorDef } from './decor'
-import { BALLS, BERRY_EXP, BOND_FOR_FRIENDSHIP, Ball, DECOR_LOVES, Evolution, FOODS, Game, HABITATS, Habitat, Mon, PARTY_MAX, aStone, expToNext, stoneName } from './game'
+import { BALLS, BERRY_EXP, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, EGG_MAX, Evolution, FOODS, Game, HABITATS, Habitat, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
 
 const BASE = import.meta.env.BASE_URL
 export const portraitUrl = (dex: number, emo = 'Normal') => `${BASE}sprites/${String(dex).padStart(4, '0')}/${emo}.png`
@@ -70,6 +70,8 @@ export interface HudHandlers {
   buildHabitat: (id: Habitat) => void
   buyFood: (id: string, n: number) => void
   setBait: (id: string) => void
+  assign: (id: string, role: Role) => void
+  expedition: (id: string, long: boolean) => void
   popOut?: () => void
   quit?: () => void
   cloud: {
@@ -403,8 +405,21 @@ export class Hud {
     const balls = BALLS.filter((b) => s.balls[b.id] > 0).map((b) => `<span title="${b.name}">${icon(b.id)}<b>×${s.balls[b.id]}</b></span>`).join('')
     const inv = `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${s.shells}</b></span>${s.starPieces ? `<span title="Star Pieces">${icon('star-piece')}<b>×${s.starPieces}</b></span>` : ''}<span title="Oran Berries">${icon('oran-berry')}<b>×${s.berries}</b></span>${balls}${stones.map(([k, n]) => `<span title="${stoneName(k)}">${icon(k)}<b>×${n}</b></span>`).join('')}</p>`
     const locked = g.inSession ? `<p class="note">Locked while focusing.</p>` : ''
-    const order = [...g.party, ...s.mons.filter((m) => !s.party.includes(m.id))]
-    return inv + locked + order.map((m) => this.monRow(m)).join('') + `<p class="note">Party ${g.party.length}/${PARTY_MAX}</p>`
+    const eggs = s.eggs.length
+      ? `<p class="row-title">Eggs <span class="hint">${s.eggs.length}/${EGG_MAX}</span></p>` +
+        s.eggs.map((e, i) => `<div class="decor-row"><span class="shop-ico">${icon('lucky-egg')}</span><div class="mon-main"><p>Egg</p><span class="bar"><i style="width:${Math.round((e.progress / e.need) * 100)}%"></i></span><p class="hint">${i < EGG_MAX ? `${e.progress}/${e.need} min` : 'Waiting for room'}</p></div></div>`).join('')
+      : ''
+    const helpers = s.mons.filter((m) => { const r = g.roleOf(m.id); return r !== 'party' && r !== 'box' })
+    const box = s.mons.filter((m) => g.roleOf(m.id) === 'box')
+    const jobs = JOBS.map((j) => {
+      const who = s.jobs[j.id] && g.mon(s.jobs[j.id]!)
+      return `<p class="hint">${j.name}: ${who ? `${g.name(who)}, every ${jobEvery(j, who.level)} min` : `free (${j.types.map((t) => t[0].toUpperCase() + t.slice(1)).join(' or ')}${j.needsDecor ? ', needs the campfire' : ''})`}</p>`
+    }).join('')
+    const dc = s.daycare.ids.filter(Boolean).length
+    return inv + locked + eggs +
+      `<p class="row-title">Party <span class="hint">${g.party.length}/${PARTY_MAX}</span></p>` + g.party.map((m) => this.monRow(m)).join('') +
+      `<p class="row-title">Helpers</p><p class="hint">Day Care: ${dc}/2${dc === 2 ? `, an egg every ${DAYCARE_EVERY} min` : ''}</p>${jobs}` + helpers.map((m) => this.monRow(m)).join('') +
+      (box.length ? `<p class="row-title">Box</p>` + box.map((m) => this.monRow(m)).join('') : '')
   }
   private evoText(m: Mon) {
     const g = this.game
@@ -422,7 +437,13 @@ export class Hud {
     const inParty = s.party.includes(m.id)
     const open = this.openMon === m.id
     const pct = Math.round((m.exp / expToNext(m.level)) * 100)
-    const status = m.heldItem
+    const role = g.roleOf(m.id)
+    const ex = s.expedition
+    const roleText =
+      role === 'daycare' ? 'At the Day Care' : role === 'expedition' && ex ? `Away, ${ex.progress}/${ex.need} min` : role.startsWith('job:') ? JOBS.find((j) => `job:${j.id}` === role)!.name : ''
+    const status = roleText
+      ? roleText
+      : m.heldItem
       ? `${icon(m.heldItem, 'ico-s')} Holding ${aStone(m.heldItem)}.`
       : m.noEvolve
         ? 'Ready to evolve.'
@@ -432,9 +453,18 @@ export class Hud {
       const locked = g.inSession
       const usable = g.evolutionOptions(m).filter((e: Evolution) => e.item && (s.bag[e.item] ?? 0) > 0)
       const btn = (attrs: string, label: string, dis = false, primary = false) => `<button class="px-btn small${primary ? ' primary' : ''}" ${attrs} ${dis ? 'disabled' : ''}>${label}</button>`
-      const partyBtn = inParty
-        ? btn(`data-party="${m.id}:0"`, 'Rest in the box', locked || s.party.length <= 1)
-        : btn(`data-party="${m.id}:1"`, 'Add to party', locked || s.party.length >= PARTY_MAX)
+      const away = role === 'expedition'
+      const roleBtns = away
+        ? ''
+        : [
+            role !== 'party' ? btn(`data-role="${m.id}|party"`, 'Party', locked || s.party.length >= PARTY_MAX) : '',
+            role !== 'box' ? btn(`data-role="${m.id}|box"`, 'Box', locked || (role === 'party' && s.party.length <= 1)) : '',
+            role !== 'daycare' ? btn(`data-role="${m.id}|daycare"`, 'Day Care', locked || !s.daycare.ids.includes(null) || (role === 'party' && s.party.length <= 1)) : '',
+            ...JOBS.filter((j) => g.canDoJob(m, j.id) && role !== `job:${j.id}`).map((j) => btn(`data-role="${m.id}|job:${j.id}"`, j.name, locked || !!s.jobs[j.id] || (role === 'party' && s.party.length <= 1))),
+            btn(`data-trip="${m.id}|0"`, 'Trip 30', locked || !!s.expedition || (role === 'party' && s.party.length <= 1)),
+            btn(`data-trip="${m.id}|1"`, 'Trip 90', locked || !!s.expedition || (role === 'party' && s.party.length <= 1)),
+          ].join('')
+      const partyBtn = roleBtns
       const stoneRow =
         this.stonePick === m.id
           ? `<div class="row-actions">${usable.map((e) => btn(`data-give="${m.id}:${e.item}"`, `${icon(e.item!, 'ico-s')}${g.name(e.dex)}`)).join('')}${btn('data-stonecancel="1"', 'Cancel')}</div>`
@@ -457,7 +487,7 @@ export class Hud {
         <button class="mon-head" data-open="${m.id}">
           <img src="${portraitUrl(m.dex)}" alt="" />
           <span class="mon-main">
-            <span class="mon-name"><strong>${g.name(m)}</strong> <span>Lv ${m.level}</span>${inParty ? ' <em>In party</em>' : ''}</span>
+            <span class="mon-name"><strong>${g.name(m)}</strong> <span>Lv ${m.level}</span></span>
             <span class="bar"><i style="width:${pct}%"></i></span>
             <span class="hint">${status}</span>
           </span>
@@ -617,6 +647,16 @@ export class Hud {
       await this.h.cloud.signOut()
       this.friendsCache = null
       return this.renderSheet()
+    }
+    const roleAt = at('role')
+    if (roleAt) {
+      const [id, r] = roleAt.split('|')
+      return this.h.assign(id, r as Role)
+    }
+    const trip = at('trip')
+    if (trip) {
+      const [id, l] = trip.split('|')
+      return this.h.expedition(id, l === '1')
     }
     const hab = at('habitat')
     if (hab) return this.h.buildHabitat(hab as Habitat)

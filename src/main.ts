@@ -5,13 +5,13 @@ import './styles.css'
 import { Creature } from './creature'
 import * as cloud from './cloud'
 import { SLOTS, decorDef } from './decor'
-import { BALLS, Ball, FOODS, Find, Game, GameEvent, HABITATS, Mon, RARE_50, Roster, STONES, Weather, Wild, aStone, stoneName } from './game'
+import { BALLS, Ball, FOODS, Find, Game, GameEvent, HABITATS, Haul, JOBS, Mon, RARE_50, Role, Roster, STONES, Weather, Wild, aStone, stoneName } from './game'
 import { HABITAT_SPOTS } from './habitats'
 import { CatchAnim } from './catch'
 import { Hud, fmtMinutes } from './hud'
 import { H, W, seaCss } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
-import { Scene } from './scene'
+import { NEST, Scene } from './scene'
 import { Manifest, Species, loadManifest, loadSpecies } from './sprites'
 
 const STARTERS = [1, 4, 7]
@@ -78,8 +78,9 @@ let candidates: Creature[] = [] // the three starters wandering before you choos
 let adopt: { dex: number; c: Creature } | null = null
 const evolving = new Set<string>()
 
+let spawnNext: { x: number; y: number } | null = null // a hatchling appears at the nest
 async function syncParty(initial = false) {
-  const want = game.party
+  const want = [...game.party, ...game.helpers]
   const ids = new Set(want.map((m) => m.id))
   // members who left the party walk off down the dock
   for (const c of scene.creatures) {
@@ -111,6 +112,14 @@ async function syncParty(initial = false) {
     if (initial) {
       const p = scene.freeSpot()
       scene.add(sp, p.x, p.y).monId = m.id
+    } else if (spawnNext) {
+      const c = scene.add(sp, spawnNext.x, spawnNext.y + 3)
+      spawnNext = null
+      c.monId = m.id
+      c.white = 1
+      c.glowOut = true
+      c.dir = 0
+      c.walkTo(c.x, c.y + 6, 'hop')
     } else {
       const d = scene.dockTop
       const c = scene.add(sp, d.x, d.y + 2)
@@ -119,7 +128,47 @@ async function syncParty(initial = false) {
       c.walkTo(p.x, p.y)
     }
   }
+  applyAnchors()
   syncSleep(true)
+}
+
+/** Helpers stay near their work: the Day Care by the nest, the bush, the campfire, the end of the pier. */
+function anchorFor(role: Role): { x: number; y: number; r: number } | undefined {
+  if (role === 'daycare') return { x: NEST.x + 13, y: NEST.y + 3, r: 5 }
+  if (role === 'job:bush') return { x: scene.island.bush.x - 10, y: scene.island.bush.y + 4, r: 6 }
+  if (role === 'job:lookout') {
+    const d = scene.island.dock
+    return { x: d.x + d.w / 2 - 2, y: d.y1 - 3, r: 0 }
+  }
+  if (role === 'job:campfire') {
+    const slot = Object.entries(game.save.decor.slots).find(([, v]) => v === 'campfire')?.[0]
+    const sl = SLOTS.find((x) => x.id === slot)
+    if (sl) return { x: sl.x - 4, y: sl.y + 9, r: 6 }
+  }
+  return undefined
+}
+function applyAnchors() {
+  for (const c of scene.creatures) {
+    if (!c.monId || c.state === 'leave' || c.state === 'gone') continue
+    const an = anchorFor(game.roleOf(c.monId))
+    const had = c.anchor
+    c.anchor = an
+    if (an && (!had || had.x !== an.x || had.y !== an.y) && Math.hypot(c.x - an.x, c.y - an.y) > an.r + 4) c.walkTo(an.x, an.y)
+  }
+}
+function syncNest() {
+  const eggs = game.save.eggs.map((e) => e.progress / e.need)
+  scene.nest = { show: eggs.length > 0 || game.save.daycare.ids.some(Boolean), eggs }
+}
+const haulText = (h: Haul) => {
+  const parts = [`${h.shells} shells`]
+  const names: Record<string, string> = { berry: 'Oran Berry', 'poke-ball': 'Poké Ball', 'great-ball': 'Great Ball', 'ultra-ball': 'Ultra Ball', 'star-piece': 'Star Piece' }
+  for (const it of h.items) {
+    const name = it.kind === 'food' ? FOODS.find((f) => f.id === it.id)!.name : names[it.kind]
+    parts.push(it.n > 1 ? `${it.n} ${name}s` : `a ${name}`)
+  }
+  if (h.egg) parts.push('an egg')
+  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]
 }
 
 let sleepingNow = false
@@ -276,7 +325,7 @@ function digUp(f: Find) {
   f.x = Math.round(p.x)
   f.y = Math.round(p.y)
   game.persist()
-  const digger = scene.creatures.filter((c) => c.monId && !c.asleep && c.state !== 'still')[0]
+  const digger = (f.by && scene.byMon(f.by)) || scene.creatures.filter((c) => c.monId && !c.asleep && c.state !== 'still' && !c.anchor)[0]
   if (!digger) return syncFinds()
   digger.walkTo(f.x + 7, f.y, 'nod')
   digger.onArrive = () => {
@@ -407,7 +456,7 @@ window.addEventListener('keydown', (e) => {
 function partyLife() {
   after(25 + Math.random() * 30, partyLife)
   if (catching || evo || game.save.session?.state === 'away') return
-  const free = scene.creatures.filter((c) => c.monId && !c.asleep && (c.state === 'idle' || c.state === 'look'))
+  const free = scene.creatures.filter((c) => c.monId && !c.anchor && !c.asleep && (c.state === 'idle' || c.state === 'look'))
   if (free.length < 2) return
   const [a, b] = free.sort(() => Math.random() - 0.5)
   if (Math.random() < 0.6) {
@@ -604,6 +653,36 @@ function onGame(e: GameEvent) {
     case 'caught':
       if (e.newSpecies) after(4.2, () => hud.toast('New species. A Star Piece!'))
       break
+    case 'egg':
+      syncNest()
+      hud.toast(e.egg.source === 'daycare' ? 'The Day Care pair left an egg.' : e.egg.source === 'find' ? 'An egg turned up. It is in the nest.' : 'An egg arrived. It is in the nest.')
+      hud.refreshSheet()
+      break
+    case 'hatching':
+      spawnNext = { x: NEST.x, y: NEST.y }
+      break
+    case 'hatch':
+      syncNest()
+      hud.say({ dex: e.mon.dex, emotion: 'Happy', text: `An egg hatched. It is ${game.name(e.mon)}!`, auto: 5000 })
+      if (!game.save.party.includes(e.mon.id)) spawnNext = null
+      hud.refreshSheet()
+      break
+    case 'job':
+      if (e.job === 'bush') hud.toast(`${game.name(e.mon)} watered the bush. A berry ripened.`)
+      hud.refreshSheet()
+      break
+    case 'expeditionOut':
+      hud.toast(`${game.name(e.mon)} set off.`)
+      break
+    case 'expeditionBack':
+      hud.say({ dex: e.mon.dex, emotion: 'Happy', text: `${game.name(e.mon)} came back with ${haulText(e.haul)}.`, auto: 7000 })
+      hud.refreshSheet()
+      break
+    case 'rolesChanged':
+      syncNest()
+      applyAnchors()
+      hud.refreshSheet()
+      break
     case 'habitat':
       scene.setHabitats(game.save.habitats)
       hud.toast(`${HABITATS.find((h) => h.id === e.id)!.name} built.`)
@@ -746,6 +825,7 @@ if ('locks' in navigator) navigator.locks.request('island-clock', () => ((clockO
 setInterval(() => {
   if (clockOwner) game?.beat()
   if (game && scene.weather !== game.weather) scene.weather = game.weather
+  if (game) syncNest()
 }, 1000)
 // the page around the canvas takes the open sea's colour as the light changes, so there is no seam
 if (!floatMode)
@@ -821,7 +901,7 @@ function buildDebug() {
     <div class="debug-row">${b('m1', 'Add 1 focused minute')}${b('m10', 'Add 10 minutes')}${b('m60', 'Add 60 minutes')}${b('finish', 'Finish the session')}</div>
     <div class="debug-row">${b('berries', 'Add 3 berries')}${b('shells', 'Add 300 shells')}${b('stone', 'A stone washes ashore')}${b('bond', 'Lead has 10 hours of bond')}${b('visit50', 'Visitor at 50-minute odds')}</div>
     <div class="debug-row">${b('visit', 'Visitor now')}${b('evolve', 'Lead is ready to evolve')}${b('checkin', 'Ask now')}${b('idle', 'Simulate 10 idle minutes')}${b('lock', 'Simulate screen lock')}${b('active', 'Simulate activity')}${b('gap', 'Simulate a 10 minute sleep')}</div>
-    <div class="debug-row">${b('passer', 'Passer-by now')}${b('find', 'A find now')}${b('balls', '+5 of each ball')}${b('stars', '+5 Star Pieces')}${b('night', 'Night')}${b('w-rain', 'Rain')}${b('w-fog', 'Fog')}${b('w-sun', 'Sun')}${b('w-clear', 'Clear sky')}</div>
+    <div class="debug-row">${b('passer', 'Passer-by now')}${b('find', 'A find now')}${b('balls', '+5 of each ball')}${b('stars', '+5 Star Pieces')}${b('night', 'Night')}${b('egg', 'An egg')}${b('hatch', 'Eggs nearly ready')}</div><div class="debug-row">${b('m30', 'Add 30 minutes')}${b('w-rain', 'Rain')}${b('w-fog', 'Fog')}${b('w-sun', 'Sun')}${b('w-clear', 'Clear sky')}</div>
     <div class="debug-row"><label class="time"><span>Hour</span><input type="range" min="0" max="24" step="0.1" value="${clockHour()}" /><output></output></label>${b('clock', 'Use my clock')}${b('reset', 'Reset save')}</div>`
   const slider = el.querySelector<HTMLInputElement>('input')!
   const out = el.querySelector('output')!
@@ -857,6 +937,9 @@ function buildDebug() {
     if (d === 'balls') for (const bb of BALLS) game.save.balls[bb.id] += 5
     if (d === 'stars') game.save.starPieces += 5
     if (d === 'night') hourOverride = 22
+    if (d === 'egg') game.addEgg(16, 'find')
+    if (d === 'hatch') for (const eg of game.save.eggs) eg.progress = eg.need - 1
+    if (d === 'm30') game.grantMinutes(30)
     if (d.startsWith('w-')) {
       const kind = d.slice(2) as Weather
       game.save.weather = { kind, until: kind === 'clear' ? 0 : Date.now() + 20 * 60 * 1000 }
@@ -1013,6 +1096,14 @@ async function boot() {
         game.persist()
         hud.refreshSheet()
         if (!ok) hud.toast('Idle detection is off.')
+      },
+      assign: (id, role) => {
+        if (!game.assign(id, role)) hud.toast(game.inSession ? 'Change roles between sessions.' : 'That spot is taken.')
+        hud.refreshSheet()
+      },
+      expedition: (id, long) => {
+        if (!game.sendExpedition(id, long)) hud.toast(game.inSession ? 'Send them off between sessions.' : 'Someone is already away.')
+        hud.refreshSheet()
       },
       buildHabitat: (id) => {
         if (!game.buildHabitat(id)) hud.toast(game.inSession ? 'Build between sessions.' : 'Not enough Star Pieces or shells.')

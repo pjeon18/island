@@ -30,6 +30,8 @@ function paintFind(kind: FindKind) {
   return c
 }
 const FIND_IMG = Object.fromEntries((Object.keys(FIND_ART) as FindKind[]).map((k) => [k, paintFind(k)])) as Record<FindKind, HTMLCanvasElement>
+/** Where eggs rest, with the Day Care pair beside it: open ground east of the windmill. */
+export const NEST = { x: 114, y: 66 }
 interface Drop {
   x: number
   y: number
@@ -124,6 +126,8 @@ export class Scene {
   private habitats: { id: Habitat; x: number; y: number; art: HabitatArt | null }[] = []
   private decorBlockers: { x: number; y: number; r: number }[] = []
   private bait: { img: HTMLCanvasElement; x: number; y: number } | null = null
+  /** Eggs in the nest (0..1 warmth each); the nest shows when there are eggs or a Day Care pair. */
+  nest = { show: false, eggs: [] as number[] }
   /** Drawn last, above everything: the catch ring and the thrown ball. */
   overlay?: (g: CanvasRenderingContext2D) => void
 
@@ -312,6 +316,7 @@ export class Scene {
         },
       })
     }
+    if (this.nest.show) items.push({ y: NEST.y, draw: () => this.drawNest(g) })
     if (this.bait) {
       const bt = this.bait
       items.push({ y: -1, draw: () => g.drawImage(bt.img, bt.x - 4, bt.y - 4) })
@@ -430,6 +435,34 @@ export class Scene {
         g.fillRect(x + 3, y + 6, 1, 1)
       }
     this.overlay?.(g)
+  }
+
+  /** A straw nest; eggs close to hatching rock gently. */
+  private drawNest(g: CanvasRenderingContext2D) {
+    const x = NEST.x
+    const y = NEST.y
+    const straw = ['#c8964c', '#e0b468', '#a87838']
+    for (let i = -7; i <= 7; i++) {
+      const h = Math.round(Math.sqrt(1 - (i / 8) ** 2) * 2.4)
+      g.fillStyle = straw[(i + 9) % 3]
+      g.fillRect(x + i, y - h, 1, h + 1)
+    }
+    g.fillStyle = '#8a6030'
+    g.fillRect(x - 6, y + 1, 13, 1)
+    this.nest.eggs.slice(0, 3).forEach((p, i) => {
+      const ex = x - 5 + i * 5
+      const rock = p > 0.85 ? Math.round(Math.sin(this.time * 5 + i) * 1) : 0
+      const ey = y - 5
+      g.fillStyle = '#7c7468'
+      g.fillRect(ex + rock, ey, 4, 5)
+      g.fillStyle = '#fbf6e8'
+      g.fillRect(ex + 1 + rock, ey, 2, 1)
+      g.fillRect(ex + rock, ey + 1, 4, 3)
+      g.fillRect(ex + 1 + rock, ey + 4, 2, 1)
+      g.fillStyle = '#7cc46a'
+      g.fillRect(ex + 1 + rock, ey + 2, 1, 1)
+      g.fillRect(ex + 3 + rock, ey + 3, 1, 1)
+    })
   }
 
   /** Rain, fog or a sunny spell, faded in by wk. Calm: no flashes, no lightning. */

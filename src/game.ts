@@ -70,6 +70,7 @@ export type FindKind = 'shells' | 'berry' | 'poke-ball' | 'star-piece'
 /** Something a party Pokémon dug up, lying on the island until you pick it up. */
 export interface Find {
   id: string
+  by?: string // the helper that dug it up, if any
   kind: FindKind
   n: number
   x?: number
@@ -77,6 +78,42 @@ export interface Find {
 }
 export type Weather = 'clear' | 'rain' | 'fog' | 'sun'
 export type Habitat = 'pond' | 'rocks' | 'grass'
+
+// ---------- helpers: eggs, Day Care, jobs, expeditions (stage 3) ----------
+export interface Egg {
+  id: string
+  dex: number // the first stage that hatches
+  need: number // focused minutes to hatch
+  progress: number
+  source: 'daycare' | 'streak' | 'find' | 'expedition' | 'gift'
+}
+export type JobId = 'bush' | 'dig' | 'lookout' | 'campfire'
+/** One Pokémon per job. Interval in focused minutes at level 1; stronger Pokémon work faster. */
+export const JOBS: { id: JobId; name: string; types: string[]; every: number; floor: number; needsDecor?: string; does: string }[] = [
+  { id: 'bush', name: 'Berry bush', types: ['water'], every: 30, floor: 12, does: 'An extra Oran Berry' },
+  { id: 'dig', name: 'Digging', types: ['ground', 'rock'], every: 24, floor: 10, does: 'An extra find' },
+  { id: 'lookout', name: 'Lookout', types: ['flying'], every: 40, floor: 18, does: 'An extra passer-by' },
+  { id: 'campfire', name: 'Campfire', types: ['fire'], every: 10, floor: 4, needsDecor: 'campfire', does: '5 extra shells' },
+]
+export const jobEvery = (job: (typeof JOBS)[number], level: number) => Math.max(job.floor, Math.round(job.every - level / 2))
+export const EGG_MAX = 3
+export const DAYCARE_EVERY = 45 // focused minutes with two Pokémon in the Day Care → an egg
+export const EXPEDITIONS = [
+  { id: 'short', name: 'Short trip', minutes: 30 },
+  { id: 'long', name: 'Long trip', minutes: 90 },
+] as const
+export type Role = 'party' | 'box' | 'daycare' | 'expedition' | `job:${JobId}`
+export interface Expedition {
+  id: string // the Pokémon
+  long: boolean
+  need: number
+  progress: number
+}
+export interface Haul {
+  shells: number
+  items: { kind: 'berry' | Ball | 'star-piece' | 'food'; id?: string; n: number }[]
+  egg?: Egg
+}
 
 // ---------- lures (docs/GAME_DESIGN.md, stage 2) ----------
 /** Habitats are built once, on their own spot, with Star Pieces and shells. */
@@ -142,6 +179,12 @@ export interface Save {
   habitats: Habitat[]
   foods: Record<string, number>
   bait: string | null
+  eggs: Egg[]
+  daycare: { ids: (string | null)[]; progress: number }
+  jobs: Partial<Record<JobId, string>>
+  jobProgress: Partial<Record<JobId, number>>
+  expedition: Expedition | null
+  carry: Record<string, number> // half-EXP remainders for helpers
 }
 
 export const PARTY_MAX = 3
@@ -216,6 +259,12 @@ export function emptySave(): Save {
     habitats: [],
     foods: {},
     bait: null,
+    eggs: [],
+    daycare: { ids: [null, null], progress: 0 },
+    jobs: {},
+    jobProgress: {},
+    expedition: null,
+    carry: {},
   }
 }
 
@@ -257,6 +306,13 @@ export type GameEvent =
   | { type: 'caught'; wild: Wild; mon: Mon; newSpecies: boolean }
   | { type: 'habitat'; id: Habitat }
   | { type: 'bait'; food: string | null }
+  | { type: 'egg'; egg: Egg }
+  | { type: 'hatching'; egg: Egg }
+  | { type: 'hatch'; egg: Egg; mon: Mon }
+  | { type: 'job'; job: JobId; mon: Mon }
+  | { type: 'expeditionOut'; mon: Mon }
+  | { type: 'expeditionBack'; mon: Mon; haul: Haul }
+  | { type: 'rolesChanged' }
 
 export class Game {
   save: Save
@@ -340,20 +396,85 @@ export class Game {
     this.addMon(dex, START_LEVEL)
   }
 
-  /** Party changes only between sessions. Returns false if refused. */
-  setInParty(id: string, on: boolean) {
-    if (this.save.session) return false
-    const p = this.save.party
-    if (on) {
-      if (p.includes(id) || p.length >= PARTY_MAX) return false
-      p.push(id)
-    } else {
-      if (!p.includes(id) || p.length <= 1) return false
-      p.splice(p.indexOf(id), 1)
+  /** Where a Pokémon is: in the party, a helper (Day Care, a job, an expedition), or resting in the box. */
+  roleOf(id: string): Role {
+    const s = this.save
+    if (s.party.includes(id)) return 'party'
+    if (s.daycare.ids.includes(id)) return 'daycare'
+    if (s.expedition?.id === id) return 'expedition'
+    for (const j of JOBS) if (s.jobs[j.id] === id) return `job:${j.id}`
+    return 'box'
+  }
+  /** Helpers on the island (Day Care and jobs) walk around like the party. */
+  get helpers() {
+    const s = this.save
+    const ids = [...s.daycare.ids.filter(Boolean), ...Object.values(s.jobs).filter(Boolean)] as string[]
+    return ids.map((id) => this.mon(id)).filter(Boolean) as Mon[]
+  }
+  /** Everyone gaining EXP from focus that is not in the party. */
+  private get workers() {
+    const out = this.helpers
+    const e = this.save.expedition && this.mon(this.save.expedition.id)
+    if (e) out.push(e)
+    return out
+  }
+  canDoJob(m: Mon, job: JobId) {
+    const j = JOBS.find((x) => x.id === job)!
+    if (j.needsDecor && !Object.values(this.save.decor.slots).includes(j.needsDecor)) return false
+    return !!this.species(m.dex)?.types?.some((t) => j.types.includes(t))
+  }
+  /** Move a Pokémon to a new role. Only between sessions; the party never drops below one. */
+  assign(id: string, role: Role) {
+    const s = this.save
+    const m = this.mon(id)
+    if (!m || s.session) return false
+    const from = this.roleOf(id)
+    if (from === role) return true
+    if (from === 'expedition') return false // it is away until it comes back
+    if (from === 'party' && s.party.length <= 1) return false
+    // check the destination has room
+    if (role === 'party' && s.party.length >= PARTY_MAX) return false
+    if (role === 'daycare' && !s.daycare.ids.includes(null)) return false
+    if (role === 'expedition' && s.expedition) return false
+    if (role.startsWith('job:')) {
+      const job = role.slice(4) as JobId
+      if (s.jobs[job] || !this.canDoJob(m, job)) return false
+    }
+    // leave the old role
+    if (from === 'party') s.party.splice(s.party.indexOf(id), 1)
+    if (from === 'daycare') {
+      s.daycare.ids[s.daycare.ids.indexOf(id)] = null
+      s.daycare.progress = 0
+    }
+    if (from.startsWith('job:')) delete s.jobs[from.slice(4) as JobId]
+    // take the new one
+    if (role === 'party') s.party.push(id)
+    if (role === 'daycare') s.daycare.ids[s.daycare.ids.indexOf(null)] = id
+    if (role.startsWith('job:')) {
+      const job = role.slice(4) as JobId
+      s.jobs[job] = id
+      s.jobProgress[job] = 0
     }
     this.persist()
     this.emit({ type: 'partyChanged' })
+    this.emit({ type: 'rolesChanged' })
     return true
+  }
+  /** Send a Pokémon (not the last one in the party) on an expedition. */
+  sendExpedition(id: string, long: boolean) {
+    const m = this.mon(id)
+    if (!m || this.save.session || this.save.expedition) return false
+    if (!this.assign(id, 'box')) return false
+    this.save.expedition = { id, long, need: long ? 90 : 30, progress: 0 }
+    this.persist()
+    this.emit({ type: 'expeditionOut', mon: m })
+    this.emit({ type: 'rolesChanged' })
+    return true
+  }
+
+  /** Party changes only between sessions. Returns false if refused. */
+  setInParty(id: string, on: boolean) {
+    return this.assign(id, on ? 'party' : 'box')
   }
 
   /** Which evolutions this Pokémon could ever take, with a plain description. */
@@ -448,6 +569,12 @@ export class Game {
       m.focusedMin += n
       this.addExp(m, n)
     }
+    // helpers (Day Care, jobs, expeditions) gain half, with the remainder carried over
+    for (const m of this.workers) {
+      const total = (this.save.carry[m.id] ?? 0) + n
+      this.save.carry[m.id] = total % 2
+      if (total >= 2) this.addExp(m, Math.floor(total / 2))
+    }
   }
   /** Take back EXP for minutes that turned out not to be focused. Never de-levels. */
   private takeExp(n: number) {
@@ -488,6 +615,7 @@ export class Game {
     this.save.bag[item] = (this.save.bag[item] ?? 0) + 1
     this.save.starPieces++
     this.emit({ type: 'stone', item, streak: n })
+    if (n >= 7) this.addEgg(this.randomEggDex(true), 'streak')
   }
 
   // ---------- focus sessions ----------
@@ -516,7 +644,7 @@ export class Game {
     this.emit({ type: 'sessionStart' })
     if (leaving.length) this.emit({ type: 'wildLeave', ids: leaving })
     // a stone given in the break, or a friendship reached, pays off now
-    for (const m of this.party) {
+    for (const m of [...this.party, ...this.helpers]) {
       const to = this.evolutionDue(m)
       if (to) this.emit({ type: 'evolveReady', mon: m, to })
     }
@@ -641,6 +769,7 @@ export class Game {
       this.save.days[k] = (this.save.days[k] ?? 0) + n
       this.giveExp(n)
       if (firstToday) this.checkStreakStone()
+      this.work(n)
       this.emit({ type: 'minute', n })
     }
     this.persist()
@@ -651,6 +780,100 @@ export class Game {
       s.nextVisit += OPEN_VISIT_EVERY
       this.save.berries = Math.min(BERRIES_MAX, this.save.berries + 1)
     }
+  }
+
+  // ---------- helpers at work (stage 3) ----------
+  /** Called with each batch of newly focused minutes. */
+  private work(n: number, rand = Math.random) {
+    const s = this.save
+    // eggs warm up, oldest first
+    for (const e of s.eggs.slice(0, EGG_MAX)) {
+      e.progress = Math.min(e.need, e.progress + n)
+      if (e.progress >= e.need) this.hatch(e)
+    }
+    // the Day Care: two Pokémon together make an egg now and then
+    const pair = s.daycare.ids.map((id) => id && this.mon(id)).filter(Boolean) as Mon[]
+    if (pair.length === 2) {
+      s.daycare.progress += n
+      if (s.daycare.progress >= DAYCARE_EVERY && s.eggs.length < EGG_MAX) {
+        s.daycare.progress = 0
+        const parent = pair[Math.floor(rand() * 2)]
+        this.addEgg(this.species(parent.dex)?.line ?? parent.dex, 'daycare')
+      }
+    }
+    // jobs
+    for (const j of JOBS) {
+      const id = s.jobs[j.id]
+      const m = id && this.mon(id)
+      if (!m) continue
+      if (j.needsDecor && !Object.values(s.decor.slots).includes(j.needsDecor)) continue
+      s.jobProgress[j.id] = (s.jobProgress[j.id] ?? 0) + n
+      if (s.jobProgress[j.id]! < jobEvery(j, m.level)) continue
+      s.jobProgress[j.id] = 0
+      if (j.id === 'bush') s.berries = Math.min(BERRIES_MAX, s.berries + 1)
+      if (j.id === 'dig') this.dig(rand, m.id)
+      if (j.id === 'lookout') this.passerBy()
+      if (j.id === 'campfire') s.shells += 5
+      this.emit({ type: 'job', job: j.id, mon: m })
+    }
+    // the expedition
+    const ex = s.expedition
+    if (ex) {
+      ex.progress += n
+      if (ex.progress >= ex.need) this.expeditionBack(rand)
+    }
+    this.persist()
+  }
+  private eggNeed(dex: number) {
+    const r = this.species(dex)?.rarity
+    return r === 'rare' || r === 'starter' ? 120 : r === 'uncommon' ? 75 : 40
+  }
+  addEgg(dex: number, source: Egg['source']) {
+    if (this.save.eggs.length >= EGG_MAX) return null
+    const e: Egg = { id: Math.random().toString(36).slice(2, 10), dex, need: this.eggNeed(dex), progress: 0, source }
+    this.save.eggs.push(e)
+    this.persist()
+    this.emit({ type: 'egg', egg: e })
+    return e
+  }
+  /** An egg from the wider roster, as long sessions draw (streaks, finds, expeditions). */
+  private randomEggDex(long: boolean) {
+    return this.pickVisitor(long ? RARE_50 : 1, Math.random, { ...this.lure(), long }, false).dex
+  }
+  private hatch(e: Egg) {
+    this.save.eggs = this.save.eggs.filter((x) => x !== e)
+    this.emit({ type: 'hatching', egg: e })
+    const m = this.addMon(e.dex, 1)
+    this.emit({ type: 'hatch', egg: e, mon: m })
+  }
+  private expeditionBack(rand = Math.random) {
+    const ex = this.save.expedition!
+    const m = this.mon(ex.id)
+    this.save.expedition = null
+    if (!m) return
+    const haul: Haul = { shells: ex.long ? 30 + m.level * 4 : 10 + m.level * 2, items: [] }
+    const pick = () => {
+      const r = rand()
+      if (r < 0.35) return { kind: 'berry' as const, n: 1 }
+      if (r < 0.65) return { kind: 'poke-ball' as const, n: 1 + Math.floor(rand() * 2) }
+      if (r < 0.85) return { kind: 'food' as const, id: FOODS[Math.floor(rand() * FOODS.length)].id, n: 1 }
+      return { kind: (ex.long ? 'great-ball' : 'poke-ball') as Ball, n: 1 }
+    }
+    const count = ex.long ? 2 + Math.floor(rand() * 3) : 1 + Math.floor(rand() * 2)
+    for (let i = 0; i < count; i++) haul.items.push(pick())
+    if (ex.long && rand() < 0.3 + m.level / 200) haul.items.push({ kind: 'star-piece', n: 1 })
+    // apply
+    this.save.shells += haul.shells
+    for (const it of haul.items) {
+      if (it.kind === 'berry') this.save.berries = Math.min(BERRIES_MAX, this.save.berries + it.n)
+      else if (it.kind === 'star-piece') this.save.starPieces += it.n
+      else if (it.kind === 'food') this.save.foods[it.id!] = (this.save.foods[it.id!] ?? 0) + it.n
+      else this.save.balls[it.kind] += it.n
+    }
+    if (ex.long && rand() < 0.25 + m.level / 200) haul.egg = this.addEgg(this.randomEggDex(true), 'expedition') ?? undefined
+    this.persist()
+    this.emit({ type: 'expeditionBack', mon: m, haul })
+    this.emit({ type: 'rolesChanged' })
   }
 
   // ---------- moments during focus ----------
@@ -698,9 +921,10 @@ export class Game {
     return w
   }
   /** A party Pokémon digs something up. */
-  dig(rand = Math.random) {
+  dig(rand = Math.random, by?: string) {
     if (this.save.finds.length >= 6) return null
     const r = rand()
+    if (r > 0.97 && this.save.eggs.length < EGG_MAX) return this.addEgg(this.randomEggDex(false), 'find') && null
     const f: Find =
       r < 0.55
         ? { id: '', kind: 'shells', n: 5 + Math.floor(rand() * 11) }
@@ -710,6 +934,7 @@ export class Game {
             ? { id: '', kind: 'poke-ball', n: 1 }
             : { id: '', kind: 'star-piece', n: 1 }
     f.id = Math.random().toString(36).slice(2, 10)
+    f.by = by
     this.save.finds.push(f)
     this.persist()
     this.emit({ type: 'find', find: f })
@@ -841,7 +1066,7 @@ export class Game {
    * 50-minute session, a 3-day streak and a long day. Species you have never
    * befriended are a little likelier, so the Pokédex keeps moving.
    */
-  pickVisitor(rareMult = 1, rand = Math.random, lure: Lure = this.lure()): { dex: number; level: number } {
+  pickVisitor(rareMult = 1, rand = Math.random, lure: Lure = this.lure(), commit = true): { dex: number; level: number } {
     const caughtLines = new Set(this.save.caught.map((d) => this.species(d)?.line))
     const starterLine = this.save.mons[0] ? this.species(this.save.mons[0].dex)?.line : undefined
     const boost = rareMult * (1 + (this.streak() >= 3 ? 0.6 : 0) + (this.todayMinutes() >= 120 ? 0.4 : 0))
@@ -881,10 +1106,12 @@ export class Game {
     }
     const lo = pick.rarity === 'common' ? 2 : 4
     const level = lo + Math.floor(rand() * 5)
-    this.mark(pick.dex, false)
-    const today = dayKey(this.now())
-    this.save.visits = { day: today, count: this.visitsToday() + 1 }
-    this.persist()
+    if (commit) {
+      this.mark(pick.dex, false)
+      const today = dayKey(this.now())
+      this.save.visits = { day: today, count: this.visitsToday() + 1 }
+      this.persist()
+    }
     return { dex: pick.dex, level }
   }
 

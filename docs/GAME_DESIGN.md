@@ -94,7 +94,7 @@ Paul wants all four parts. They build in this order because each one feeds the n
    - A spawn table driven by session length, time of day, focus quality, weather, habitats, food and decorations.
    - The first buildable habitats: a pond, tall grass and rocks.
    - The island's curated Pokédex of about 50 species.
-3. **Eggs, Day Care, island jobs and expeditions.**
+3. **Eggs, Day Care, island jobs and expeditions.** Built 2026-11-11 with the defaults below (friends' egg gifts wait for stage 5).
 4. **Island growth, the guardian battle and the second island**, with the three unlock conditions.
 5. **Friends:** visits, trading and gifting, and the study-together bonus. This needs new server functions on Studdy's Supabase, which Paul runs.
 
@@ -127,6 +127,26 @@ These were chosen while building stage 2, since the interview left them open.
   - Every new species caught gives one. They also come from 10% of finds and every streak milestone.
   - Building all three habitats takes 7, which is about the first two days of play.
 - **Pokédex:** each species now says how to find it, for example "Uncommon. Needs pond. Likes Pecha Berry."
+
+## Stage 3 defaults (Paul can change any of these)
+
+- **Roles:** every Pokémon is in one place at a time: the party (3), the Day Care (2), one of four jobs (1 each), an expedition (1), or the box. Roles change only between sessions, and the party never drops below one.
+- **Helpers gain half EXP** from focused minutes: Day Care, jobs and expeditions. Only the party builds bond. This also speeds levelling toward the two-week target without changing the party's rate.
+- **Eggs:**
+  - Up to 3 at a time. They warm with focused minutes: 40 for a common species, 75 for uncommon, 120 for rare or a starter.
+  - They hatch at level 1 in the nest east of the windmill, into the party if there is room, otherwise the box.
+  - They come from the Day Care (every 45 focused minutes with two Pokémon there, as one parent's first stage), from 3% of finds, from streak milestones of 7 days or more, and from long expeditions (25% plus level/200). Gifts from friends come in stage 5.
+- **Jobs** (one Pokémon each; stronger ones work faster, each interval is minus level/2 down to a floor):
+
+  | Job | Types | Every | Reward |
+  |---|---|---|---|
+  | Berry bush | Water | 30 min, at least 12 | an Oran Berry |
+  | Digging | Ground or Rock | 24 min, at least 10 | a find |
+  | Lookout | Flying | 40 min, at least 18 | a passer-by, from the end of the pier |
+  | Campfire | Fire, needs the campfire placed | 10 min, at least 4 | 5 shells |
+- **Expeditions:** one at a time, 30 or 90 focused minutes. The Pokémon walks off down the pier and comes back with:
+  - shells (10 + level×2, or 30 + level×4 on a long trip) and 1 to 4 items: berries, balls, food;
+  - on a long trip, sometimes a Star Piece (30% plus level/200) or an egg.
 
 ## Still open
 

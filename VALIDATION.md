@@ -1,5 +1,22 @@
 # Validation
 
+## Stage 3, eggs and helpers (2026-11-11)
+
+Checked in the browser with `?debug` and `__island.step()`:
+
+- **Roles:**
+  - The Day Care took two Pokémon, the Berry bush a Water type (Psyduck) and the Lookout a Flying type (Pidgey).
+  - A 30-minute expedition set off down the pier.
+  - A non-Fire Pokémon could not take the campfire job, and none of the job buttons appear for types that cannot do them.
+- **A 50-minute open session:**
+  - Psyduck watered the bush twice (+2 berries), and Pidgey brought an extra passer-by.
+  - Caterpie came back at 30 minutes with its haul in a message.
+  - The Day Care pair (Geodude and Wooper) left a Wooper egg at 45 minutes.
+  - Helpers gained about half EXP (Psyduck went from level 10 to 12).
+- **Hatching:** eggs set one minute from hatching hatched together. The first went into a free party slot at the nest with a white glow that fades, and the second went to the box, with "An egg hatched. It is Wooper!".
+- **Island:** the nest sits east of the windmill, with the Day Care pair beside it. The bush helper stays by the bush and the lookout stands at the end of the pier. Helpers do not join the party's play.
+- **Pokémon menu:** eggs with progress bars, Party, Helpers (Day Care status and each job: who and how often, or which types it needs), and the Box. Each Pokémon's actions move it between roles.
+
 ## Stage 2, lures and habitats (2026-11-11)
 
 - **Roster:** 54 species with types from PokéAPI. Poliwag, Geodude, Hoothoot and Gastly were added; all have PMD sprites, and none is too big for the island.
