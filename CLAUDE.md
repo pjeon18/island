@@ -28,7 +28,7 @@ Read `docs/GAME_DESIGN.md` first: it is the game loop and core features from Pau
 - **Live** at https://pauljeon.org/island/ (pjeon18.github.io redirects there; repo `pjeon18/island`, public). A push to `main` deploys through `.github/workflows/deploy.yml` with `BASE_PATH=/island/`. The three public Supabase keys are repo secrets, as in Studdy.
 
 ## Run
-- `npm install`, then `npm run dev`. It serves on port 5600, under the launch.json entry `island`.
+- `npm install`, then `npm run dev`. It serves on port 5600, under the launch.json entry `island`. The map editor is at `/editor.html` and a dungeon at `/dungeon.html?id=pier-hollow`.
 - `npm run sprites` pulls the evolution data from PokéAPI, then the sprites from SpriteCollab. Both are cached, pinned and throttled, so a re-run is a no-op.
   - The roster lives in `scripts/roster.mjs` (Gens 1–4, level-up evolutions only in T1).
 - `?popout` shows the window-only view. `?float` previews the desktop-pet mode in a browser.
@@ -58,6 +58,12 @@ Read `docs/GAME_DESIGN.md` first: it is the game loop and core features from Pau
 - Stage 3 helpers live in `game.ts`: `roleOf`/`assign` (party, box, daycare, `job:*`, expedition), `work(n)` per focused minute (eggs, Day Care, `JOBS`, the expedition), `addEgg`/`hatch`, half EXP for helpers in `giveExp`. In `main.ts`: `anchorFor`/`applyAnchors` keep helpers at their work, `NEST` (scene.ts) holds eggs, and `spawnNext` puts a hatchling at the nest.
 - Stage 4: `src/battle.ts` (type chart, `simulate`, guardian stats), `game.ts` `ISLANDS`/`sail`/`sailNeeds`/`dexOf`/`challenge`/`guardianJoins`/`stash` (per-island habitats, decor slots, finds, food), and `island.ts` `useIsland('frost')` (palette swap applied before the Scene is built; travel reloads the page). The guardian creature is `guardianC` in main.ts.
 - Stage 5 (friends): `supabase/island_stage5.sql` adds `scene` on island_profiles, `island_publish_scene`, `island_friend_scene`, `island_gifts` with `island_send_gift` and `island_claim_gifts`. The client side is in `cloud.ts` (publishScene, friendScene, sendGift, claimGifts, hasStage5). In `main.ts`: `refreshFriends` (every 2 min: visitors and `game.together`), `takeGifts`, `visitFriend`/`bootVisit` (`?visit=1` with the scene in sessionStorage, a read-only view), and `sendGift`. Debug: 'A friend studies too', 'A gift arrives'.
+- Stage 6:
+  - `src/lighting.ts` does per-pixel lighting (`normalMapFor` builds a normal map from a silhouette; `applyLighting` takes the colours, normals, an ambient and a list of lights). `Scene.render` uses it after dusk (`lit`) and gathers its lights in `Scene.lights()`. Fire types glow through `scene.glowDex`.
+  - `src/dungeon/map.ts` holds the map format (pieces, props, entities and touch-ups), `compose`, `bakeMap`, and the tile and prop art per theme (cave, forest, ice).
+  - `src/editor/main.ts` is the whiteboard editor (`editor.html`). `src/dungeon/play.ts` is the real-time dungeon (`dungeon.html?id=…&gate=…` or `?map=play`).
+  - Official maps live in `public/dungeons/` (`index.json` lists them). The dev route `/__dungeon` in `vite.config.ts` writes them.
+  - The island's doorway is `scene.gate`. Each island names its dungeon in `ISLANDS[].dungeon`.
 - `src/habitats.ts`: stage 2. The fixed habitat spots (`HABITAT_SPOTS`), the pond and rocks art, and the food dish. The spawn rules live in `game.ts`: `HABITATS`, `FOODS`, `DECOR_LOVES`, `WEATHER_TYPES`, `lure()` and `pickVisitor` (gates first, then multipliers), plus `lureNotes` for the Pokédex. The roster's lure data (`needs`, `time`) is in `scripts/roster.mjs`.
 - `src/catch.ts`: the throw on the canvas (stage 1): the breathing ring coloured by the odds, the ball's arc, entering, wobbles, stars or a break-free. `main.ts` owns the flow (`openCatch`, `throwNow`, `finishCatch`, `spawnWild`, `digUp`, `partyLife`); the rules are in `game.ts` (`passerBy`, `dig`, `collectFind`, `buyBall`, `catchChance`, `throwBall`, weather).
 - `src/decor.ts`: the decoration catalog, the six fixed `SLOTS`, and pixel-art painters, with a glow or live animation per item.

@@ -1,0 +1,56 @@
+/* The dungeon editor: a dark tool around a pannable whiteboard. */
+:root {
+  --bg: #16181d;
+  --panel: #20232a;
+  --panel-2: #2a2e37;
+  --line: #353a45;
+  --text: #e4e7ee;
+  --soft: #9aa1b0;
+  --gold: #f8d060;
+  --gold-ink: #3a2a08;
+  --blue: #6aa8ff;
+  --red: #ff6a5a;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text); font: 13px/1.4 Inter, system-ui, sans-serif; }
+#editor { display: grid; grid-template-columns: 230px 1fr 260px; grid-template-rows: 48px 1fr; height: 100vh; }
+
+.bar { grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 0 10px; background: var(--panel); border-bottom: 1px solid var(--line); overflow-x: auto; }
+.bar .brand { font: 10px/1 'Press Start 2P', monospace; color: var(--gold); margin-right: 6px; white-space: nowrap; }
+.bar .sep { width: 1px; height: 24px; background: var(--line); margin: 0 2px; }
+button, select, input { font: inherit; color: var(--text); }
+.b { appearance: none; height: 30px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; white-space: nowrap; }
+.b:hover { border-color: #4a5160; }
+.b.on { background: var(--blue); border-color: var(--blue); color: #08121f; }
+.b.gold { background: var(--gold); border-color: var(--gold); color: var(--gold-ink); font-weight: 600; }
+.in { height: 30px; padding: 0 8px; border-radius: 6px; border: 1px solid var(--line); background: var(--bg); }
+.in.name { width: 170px; }
+.in.num { width: 56px; }
+label.inl { display: inline-flex; align-items: center; gap: 6px; color: var(--soft); white-space: nowrap; }
+
+.side { background: var(--panel); border-right: 1px solid var(--line); overflow-y: auto; padding: 10px; }
+.side.right { border-right: 0; border-left: 1px solid var(--line); }
+.side h3 { margin: 14px 0 6px; font: 9px/1 'Press Start 2P', monospace; color: var(--soft); letter-spacing: .04em; }
+.side h3:first-child { margin-top: 2px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.chip { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 7px 4px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); cursor: grab; user-select: none; text-align: center; font-size: 12px; }
+.chip:hover { border-color: #4a5160; }
+.chip:active { cursor: grabbing; }
+.chip canvas, .chip img { image-rendering: pixelated; }
+.chip .sw { width: 40px; height: 22px; border-radius: 3px; }
+.tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.tools .b { height: 28px; padding: 0 4px; font-size: 12px; }
+.pick { display: flex; gap: 6px; margin-top: 6px; }
+.pick select { flex: 1; min-width: 0; }
+.hint { color: var(--soft); font-size: 12px; margin: 6px 0; }
+
+.board { position: relative; overflow: hidden; background: #0f1115; }
+.board canvas { position: absolute; inset: 0; width: 100%; height: 100%; image-rendering: pixelated; }
+.board .help { position: absolute; left: 10px; bottom: 8px; color: var(--soft); font-size: 11px; pointer-events: none; background: rgba(15,17,21,.7); padding: 4px 8px; border-radius: 6px; }
+
+.field { display: grid; grid-template-columns: 70px 1fr; align-items: center; gap: 6px; margin: 6px 0; }
+.field span { color: var(--soft); }
+.field input, .field select { width: 100%; }
+.warn { margin: 4px 0; padding: 6px 8px; border-radius: 6px; background: rgba(255,106,90,.12); color: #ffb0a6; font-size: 12px; }
+.ok { margin: 4px 0; padding: 6px 8px; border-radius: 6px; background: rgba(88,208,88,.12); color: #a8e8a8; font-size: 12px; }
+.sel-face { width: 48px; height: 48px; image-rendering: pixelated; border-radius: 6px; background: var(--panel-2); }

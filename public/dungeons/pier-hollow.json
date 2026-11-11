@@ -1,0 +1,280 @@
+{
+ "v": 1,
+ "id": "pier-hollow",
+ "name": "Pier Hollow",
+ "theme": "cave",
+ "w": 64,
+ "h": 42,
+ "dark": 0.78,
+ "pieces": [
+  {
+   "id": "ujzde8g",
+   "type": "room",
+   "x": 4,
+   "y": 16,
+   "w": 8,
+   "h": 7
+  },
+  {
+   "id": "xd6ncf1",
+   "type": "room",
+   "x": 12,
+   "y": 19,
+   "w": 9,
+   "h": 2
+  },
+  {
+   "id": "0epf91d",
+   "type": "cavern",
+   "x": 20,
+   "y": 11,
+   "w": 13,
+   "h": 12
+  },
+  {
+   "id": "hodzdoc",
+   "type": "pond",
+   "x": 24,
+   "y": 15,
+   "w": 5,
+   "h": 3
+  },
+  {
+   "id": "9is0j8h",
+   "type": "room",
+   "x": 25,
+   "y": 22,
+   "w": 2,
+   "h": 8
+  },
+  {
+   "id": "t9lgmxg",
+   "type": "room",
+   "x": 19,
+   "y": 29,
+   "w": 12,
+   "h": 7
+  },
+  {
+   "id": "9edn581",
+   "type": "room",
+   "x": 32,
+   "y": 16,
+   "w": 10,
+   "h": 2
+  },
+  {
+   "id": "u33xtpl",
+   "type": "cavern",
+   "x": 41,
+   "y": 9,
+   "w": 12,
+   "h": 11
+  },
+  {
+   "id": "pft75v2",
+   "type": "grass",
+   "x": 43,
+   "y": 12,
+   "w": 6,
+   "h": 4
+  },
+  {
+   "id": "seh60kv",
+   "type": "room",
+   "x": 46,
+   "y": 19,
+   "w": 2,
+   "h": 8
+  },
+  {
+   "id": "j50ce9u",
+   "type": "room",
+   "x": 30,
+   "y": 32,
+   "w": 9,
+   "h": 2
+  },
+  {
+   "id": "vw53efr",
+   "type": "cavern",
+   "x": 37,
+   "y": 26,
+   "w": 18,
+   "h": 13
+  }
+ ],
+ "props": [
+  {
+   "id": "4edt2sy",
+   "kind": "torch",
+   "x": 5,
+   "y": 16
+  },
+  {
+   "id": "wb3wkh5",
+   "kind": "torch",
+   "x": 10,
+   "y": 16
+  },
+  {
+   "id": "dnsipzz",
+   "kind": "torch",
+   "x": 21,
+   "y": 13
+  },
+  {
+   "id": "5fk2z9r",
+   "kind": "rock",
+   "x": 30,
+   "y": 13
+  },
+  {
+   "id": "i19r0wy",
+   "kind": "crystal",
+   "x": 22,
+   "y": 20
+  },
+  {
+   "id": "ojfljoo",
+   "kind": "crystal",
+   "x": 20,
+   "y": 30
+  },
+  {
+   "id": "a5lqsaj",
+   "kind": "rock",
+   "x": 29,
+   "y": 34
+  },
+  {
+   "id": "08xui6d",
+   "kind": "crystal",
+   "x": 50,
+   "y": 11
+  },
+  {
+   "id": "39zzzzg",
+   "kind": "rock",
+   "x": 42,
+   "y": 17
+  },
+  {
+   "id": "4zdmen2",
+   "kind": "torch",
+   "x": 39,
+   "y": 28
+  },
+  {
+   "id": "khvdgaj",
+   "kind": "torch",
+   "x": 52,
+   "y": 28
+  },
+  {
+   "id": "8gxbeny",
+   "kind": "torch",
+   "x": 39,
+   "y": 36
+  },
+  {
+   "id": "jqwx4hh",
+   "kind": "torch",
+   "x": 52,
+   "y": 36
+  },
+  {
+   "id": "5344tfj",
+   "kind": "crystal",
+   "x": 46,
+   "y": 32
+  }
+ ],
+ "entities": [
+  {
+   "id": "gvq4k7b",
+   "kind": "start",
+   "x": 7,
+   "y": 19
+  },
+  {
+   "id": "n7xj8b7",
+   "kind": "enemy",
+   "x": 23,
+   "y": 13,
+   "dex": 41,
+   "level": 18
+  },
+  {
+   "id": "tfq7xkw",
+   "kind": "enemy",
+   "x": 29,
+   "y": 19,
+   "dex": 41,
+   "level": 18
+  },
+  {
+   "id": "o886vom",
+   "kind": "enemy",
+   "x": 26,
+   "y": 20,
+   "dex": 74,
+   "level": 19
+  },
+  {
+   "id": "pzom75w",
+   "kind": "enemy",
+   "x": 22,
+   "y": 32,
+   "dex": 92,
+   "level": 19
+  },
+  {
+   "id": "bbr4qmw",
+   "kind": "enemy",
+   "x": 28,
+   "y": 33,
+   "dex": 61,
+   "level": 20
+  },
+  {
+   "id": "2wxfogo",
+   "kind": "enemy",
+   "x": 45,
+   "y": 15,
+   "dex": 44,
+   "level": 20
+  },
+  {
+   "id": "4mvn4a4",
+   "kind": "enemy",
+   "x": 48,
+   "y": 11,
+   "dex": 42,
+   "level": 21
+  },
+  {
+   "id": "wfhym4l",
+   "kind": "enemy",
+   "x": 49,
+   "y": 17,
+   "dex": 75,
+   "level": 20
+  },
+  {
+   "id": "1vfz3zf",
+   "kind": "boss",
+   "x": 45,
+   "y": 33,
+   "dex": 143,
+   "level": 26
+  },
+  {
+   "id": "kkibj3j",
+   "kind": "exit",
+   "x": 51,
+   "y": 33
+  }
+ ],
+ "paint": {}
+}

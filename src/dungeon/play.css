@@ -1,0 +1,41 @@
+/* The dungeon: the map fills the screen; FireRed-style boxes on top. */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #07080a; overflow: hidden; }
+#dungeon { position: fixed; inset: 0; display: grid; place-items: center; }
+.dg-wrap { position: relative; line-height: 0; }
+.dg-wrap canvas { display: block; image-rendering: pixelated; }
+.dg-hud {
+  --win: #f8f8f8; --edge: #2c4c70; --edge2: #8cbce8; --ink: #404040; --soft: #707070; --gold: #f8d060; --gold-edge: #a06820;
+  position: absolute; left: 0; top: 0; transform-origin: 0 0; pointer-events: none;
+  font: 8px/1.5 'Press Start 2P', monospace; color: var(--ink); text-shadow: 1px 1px 0 #d0d0c8;
+}
+.dg-hud > * { pointer-events: auto; }
+.dg-panel { background: var(--win); border: 2px solid var(--edge); border-radius: 3px; box-shadow: inset 0 0 0 1px var(--win), inset 0 0 0 3px var(--edge2), 0 2px 0 rgba(10,18,34,.45); }
+.dg-party { position: absolute; left: 6px; top: 6px; display: flex; flex-direction: column; gap: 4px; }
+.dg-mon { display: flex; align-items: center; gap: 6px; padding: 4px 6px 4px 4px; width: 132px; opacity: .72; }
+.dg-mon.on { opacity: 1; box-shadow: inset 0 0 0 1px var(--win), inset 0 0 0 3px var(--gold), 0 2px 0 rgba(10,18,34,.45); }
+.dg-mon.out { opacity: .35; filter: grayscale(1); }
+.dg-mon img { width: 20px; height: 20px; image-rendering: pixelated; }
+.dg-mon .nm { flex: 1; min-width: 0; }
+.dg-mon p { margin: 0; white-space: nowrap; overflow: hidden; }
+.hp { display: block; height: 5px; margin-top: 2px; background: #484848; border: 1px solid #383838; }
+.hp i { display: block; height: 100%; background: #58d058; transition: width .3s ease; }
+.hp i.mid { background: #f8c838; }
+.hp i.low { background: #f05040; }
+.dg-boss { position: absolute; left: 50%; top: 6px; transform: translateX(-50%); width: 200px; padding: 5px 8px 6px; }
+.dg-boss p { margin: 0 0 3px; }
+.dg-moves { position: absolute; left: 50%; bottom: 6px; transform: translateX(-50%); display: flex; gap: 4px; }
+.dg-move { position: relative; width: 104px; padding: 4px 5px 5px; text-align: left; overflow: hidden; }
+.dg-move b { font-weight: 400; color: var(--soft); }
+.dg-move p { margin: 0; white-space: nowrap; overflow: hidden; text-overflow: clip; }
+.dg-move i { position: absolute; left: 0; bottom: 0; height: 3px; background: var(--gold); }
+.dg-msg { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(300px, calc(100% - 12px)); padding: 10px 12px 12px; display: flex; flex-direction: column; gap: 10px; line-height: 1.75; }
+.dg-msg p { margin: 0; }
+.dg-row { display: flex; gap: 6px; justify-content: flex-end; }
+.dg-btn { appearance: none; font: 8px/1 'Press Start 2P', monospace; padding: 6px 9px; cursor: pointer; background: var(--win); border: 2px solid var(--edge); border-radius: 2px; box-shadow: inset 0 -2px 0 #d0dce8; color: var(--ink); }
+.dg-btn.gold { background: var(--gold); border-color: var(--gold-edge); color: #483010; box-shadow: inset 0 -2px 0 #d89838; }
+.dg-btn:active { transform: translateY(1px); }
+.dg-toast { position: absolute; left: 50%; top: 34px; transform: translateX(-50%); padding: 6px 10px; white-space: nowrap; opacity: 0; transition: opacity .4s ease; }
+.dg-toast.show { opacity: 1; }
+.dg-keys { position: absolute; right: 6px; bottom: 6px; padding: 5px 7px; color: var(--soft); line-height: 1.7; }
+.dg-keys p { margin: 0; }

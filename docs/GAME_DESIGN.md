@@ -183,7 +183,7 @@ These were chosen while building stage 2, since the interview left them open.
   - Gifts arrive at the friend's next break, or when they open the island, with "Mina sent you Pikachu!". A gifted egg waits for room in the nest.
 - **Trades:** a two-sided trade (offer one, ask for one) is not built. Gifts cover sending both ways.
 
-## Stage 6: dungeons, real lighting, and a map editor (planned 2026-11-11)
+## Stage 6: dungeons, real lighting, and a map editor (built 2026-11-11)
 
 Paul's direction: PokéSurvivor's real-time, move-and-attack feel (from his recordings), but in set dungeons rather than endless waves. Night lighting should feel real, like the Moonfell pixel lighter. He also wants a whiteboard-style map editor for making dungeons.
 
@@ -210,6 +210,28 @@ Paul's direction: PokéSurvivor's real-time, move-and-attack feel (from his reco
    - Enemies that wake and chase, moves from the type chart, damage numbers, HP, a boss room.
    - Win or carried out. It is entered from a stone gate on the island, between sessions only.
 4. **The first dungeon**, built in the editor: the gate to Frost Isle, with level-20 Pokémon and Snorlax as the boss.
+
+### Stage 6 defaults (Paul can change any of these)
+
+- **Gate dungeons:**
+  - The guardian no longer sits on the pier. A stone doorway in the cliff beside the pier steps leads into the island's gate dungeon.
+    - Home Island: Pier Hollow, a cave of 8 Pokémon at levels 18 to 21 with Snorlax (level 26) at the end.
+    - Frost Isle: Glacier Grotto, an ice cave at levels 32 to 35 with Lapras (level 40).
+  - The first clear marks the guardian beaten (one of the three conditions for the next island), gives 3 Star Pieces, and the boss joins you. You can go back in afterward.
+- **Combat:**
+  - Party and enemy HP and attack use the same formulas as before. A boss has 2.5 times a guardian's HP and three quarters of its attack.
+  - Auto-attacks every 0.8 seconds. Key 1 is a 2.2× shot or strike on a 4-second cooldown. Key 2 is a 1.5× burst around you on a 9-second cooldown.
+  - Ranged types (fire, water, electric, grass, ice, psychic, ghost, poison, dragon, fairy) shoot. Others strike up close.
+  - Enemies sleep until you come within 4 tiles (the boss within 5).
+  - Out of combat the party heals 8% a second, and a fainted partner gets back up at 30% after 6 quiet seconds. You lose only if all three are down.
+  - Balance with an autopilot that charges in and uses both moves: a level-18 party loses narrowly, level 20 clears with almost nothing left, and level 22 clears comfortably.
+- **Lighting:** the dungeon is dark (each map sets how dark). Torches, crystals, fire-type Pokémon, fire and electric shots, and a lantern around the lead light it, all through the same per-pixel engine as the island at night.
+- **Editor** (`editor.html`):
+  - Pieces stay movable and resizable, and the tiles are rebuilt from them.
+  - Brushes add single-tile touch-ups.
+  - Live checks catch a missing start, boss or exit, and anything standing on a wall or water.
+  - Lit preview, undo and redo, export and import.
+  - Play test runs the map without saving anything. In dev, Save also writes `public/dungeons/<id>.json` so the map ships with the game.
 
 ## Still open
 

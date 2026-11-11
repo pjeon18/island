@@ -140,3 +140,25 @@ export function baitArt(food: string) {
   p.set(4, 1, hex('#ffffff'))
   return p.toCanvas()
 }
+
+/** The dungeon gate: a stone doorway cut into the cliff beside the pier steps, with stairs going down. */
+export function paintGate(): { img: HTMLCanvasElement; ax: number; ay: number } {
+  const p = new Pix(14, 13)
+  const frame = PAL.stoneLight
+  const frame2 = PAL.stone
+  const dark = hex('#14110f')
+  const step = hex('#4a4038')
+  for (let y = 0; y < 13; y++)
+    for (let x = 0; x < 14; x++) {
+      const dx = (x + 0.5 - 7) / 7
+      const dy = (y + 0.5 - 7) / 7
+      const inArch = y >= 7 || dx * dx + dy * dy <= 1
+      if (!inArch) continue
+      const innerX = (x + 0.5 - 7) / 4.6
+      const innerY = (y + 0.5 - 8) / 5.2
+      const inside = y >= 8 ? x >= 3 && x <= 10 : innerX * innerX + innerY * innerY <= 1
+      if (!inside) p.set(x, y, x < 7 ? frame : frame2)
+      else p.set(x, y, y >= 10 && (y - 10) % 2 === 0 && x > 3 && x < 10 ? step : dark)
+    }
+  return { img: p.toCanvas(), ax: 7, ay: 12 }
+}

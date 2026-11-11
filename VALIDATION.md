@@ -1,5 +1,30 @@
 # Validation
 
+## Stage 6, lighting, dungeons and the editor (2026-11-11)
+
+- **Night lighting:**
+  - Before: a flat blue tint, with Pidgeotto right beside the campfire unlit.
+  - After: the campfire lights the ground and Pidgeotto's near side warm, the tree's near face catches the light, the pier lantern lights Vaporeon and the water, and the stone lantern lights Psyduck. Normal maps come from each sprite's silhouette.
+  - A night frame costs about 12 ms (day about 2 ms), so night frames draw at 30 fps.
+- **Editor:**
+  - Pieces, props and Pokémon dropped from the palette land where dropped. Caverns get ragged edges, and the pond fills with water.
+  - The live check caught an exit dropped on a wall.
+  - The lit preview showed torch and crystal light in the dark.
+  - Pier Hollow opened from "In the game" with "Ready to play."
+- **Dungeon:**
+  - The intro window lists the Pokémon, their levels and the boss.
+  - Fights showed auto-attacks, a Water Gun, "It's super effective!", HP bars and damage numbers.
+  - The boss bar appears once Snorlax wakes. A partner fainted.
+  - After the boss, walking onto the exit cleared the dungeon.
+  - First clear (guardian reset in the save): "Snorlax joins you. 3 Star Pieces. One step closer to Frost Isle." Snorlax joined at level 21, and `guardians` gained "home".
+- **Glacier Grotto:** loads in the ice theme with 6 Pokémon at levels 32 to 35 and Lapras (level 40, 1840 HP before the boss change; 2.5× now).
+- **Balance:** autopilot through Pier Hollow's four rooms with a 10-second rest between rooms.
+  - Level 18 lost with Snorlax at 49/800.
+  - Level 20 cleared with 0/0/2 HP left.
+  - Level 22 cleared with 0/57/30.
+- **Island:** the doorway sits in the cliff right of the pier steps, and tapping it offers to enter, or to go back in once cleared. The Town Map menu shows the guardian with an Enter button.
+- **Not checked:** playing by hand with a keyboard in a visible window (the pane was hidden for part of the testing, so the loop was stepped by hand), and phone or touch controls (the dungeon needs a keyboard for now).
+
 ## What Paul needs to do for stage 5
 
 Run `supabase/island_stage5.sql` in Studdy's Supabase SQL editor (after `island.sql`, which is already live).

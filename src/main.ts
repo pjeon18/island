@@ -450,7 +450,7 @@ canvas.addEventListener('click', (e) => {
   }
   const vis = scene.creatures.find((c) => c.visitor && c.state !== 'leave' && Math.abs(c.x - x) < 11 && y > c.y - 26 && y < c.y + 3)
   if (vis) return hud.say({ dex: Number(vis.sp.dex), text: `${vis.visitor}'s ${vis.name} is visiting. ${vis.visitor} is studying too.`, auto: 5000 })
-  if (guardianC && Math.abs(guardianC.x - x) < 16 && y > guardianC.y - 30 && y < guardianC.y + 4) return askBattle()
+  if (scene.gate && Math.abs(scene.gate.x - x) < 8 && y > scene.gate.y - 13 && y < scene.gate.y + 2) return askBattle()
   const c = scene.creatures.find((c) => c.wildId && !c.hidden && c.state !== 'leave' && Math.abs(c.x - x) < 11 && y > c.y - 26 && y < c.y + 3)
   if (!c) return
   if (game.inSession) return hud.toast(`${c.name} is waiting for your break.`)
@@ -478,57 +478,23 @@ window.addEventListener('keydown', (e) => {
 // ---------- the guardian (stage 4) ----------
 let guardianC: Creature | null = null
 async function placeGuardian() {
-  const isl = game.islandDef
-  if (game.save.guardians.includes(isl.id) || guardianC) return
-  const sp = await ensure(isl.guardian.dex)
+  // the gate dungeon's doorway, cut into the cliff to the right of the pier steps
   const d = scene.island.dock
-  // Snorlax sleeps across the end of the pier; Lapras rests in the water beside it
-  const pos = isl.id === 'home' ? { x: d.x + d.w / 2, y: d.y1 + 3 } : { x: d.x + d.w + 16, y: d.y1 - 2 }
-  const c = scene.add(sp, pos.x, pos.y)
-  c.anchor = { ...pos, r: 0 }
-  c.dir = isl.id === 'home' ? 0 : 6
-  if (isl.id === 'home') c.sleep(true, 0)
-  guardianC = c
+  scene.gate = { x: d.x + d.w + 9, y: d.y0 + 9 }
 }
+/** The guardian waits at the bottom of the island's gate dungeon (stage 6). */
 function askBattle() {
-  const g = game.islandDef.guardian
-  if (game.inSession) return hud.toast(`${game.name(g.dex)} can wait for your break.`)
+  const isl = game.islandDef
+  const g = isl.guardian
+  if (game.inSession) return hud.toast('Dungeons are for breaks.')
+  const cleared = game.save.guardians.includes(isl.id)
   hud.say({
     dex: g.dex,
-    text: `${game.name(g.dex)} is ${g.where}. Battle it with your party?`,
+    text: cleared ? `The way into the dungeon. ${game.name(g.dex)} is beaten, but you can go back in.` : `${game.name(g.dex)} is ${g.where}. Go down with your party?`,
     actions: [
-      { label: 'Battle', primary: true, run: startBattle },
+      { label: 'Enter', primary: true, run: () => (location.href = `${import.meta.env.BASE_URL}dungeon.html?id=${isl.dungeon}&gate=${isl.id}`) },
       { label: 'Not now', run: () => {} },
     ],
-  })
-}
-function startBattle() {
-  const c = guardianC
-  const r = game.challenge()
-  if (!r) return
-  c?.sleep(false, 0)
-  hud.showBattle(r, () => {
-    if (!r.win) {
-      if (game.islandDef.id === 'home') c?.sleep(true, 1)
-      return
-    }
-    // it wakes, gets up and joins you
-    if (c) adopt = { dex: game.islandDef.guardian.dex, c }
-    const m = game.guardianJoins()
-    const inParty = !!m && game.save.party.includes(m.id)
-    if (c && adopt?.c === c) adopt = null
-    if (c) {
-      c.anchor = undefined
-      if (inParty) c.walkTo(scene.dockTop.x, scene.dockTop.y - 14, 'hop')
-      else {
-        c.walkTo(c.x, c.y + 10)
-        c.enter('leave', 99)
-      }
-    }
-    guardianC = null
-    hud.say({ dex: game.islandDef.guardian.dex, emotion: 'Happy', text: inParty ? `${game.name(game.islandDef.guardian.dex)} joined your party!` : `${game.name(game.islandDef.guardian.dex)} joined you and went to your box.`, auto: 6000 })
-    hud.refreshSheet()
-    publishParty()
   })
 }
 function sailAway(to: string) {

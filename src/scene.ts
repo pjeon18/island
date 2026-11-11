@@ -6,7 +6,7 @@ import { hash2, rng } from './pixel'
 import { DecorArt, SLOTS, decorArt } from './decor'
 import type { Species } from './sprites'
 import type { FindKind, Habitat, Weather } from './game'
-import { HABITAT_SPOTS, HabitatArt, baitArt, habitatArt } from './habitats'
+import { HABITAT_SPOTS, HabitatArt, baitArt, habitatArt, paintGate } from './habitats'
 import { FLAT, Light, applyLighting, normalMapFor } from './lighting'
 import { drawFrame, frameAt } from './sprites'
 
@@ -128,6 +128,9 @@ export class Scene {
   private habitats: { id: Habitat; x: number; y: number; art: HabitatArt | null }[] = []
   private decorBlockers: { x: number; y: number; r: number }[] = []
   private bait: { img: HTMLCanvasElement; x: number; y: number } | null = null
+  /** The dungeon doorway in the cliff beside the pier steps (stage 6). */
+  gate: { x: number; y: number } | null = null
+  private gateArt = paintGate()
   /** Eggs in the nest (0..1 warmth each); the nest shows when there are eggs or a Day Care pair. */
   nest = { show: false, eggs: [] as number[] }
   /** Pokémon that give off light at night (fire types), by dex4; set by main.ts from the roster. */
@@ -330,6 +333,11 @@ export class Scene {
       })
     }
     if (this.nest.show) items.push({ y: NEST.y, draw: () => this.drawNest(g) })
+    if (this.gate) {
+      const gt = this.gate
+      const a = this.gateArt
+      items.push({ y: -2, draw: () => g.drawImage(a.img, gt.x - a.ax, gt.y - a.ay) })
+    }
     if (this.bait) {
       const bt = this.bait
       items.push({ y: -1, draw: () => g.drawImage(bt.img, bt.x - 4, bt.y - 4) })

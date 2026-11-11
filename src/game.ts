@@ -1,5 +1,3 @@
-import { simulate } from './battle'
-
 // The rules, kept apart from drawing. docs/GAME_DESIGN.md is the loop (stage 1,
 // catching: passers-by arrive while you focus and wait for your break, balls
 // come from the shop, a throw's odds depend on the ball and the timing ring).
@@ -89,10 +87,11 @@ export const ISLANDS: {
   id: IslandId
   name: string
   guardian: { dex: number; level: number; where: string }
+  dungeon: string // the gate dungeon (public/dungeons/<id>.json); the guardian is its boss
   unlock?: { from: IslandId; share: number; hours: number }
 }[] = [
-  { id: 'home', name: 'Home Island', guardian: { dex: 143, level: 35, where: 'asleep across the end of the pier' } },
-  { id: 'frost', name: 'Frost Isle', guardian: { dex: 131, level: 45, where: 'resting in the water by the pier' }, unlock: { from: 'home', share: 0.7, hours: 20 } },
+  { id: 'home', name: 'Home Island', guardian: { dex: 143, level: 26, where: 'asleep at the bottom of Pier Hollow' }, dungeon: 'pier-hollow' },
+  { id: 'frost', name: 'Frost Isle', guardian: { dex: 131, level: 40, where: 'resting at the bottom of Glacier Grotto' }, dungeon: 'glacier-grotto', unlock: { from: 'home', share: 0.7, hours: 20 } },
 ]
 /** The island grows with your total focused hours. */
 export const GROWTH: { hours: number; text: string }[] = [
@@ -804,23 +803,7 @@ export class Game {
     return !minHours || this.totalHours() >= minHours
   }
 
-  /** Challenge this island's guardian with the party. Decided up front, played back by the battle window. */
-  challenge(rand = Math.random) {
-    const isl = this.islandDef
-    if (this.save.session || this.save.guardians.includes(isl.id)) return null
-    const team = this.party.map((m) => ({ name: this.name(m), dex: m.dex, level: m.level, types: this.species(m.dex)?.types ?? ['normal'] }))
-    const g = isl.guardian
-    const foe = { name: this.name(g.dex), dex: g.dex, level: g.level, types: this.species(g.dex)?.types ?? ['normal'] }
-    const result = simulate(team, foe, rand)
-    if (result.win) {
-      this.save.guardians.push(isl.id)
-      this.save.starPieces += 3
-      this.persist()
-    }
-    this.emit({ type: 'guardian', island: isl.id, win: result.win })
-    return result
-  }
-  /** After a win the guardian wakes and joins you (called when the battle has played out). */
+  /** After its dungeon is cleared, the guardian joins you (called by the dungeon page). */
   guardianJoins() {
     const g = this.islandDef.guardian
     if (!this.save.guardians.includes(this.islandDef.id) || this.save.mons.some((m) => m.dex === g.dex)) return null
