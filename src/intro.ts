@@ -10,7 +10,7 @@ import { Pix, bayer, hash2, hex, rng } from './pixel'
 const HOLD = 0.3 // seconds fully covered
 const PART = 1.7 // seconds to clear
 export const INTRO_SECONDS = HOLD + PART + 0.2
-const FEATHER = 34 // px of dithered falloff at the haze's edge
+const FEATHER = 12 // px of dithered falloff at the haze's edge (Paul: a wider band read as blur)
 
 interface Cloud {
   img: HTMLCanvasElement
@@ -40,7 +40,7 @@ function paintCloud(w: number, h: number, seed: number, far = false) {
       for (const l of lobes) best = Math.min(best, Math.hypot(x - l.x, y - l.y) / l.r)
       if (best > 1 || y > h * 0.86) continue
       // the outer rim thins out in a dither instead of ending on a line
-      if (best > 0.7 && bayer(x, y) > (1 - best) / 0.3) continue
+      if (best > 0.86 && bayer(x, y) > (1 - best) / 0.14) continue
       p.set(x, y, y > h * 0.6 + hash2(x, 0, seed) * 3 ? under : top)
     }
   return p.toCanvas()
