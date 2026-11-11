@@ -203,9 +203,18 @@ let run: Run
 const roomCode = params.get('room')
 const mode: 'solo' | 'host' | 'guest' = roomCode ? (params.has('host') ? 'host' : 'guest') : 'solo'
 let net: Net | null = null
-let guestPeer: string | null = null // host: the guest in the room
-let guestLeadId = -1 // both: the guest's lead actor
-let coop = false // host: a guest started the run with you (enemies are tougher)
+// host: up to three guests (four players), each with their Pokémon (lead first)
+interface Guest {
+  team: TeamMon[]
+  actors: Actor[]
+  heard: number
+}
+const guests = new Map<string, Guest>()
+const MAX_GUESTS = 3
+let hostTeam: Actor[] = [] // host: your three, before guests take places
+let guestLeadId = -1 // guest: your lead actor
+let coop = false // host: guests started the run with you (enemies are tougher)
+let coopGuests = 0 // host: how many
 const mine = new Set<number>() // guest: actor ids you control
 let guestActs: string[] = [] // guest: button presses to send
 let heardAt = performance.now() // co-op: the last message from the other player (a closed tab can take a while to report)
@@ -534,7 +543,7 @@ function updateThings() {
         }
       }
       th.open = true
-      if (mode === 'host' && guestPeer) net?.sendEvent({ kind: 'chest', big: !!th.big })
+      if (mode === 'host' && guests.size) net?.sendEvent({ kind: 'chest', big: !!th.big })
       const lines = lootChest(!!th.big)
       run.found.push(...lines)
       toast(lines.join(' '))
@@ -649,10 +658,11 @@ function update(dt: number) {
     }
   }
   // followers keep near the lead and fight what is close, finding their way around walls
-  const gLead = guestLeadId >= 0 ? party.find((q) => q.id === guestLeadId && q.owner) : undefined
+  const guestLeads = [...guests.values()].map((g) => g.actors[0]).filter((a) => a && party.includes(a) && a.owner)
   party.forEach((p, i) => {
-    if (p === me || p === gLead || p.dead || p.sleep > 0) return
-    const L = p.owner && gLead && !gLead.dead ? gLead : me
+    if (p === me || guestLeads.includes(p) || p.dead || p.sleep > 0) return
+    const own = p.owner ? guests.get(p.owner)?.actors[0] : undefined
+    const L = own && !own.dead ? own : me
     const foe = nearest(p, alive(foes).filter((f) => f.awake), 90)
     let tx = L.x + (i % 2 ? -14 : 14)
     let ty = L.y + 10
@@ -710,7 +720,7 @@ function update(dt: number) {
   calm = fighting ? 0 : calm + dt
   if (calm > 3) for (const p of party) if (!p.dead) p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.015 * dt)
   if (coop) {
-    const leads = [me, gLead].filter((x): x is Actor => !!x && !x.dead)
+    const leads = [me, ...guestLeads].filter((x) => !x.dead)
     for (const p of party) {
       if (!p.dead) continue
       const near = leads.some((l) => dist(l, p) < 16)
@@ -747,7 +757,7 @@ function update(dt: number) {
   pops = pops.filter((p) => (p.t += dt) < 1.1)
   // stairs down (once the miniboss is down), or the exit (once the boss is down)
   const guarded = foes.some((f) => f.mini && !f.dead)
-  if (exit && (dist(me, exit) < 12 || (gLead && !gLead.dead && dist(gLead, exit) < 12))) {
+  if (exit && [me, ...guestLeads].some((l) => !l.dead && dist(l, exit!) < 12)) {
     if (map === hand) {
       if (bossDown) end(true)
     } else if (guarded) {
@@ -757,7 +767,7 @@ function update(dt: number) {
       }
     } else void downstairs()
   }
-  if (mode === 'host' && guestPeer && time - snapAt > 1 / 15) {
+  if (mode === 'host' && guests.size && time - snapAt > 1 / 15) {
     snapAt = time
     snapsOut++
     net?.sendSnap(snapshot())
@@ -828,7 +838,10 @@ async function loadFloor(n: number) {
   })
   const mk = (e: Entity) => makeActor('foe', e.dex!, e.level ?? 10, species.get(e.dex!)!, game.species(e.dex!)?.types ?? ['normal'], game.name(e.dex!), e.x * TILE + 8, e.y * TILE + 12, e.kind === 'boss', e.kind === 'miniboss')
   foes = map.entities.filter((e) => (e.kind === 'enemy' || e.kind === 'boss' || e.kind === 'miniboss') && e.dex && species.get(e.dex)).map(mk)
-  if (coop) for (const f of foes) f.hp = f.maxHp = Math.round(f.maxHp * (f.boss ? 1.75 : 1.5))
+  if (coop) {
+    const n = 1 + coopGuests
+    for (const f of foes) f.hp = f.maxHp = Math.round(f.maxHp * (f.boss ? 1 + 0.75 * (n - 1) : 1 + 0.5 * (n - 1)))
+  }
   const ex = map.entities.find((e) => e.kind === 'exit' || e.kind === 'stairs')
   exit = ex ? { x: ex.x * TILE + 8, y: ex.y * TILE + 8 } : null
   bossDown = !foes.some((f) => f.boss)
@@ -853,7 +866,7 @@ async function downstairs() {
   }
   run.floor++
   saveRun()
-  if (mode === 'host' && guestPeer) net?.sendEvent({ kind: 'floor', floor: run.floor })
+  if (mode === 'host' && guests.size) net?.sendEvent({ kind: 'floor', floor: run.floor })
   view.style.transition = 'opacity .35s ease'
   view.style.opacity = '0'
   await new Promise((r) => setTimeout(r, 380))
@@ -1257,7 +1270,7 @@ function end(win: boolean) {
   if (state === 'won' || state === 'lost') return
   state = win ? 'won' : 'lost'
   clearRun()
-  if (mode === 'host' && guestPeer) net?.sendEvent({ kind: 'end', win })
+  if (mode === 'host' && guests.size) net?.sendEvent({ kind: 'end', win })
   const found = run.found.length ? `<p class="dg-dim">Found: ${run.found.join(' ')}</p>` : ''
   if (!win) {
     message(`<p>Your party was carried out of ${hand.name}.</p>${found}<p class="dg-dim">Levels come from focus. Study, then try again.</p>`, [
@@ -1422,10 +1435,8 @@ async function boot() {
     state = 'play'
     toast(map === hand ? `${hand.name}: the deepest floor.` : `${hand.name} B${run.floor}.`)
     // co-op: tell the guest the seed and which Pokémon are theirs (their lead first)
-    if (mode === 'host' && guestPeer) {
-      const theirs = party.filter((p) => p.owner === guestPeer)
-      net?.sendStart({ dungeon: id, gate, seed: run.seed, floor: run.floor, mine: [guestLeadId, ...theirs.filter((p) => p.id !== guestLeadId).map((p) => p.id)] }, guestPeer)
-    }
+    if (mode === 'host')
+      for (const [peer, g] of guests) net?.sendStart({ dungeon: id, gate, seed: run.seed, floor: run.floor, mine: g.actors.filter((a) => party.includes(a)).map((a) => a.id) }, peer)
   }
   // a preview of B1 behind the intro (the real run, with its own seed, starts on Enter)
   run = saved ?? fresh()
@@ -1437,7 +1448,8 @@ async function boot() {
   const berries = Math.min(2, game.save.berries)
   const intro = `<p>${hand.name}</p><p class="dg-dim">${test ? 'One floor (test play).' : `Three floors, then ${boss ? `${game.name(boss.dex!)} (Lv${boss.level})` : 'the deepest floor'}. Levels about ${Math.min(...lv) - 6} to ${Math.max(...lv)}.`}</p><p class="dg-dim">${charges ? `Lantern charges: ${charges}. Entering lights one, and its chests open.` : 'No Lantern charge: chests stay shut. Finish a 25-minute session to light one.'}</p>`
   const enter = (bring: boolean) => {
-    coop = mode === 'host' && !!guestPeer
+    coop = mode === 'host' && guests.size > 0
+    coopGuests = guests.size
     const r = fresh()
     if (!test) r.charged = game.useLantern()
     if (bring && berries) {
@@ -1489,7 +1501,7 @@ function startLoop() {
 /** Host a room (a new code) or join one by typing a friend's code. */
 function friendMenu(id: string) {
   const back = () => location.reload()
-  message('<p>Play with a friend</p><p class="dg-dim">Two of you, two Pokémon each. Enemies are tougher, and each of you keeps your own loot.</p>', [
+  message('<p>Play with friends</p><p class="dg-dim">Up to four of you. With two, you each bring two Pokémon; with three or four, one each. Enemies get tougher for each of you, and everyone keeps their own loot.</p>', [
     { label: 'Host a room', gold: true, run: () => (location.href = `${location.pathname}?id=${encodeURIComponent(id)}${gate ? `&gate=${gate}` : ''}&room=${makeRoomCode()}&host=1`) },
     {
       label: 'Join a room',
@@ -1508,39 +1520,49 @@ function friendMenu(id: string) {
     { label: 'Back', run: back },
   ])
 }
-/** The host waits in its room; when a friend joins, their two Pokémon take the place of your third. */
+/**
+ * The host waits in its room. Friends join (up to three): with one friend you each bring two
+ * Pokémon; with two or three, one each. Enemies are tougher for each extra player.
+ */
 function hostLobby(id: string, intro: string, enterButtons: { label: string; gold?: boolean; run: () => void }[]) {
   net = connectRoom(roomCode!)
-  let joined = ''
+  hostTeam = [...party]
   const solo = () => (location.href = `${location.pathname}?id=${encodeURIComponent(id)}${gate ? `&gate=${gate}` : ''}`)
+  const rebuild = () => {
+    const per = guests.size === 0 ? 3 : guests.size === 1 ? 2 : 1
+    party = [...hostTeam.slice(0, per), ...[...guests.values()].flatMap((g) => g.actors.slice(0, per))]
+    hudKey = ''
+  }
   const show = () => {
     hud.querySelectorAll('.dg-msg').forEach((m) => m.remove())
-    if (guestPeer) message(`${intro}<p>${joined}</p>`, [...enterButtons, { label: 'Back to the island', run: home }])
+    const who = [...guests.values()].map((g) => g.team[0] && `${g.team[0].name} (Lv${g.team[0].level})${guests.size === 1 && g.team[1] ? ` and ${g.team[1].name} (Lv${g.team[1].level})` : ''}`)
+    const waiting = `<p class="dg-dim">Room <b class="dg-room">${roomCode}</b>. ${guests.size < MAX_GUESTS ? 'More friends can still join.' : 'The room is full.'}</p>`
+    if (guests.size)
+      message(`${intro}<p>${guests.size === 1 ? 'A friend' : `${guests.size} friends`} joined: ${who.join(', ')}.</p>${waiting}`, [...enterButtons, { label: 'Back to the island', run: home }])
     else
-      message(`<p>Room <b class="dg-room">${roomCode}</b></p><p class="dg-dim">Ask your friend to open a dungeon door, choose Play with a friend, then Join a room, and type ${roomCode}.</p><p class="dg-dim">Waiting for them…</p>`, [
+      message(`<p>Room <b class="dg-room">${roomCode}</b></p><p class="dg-dim">Ask a friend to open a dungeon door, choose Play with a friend, then Join a room, and type ${roomCode}. Or invite them from your Friends list.</p><p class="dg-dim">Waiting for them…</p>`, [
         { label: 'Play alone', run: solo },
         { label: 'Back to the island', run: home },
       ])
   }
   net.onHello(async (h, peer) => {
-    if (guestPeer || state !== 'intro') return
-    guestPeer = peer
-    await Promise.all(h.team.map(async (m) => species.set(m.dex, species.get(m.dex) ?? (await loadSpecies(manifest, String(m.dex).padStart(4, '0'))))))
-    // two each: your strongest two, then theirs
-    party = party.slice(0, 2)
-    for (const m of h.team.slice(0, 2)) {
-      const a = makeActor('you', m.dex, m.level, species.get(m.dex)!, m.types, m.name, party[0].x, party[0].y)
+    if (guests.has(peer) || guests.size >= MAX_GUESTS || state !== 'intro') return
+    const g: Guest = { team: h.team.slice(0, 2), actors: [], heard: performance.now() }
+    guests.set(peer, g)
+    await Promise.all(g.team.map(async (m) => species.set(m.dex, species.get(m.dex) ?? (await loadSpecies(manifest, String(m.dex).padStart(4, '0'))))))
+    g.actors = g.team.map((m) => {
+      const a = makeActor('you', m.dex, m.level, species.get(m.dex)!, m.types, m.name, 0, 0)
       a.owner = peer
-      party.push(a)
-    }
-    guestLeadId = party[2]?.id ?? -1
-    joined = `Your friend joined with ${h.team.slice(0, 2).map((m) => `${m.name} (Lv${m.level})`).join(' and ')}.`
-    hudKey = ''
+      return a
+    })
+    rebuild()
     show()
   })
   net.onInput((inp, peer) => {
-    if (peer === guestPeer) heardAt = performance.now()
-    if (peer !== guestPeer || inp.floor !== run.floor || state !== 'play') return
+    const g = guests.get(peer)
+    if (!g) return
+    g.heard = performance.now()
+    if (inp.floor !== run.floor || state !== 'play') return
     const a = party.find((p) => p.id === inp.id && p.owner === peer)
     if (!a) return
     if (!a.dead && a.sleep <= 0) {
@@ -1552,18 +1574,19 @@ function hostLobby(id: string, intro: string, enterButtons: { label: string; gol
     for (const k of inp.acts) act(a, k)
   })
   const guestLeft = (peer: string) => {
-    if (peer !== guestPeer) return
-    guestPeer = null
+    if (!guests.has(peer)) return
+    guests.delete(peer)
     for (const p of party) if (p.owner === peer) p.owner = undefined
     if (state === 'intro') {
-      party = party.filter((p) => !p.owner && party.indexOf(p) < 2)
+      rebuild()
       show()
-    } else toast('Your friend left. Their Pokémon fight on with you.')
+    } else toast('A friend left. Their Pokémon fight on with you.')
   }
   net.onPeerLeave(guestLeft)
-  // nothing from the guest for 10 seconds during the run: they've gone
+  // nothing from a guest for 10 seconds during the run: they've gone
   setInterval(() => {
-    if (guestPeer && state === 'play' && performance.now() - heardAt > 10000) guestLeft(guestPeer)
+    if (state !== 'play') return
+    for (const [peer, g] of guests) if (performance.now() - g.heard > 10000) guestLeft(peer)
   }, 2000)
   show()
 }
@@ -1661,7 +1684,7 @@ void boot()
     return baked
   },
   get net() {
-    return { mode, snapsIn, snapsUsed, snapsOut, size: mode === 'host' && run && party.length ? JSON.stringify(snapshot()).length : 0, guestLeadId, guestPeer, actors: actors.size, peers: net?.peers(), time }
+    return { mode, snapsIn, snapsUsed, snapsOut, size: mode === 'host' && run && party.length ? JSON.stringify(snapshot()).length : 0, guestLeadId, guests: [...guests.keys()], actors: actors.size, peers: net?.peers(), time }
   },
   get warnings() {
     return warnings

@@ -649,6 +649,38 @@ function askBattle() {
     ],
   })
 }
+// ---------- co-op dungeon invites (supabase/island_stage7.sql) ----------
+const ROOM_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789' // matches dungeon/net.ts
+const roomCode = () => Array.from({ length: 4 }, () => ROOM_ALPHABET[(Math.random() * ROOM_ALPHABET.length) | 0]).join('')
+const dungeonName = (id: string) => (id === 'pier-hollow' ? 'Pier Hollow' : id === 'glacier-grotto' ? 'Glacier Grotto' : 'a dungeon')
+/** Host a room in this island's dungeon and invite a friend into it. */
+async function inviteDungeon(friendId: string) {
+  if (game.inSession) return hud.toast('Dungeons are for breaks.')
+  const isl = game.islandDef
+  const code = roomCode()
+  const r = await cloud.inviteToDungeon(friendId, code, isl.dungeon)
+  if (r !== 'ok') return hud.toast(r === 'too many' ? 'Too many invites today.' : r === 'not friends' ? 'You can only invite friends.' : r)
+  hud.toast('Invite sent. Waiting in the dungeon.')
+  enterDungeon(`${import.meta.env.BASE_URL}dungeon.html?id=${isl.dungeon}&gate=${isl.id}&room=${code}&host=1`)
+}
+const offered = new Set<number>()
+/** During a break, check for a friend's invite and offer to join. */
+async function checkInvites() {
+  if (game.inSession || !game.hasStarter || game.save.tutorial !== 'done' || !cloud.hasStage7()) return
+  for (const inv of await cloud.dungeonInvites()) {
+    if (offered.has(inv.id)) continue
+    offered.add(inv.id)
+    hud.say({
+      dex: lead(),
+      text: `${inv.from} invited you into ${dungeonName(inv.dungeon)}.`,
+      actions: [
+        { label: 'Join', primary: true, run: () => (void cloud.clearDungeonInvite(inv.id), enterDungeon(`${import.meta.env.BASE_URL}dungeon.html?room=${inv.code}`)) },
+        { label: 'Not now', run: () => void cloud.clearDungeonInvite(inv.id) },
+      ],
+    })
+    break
+  }
+}
 /** Into a dungeon: in this tab normally, or a new full tab while the island is popped out (the small window stays). */
 function enterDungeon(url: string) {
   if (host !== window || floatMode) window.open(url, '_blank')
@@ -1721,6 +1753,7 @@ async function boot() {
       },
       cheats: () => hud.toggleCheats(CHEATS, cheat),
       visit: (id) => void visitFriend(id),
+      inviteDungeon: (id) => void inviteDungeon(id),
       gift: (id, name, kind, ref) => void sendGift(id, name, kind, ref),
       sail: (to) => {
         if (!game.sail(to)) hud.toast(game.inSession ? 'Sail between sessions.' : 'Not yet.')
@@ -1839,6 +1872,7 @@ async function boot() {
     void refreshFriends()
     setInterval(() => void refreshFriends(), 120_000)
     setInterval(() => void takeGifts(), 300_000)
+    setInterval(() => void checkInvites(), 20_000)
   })
   syncSleep(true)
   buildDebug()

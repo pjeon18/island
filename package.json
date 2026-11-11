@@ -10,7 +10,8 @@
     "sprites": "node scripts/pull-pokeapi.mjs && node scripts/pull-sprites.mjs",
     "desktop": "tauri dev",
     "desktop:build": "tauri build",
-    "test:sql": "node supabase/test/run.mjs"
+    "test:sql": "node supabase/test/run.mjs",
+    "test:sql7": "node supabase/test/stage7.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.2.17",

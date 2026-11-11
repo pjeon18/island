@@ -351,3 +351,39 @@ export async function claimGifts(): Promise<Gift[]> {
     payload: (r.payload ?? {}) as Gift['payload'],
   }))
 }
+
+// ---------- stage 7: dungeon invites (supabase/island_stage7.sql) ----------
+export interface DungeonInvite {
+  id: number
+  from: string
+  code: string
+  dungeon: string
+}
+let stage7 = true // turns false once we learn the stage 7 SQL has not been run
+export const hasStage7 = () => state === 'ready' && stage7
+/** Invite a friend into the co-op dungeon you are hosting (room `code`). 'ok' or a reason. */
+export async function inviteToDungeon(to: string, code: string, dungeon: string): Promise<string> {
+  if (!hasStage7() || !supa) return 'Dungeon invites are not set up yet.'
+  const { data, error } = await supa.rpc('island_dungeon_invite', { p_to: to, p_code: code, p_dungeon: dungeon })
+  if (missing(error)) {
+    stage7 = false
+    return 'Dungeon invites are not set up yet.'
+  }
+  if (error) return 'Could not send the invite.'
+  return String(data)
+}
+/** Invites to you from the last ten minutes. */
+export async function dungeonInvites(): Promise<DungeonInvite[]> {
+  if (!hasStage7() || !supa) return []
+  const { data, error } = await supa.rpc('island_dungeon_invites')
+  if (missing(error)) {
+    stage7 = false
+    return []
+  }
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({ id: Number(r.id), from: String(r.sender_name ?? 'A friend').slice(0, 20), code: String(r.code), dungeon: String(r.dungeon) }))
+}
+/** Answered (joined or not now): it won't be offered again. */
+export async function clearDungeonInvite(id: number) {
+  if (!hasStage7() || !supa) return
+  await supa.rpc('island_dungeon_invite_clear', { p_id: id })
+}

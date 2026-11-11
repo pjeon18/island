@@ -1,5 +1,10 @@
 # Validation
 
+## Dungeon invites and four players (2026-11-11)
+- `island_stage7.sql` on PGlite with Studdy stubbed (`npm run test:sql7`), 20 checks passed: invites only between friends, bad codes and dungeon ids refused, a new invite replaces the old, the invitee sees only the newest and can clear it, others and signed-out callers see nothing, invites expire after ten minutes; gifts of evolved, legendary or deep species are refused, two stones at once are refused, and a second stone within a week is refused.
+- Three tabs (a host and two guests) in room MULT: both hellos reached the host, each player brought one Pokémon, enemy HP doubled for three players, and both guests drew the run and controlled their own Pokémon.
+- Not checked: invites against the live database (the SQL has not been run there yet), four players, and players on different networks.
+
 ## Co-op dungeons (2026-11-11)
 - Two tabs on one machine, room TEST, over the public relays: the guest's hello reached the host, its two Pokémon replaced the host's third, and Enter started both on the same seeded floor. The guest received about 15 snapshots a second and drew all 4 party Pokémon and the floor's enemies; its own lead moved locally and the host saw the same position; its Hyper Voice ran on the host. Stairs moved both to the same B2 and, after a fix, placed the guest at the new start. A guest in a background tab stayed connected (heartbeat); closing the guest's tab was noticed by the host within about 12 seconds and its Pokémon fought on.
 - Not checked: two different machines or networks (campus Wi-Fi may block peer-to-peer; there is no relay fallback yet), the host leaving mid-run on the guest's side, loot and the special catch on the guest's save, and lag on a slow connection.

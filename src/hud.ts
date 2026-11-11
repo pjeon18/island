@@ -116,6 +116,8 @@ export interface HudHandlers {
   pet: (id: string) => void
   toggleSound: () => void
   visit: (id: string) => void
+  /** Host a co-op dungeon and invite this friend into it. */
+  inviteDungeon?: (id: string) => void
   gift: (friendId: string, friendName: string, kind: 'mon' | 'egg' | 'item', ref: string) => void
   sail: (to: IslandId) => void
   popOut?: () => void
@@ -925,7 +927,9 @@ export class Hud {
         const status = f.studying ? 'Studying now.' : f.dayMin ? `${fmtMinutes(f.dayMin)} today.` : ''
         const free = !this.game.inSession
         const waveBtn = f.studying && free ? `<button class="px-btn small" data-wave="${f.id}">Wave</button>` : ''
-        const acts = free ? `<div class="row-actions">${waveBtn}<button class="px-btn small" data-visit="${f.id}">Visit</button><button class="px-btn small" data-sendto="${f.id}">Send</button></div>` : ''
+        // a dungeon invite only to a friend on a break (dungeons are break-time)
+        const dgBtn = free && !f.studying && this.h.inviteDungeon ? `<button class="px-btn small" data-dginvite="${f.id}">Dungeon</button>` : ''
+        const acts = free ? `<div class="row-actions">${waveBtn}<button class="px-btn small" data-visit="${f.id}">Visit</button><button class="px-btn small" data-sendto="${f.id}">Send</button>${dgBtn}</div>` : ''
         const picker = this.sendTo === f.id ? this.sendPicker(f.id, f.name) : ''
         return `<div class="friend-row${f.studying ? ' live' : ''}"><div class="mon-main"><p><strong>${esc(f.name)}</strong> <span class="hint">@${esc(f.handle)}</span></p><p class="hint">${status} ${f.dexCount ? `Pokédex ${f.dexCount}.` : ''}</p>${acts}${picker}</div><div class="mini-party">${party}</div></div>`
       })
@@ -1004,6 +1008,8 @@ export class Hud {
     }
     const visitId = at('visit')
     if (visitId) return this.h.visit(visitId)
+    const dgId = at('dginvite')
+    if (dgId) return this.h.inviteDungeon?.(dgId)
     const sendto = at('sendto')
     if (sendto) {
       this.sendTo = this.sendTo === sendto ? null : sendto
