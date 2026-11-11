@@ -1,7 +1,7 @@
 // The page around the island, in the PokéMAPs overworld style: a grass
-// clearing with forest down both sides, a route band along the top, and
-// animated Black and White sprites. None of it is part of the game; the
-// route shows your own Pokémon and the clearing shows ones still out there.
+// clearing with forest down both sides and animated Black and White sprites.
+// None of it is part of the game: your Pokémon stand on the left, and ones
+// still out there wait on the right.
 const BASE = import.meta.env.BASE_URL
 const scene = (n: string) => `${BASE}scene/${n}.png`
 const gif = (dex: number) => `${BASE}scene/mons/${dex}.gif`
@@ -38,17 +38,6 @@ export function backdropHtml() {
   </div>`
 }
 
-export function routeHtml() {
-  return `
-  <div class="route" aria-hidden="true">
-    <div class="grass"></div>
-    ${treeLine('top', 0, 70)}
-    ${img('flowers-red', 'left:14%;bottom:18px;width:116px;height:56px;z-index:2')}
-    <div class="pond"><img class="px" src="${scene('lily')}" alt="" style="left:22%;top:30%"><img class="px" src="${scene('lily')}" alt="" style="left:64%;top:48%"></div>
-    <div class="route-mons"></div>
-  </div>`
-}
-
 /** Place a sprite with its feet on (left, bottom), at 2x, or 1.5x for big ones. */
 function mon(dex: number, left: string, bottom: number, flip: boolean, z = 3) {
   const el = document.createElement('img')
@@ -57,8 +46,7 @@ function mon(dex: number, left: string, bottom: number, flip: boolean, z = 3) {
   el.src = gif(dex)
   el.style.cssText = `left:${left};bottom:${bottom}px;z-index:${z};visibility:hidden;--flip:${flip ? -1 : 1}`
   el.onload = () => {
-    const small = matchMedia('(max-width: 640px)').matches
-    const k = (el.naturalHeight >= 70 ? 1.5 : 2) * (small ? 0.75 : 1)
+    const k = el.naturalHeight >= 70 ? 1.5 : 2
     el.style.width = `${el.naturalWidth * k}px`
     el.style.height = `${el.naturalHeight * k}px`
     el.style.visibility = 'visible'
@@ -66,40 +54,26 @@ function mon(dex: number, left: string, bottom: number, flip: boolean, z = 3) {
   return el
 }
 
-// spots on the route band, wide then narrow
-const ROUTE: [string, number, boolean][] = [
-  ['8%', 14, false], ['24%', 22, false], ['38%', 8, true], ['50%', 26, false],
-  ['78%', 14, true], ['88%', 30, true], ['96%', 10, true],
-]
-const ROUTE_NARROW: [string, number, boolean][] = [['16%', 10, false], ['44%', 18, true], ['84%', 12, true]]
-// spots in the side clearings (wide screens only), as [side, top%]
-const CLEARING: ['l' | 'r', number][] = [['l', 34], ['r', 40], ['l', 56], ['r', 62], ['l', 76], ['r', 82]]
+// spots in the side clearings (wide screens only): yours on the left, wild on the right, as top %
+const LEFT = [30, 50, 70, 88]
+const RIGHT = [24, 44, 64, 84]
 
 let lastKey = ''
-/** Your Pokémon walk the route; species you have not caught wait in the clearing. */
+/** Your Pokémon stand in the left clearing; species you have not caught wait on the right. */
 export function paintPageMons(app: HTMLElement, mine: number[], wild: number[]) {
   const key = mine.join() + '|' + wild.join()
   if (key === lastKey) return
   lastKey = key
-  const route = app.querySelector<HTMLElement>('.route-mons')
   const clearing = app.querySelector<HTMLElement>('.clearing')
-  if (!route || !clearing) return
-  route.replaceChildren()
-  const narrow = matchMedia('(max-width: 640px)').matches
-  const spots = narrow ? ROUTE_NARROW : ROUTE
-  // the clearing (wide screens) takes the first wild ones; the route tops up from the rest
-  const spare = narrow || innerWidth <= 1240 ? wild : wild.slice(CLEARING.length)
-  spots.forEach(([l, b, f], i) => {
-    const dex = i < mine.length ? mine[i] : spare[i - mine.length]
-    if (dex) route.append(mon(dex, l, b, f))
-  })
+  if (!clearing) return
   clearing.replaceChildren()
-  CLEARING.forEach(([side, top], i) => {
-    const dex = wild[i]
+  const put = (dex: number | undefined, side: 'l' | 'r', top: number) => {
     if (!dex) return
     const el = mon(dex, side === 'l' ? 'var(--clear-l)' : 'var(--clear-r)', 0, side === 'r', 1)
     el.style.bottom = ''
     el.style.top = `${top}%`
     clearing.append(el)
-  })
+  }
+  LEFT.forEach((t, i) => put(mine[i] ?? wild[RIGHT.length + i], 'l', t))
+  RIGHT.forEach((t, i) => put(wild[i], 'r', t))
 }

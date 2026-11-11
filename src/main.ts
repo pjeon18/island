@@ -9,7 +9,7 @@ import { Game, GameEvent, Mon, RARE_50, Roster, STONES, aStone, stoneName } from
 import { Hud, fmtMinutes } from './hud'
 import { H, W } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
-import { backdropHtml, paintPageMons, routeHtml } from './page'
+import { backdropHtml, paintPageMons } from './page'
 import { Scene } from './scene'
 import { Manifest, Species, loadManifest, loadSpecies } from './sprites'
 
@@ -30,7 +30,6 @@ app.innerHTML = popoutMode
   ? `<div class="pip-stage${floatMode ? ' float' : ''}${floatMode && !tauri ? ' float-preview' : ''}"><div class="window"><canvas class="stage"${tauri ? ' data-tauri-drag-region' : ''}></canvas></div></div>`
   : `
   ${backdropHtml()}
-  ${routeHtml()}
   <header class="topbar">
     <div class="topbar-in">
       <h1 class="wordmark">Island</h1>

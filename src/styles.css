@@ -29,18 +29,10 @@ body { font: 500 17px/1.5 var(--round); -webkit-font-smoothing: antialiased; min
 .treeline-bottom { position: absolute; left: 0; right: 0; bottom: 0; height: 180px; }
 .clearing { position: absolute; inset: 0; --clear-l: max(70px, calc(50% - 560px)); --clear-r: min(calc(100% - 70px), calc(50% + 560px)); }
 .clearing .mon { transform: translateX(-50%) scaleX(var(--flip)); }
-.route { position: relative; z-index: 2; height: 190px; overflow: hidden; }
-.route-mons .mon { transform: translateX(-50%) scaleX(var(--flip)); }
-.pond {
-  position: absolute; left: 58%; bottom: 18px; width: 300px; height: 92px; z-index: 1; border-radius: 50%;
-  background: url(/scene/water.png) 0 0 / 32px 32px; image-rendering: pixelated;
-  box-shadow: inset 0 6px 0 rgba(0,0,0,.12), 0 0 0 6px #d9c98f, 0 0 0 9px #b8a46a;
-}
-.pond img { width: 32px; height: 32px; }
 
 /* chrome */
 .card { background: var(--paper); border: 2.5px solid var(--ink); border-radius: 18px; box-shadow: 0 4px 0 rgba(23,19,12,.9); }
-.topbar { position: relative; z-index: 3; background: var(--paper); border-block: 2.5px solid var(--ink); }
+.topbar { position: sticky; top: 0; z-index: 5; background: var(--paper); border-bottom: 2.5px solid var(--ink); }
 .topbar-in { max-width: 785px; margin: 0 auto; padding: 14px 20px; display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .wordmark { margin: 0; font: 900 40px/1 var(--round); letter-spacing: .01em; }
 .btn {
@@ -78,8 +70,6 @@ body { font: 500 17px/1.5 var(--round); -webkit-font-smoothing: antialiased; min
 .pip-stage canvas, .pip-body canvas { max-width: none; }
 
 @media (max-width: 640px) {
-  .route { height: 140px; }
-  .pond { left: 46%; width: 190px; height: 70px; bottom: 14px; }
   .topbar-in { padding: 12px 16px; }
   .wordmark { font-size: 32px; }
   .stage-wrap { padding: 16px 10px 0; }
