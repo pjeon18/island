@@ -53,7 +53,7 @@
 
 ### What Paul needs to do to switch everything on
 1. **Run the SQL.** Run `supabase/island.sql` in the Studdy project's SQL editor. It is additive and changes nothing of Studdy's. Running `npm run test:sql` first re-runs the checks above.
-2. **Allow the redirect URLs.** In Supabase, go to Auth, then URL Configuration, and add the island's URLs to the redirect allow-list: `http://localhost:5600/**`, plus the Pages URL once it is deployed.
+2. **Allow the redirect URLs.** In Supabase, go to Auth, then URL Configuration, and add the island's URLs to the redirect allow-list: `http://localhost:5600/**` and `https://pauljeon.org/island/**`. The site is served from pauljeon.org (pjeon18.github.io redirects there), so the Turnstile widget must also allow pauljeon.org.
 3. **Check Turnstile.** Confirm the Turnstile widget allows `localhost` and `pjeon18.github.io`. Studdy already uses the same hostnames.
 4. **Build the desktop app.** Install Rust (https://rustup.rs), then run `npm run desktop`.
 

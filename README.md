@@ -17,6 +17,8 @@ npm run build
 
 Press **Pop out** to open the island in its own window. In Chrome and Edge that window stays on top of your other apps. Other browsers open a small ordinary window instead.
 
+Play it at https://pauljeon.org/island/. Every push to `main` redeploys it through GitHub Pages.
+
 ## Credits
 
 Pokémon sprites and portraits come from the [PMD Sprite Repository](https://sprites.pmdcollab.org) and are used under [CC BY-NC 4.0](https://creativecommons.org/licenses/by-nc/4.0/). Species and evolution data come from [PokéAPI](https://pokeapi.co). Credits for each species are in `CREDITS.md`. Pokémon is © Nintendo, Creatures Inc. and GAME FREAK inc. This is a free, non-commercial fan project with no affiliation.

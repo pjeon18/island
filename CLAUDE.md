@@ -24,7 +24,7 @@ Read `docs/PLAN.md` first. It holds the approved plan and the decision log. Paul
   - Add the island's URLs to Supabase Auth's redirect allow-list.
   - Install Rust (rustup) to build the desktop app.
   - See VALIDATION.md for the full list.
-- The repo is not deployed.
+- **Live** at https://pauljeon.org/island/ (pjeon18.github.io redirects there; repo `pjeon18/island`, public). A push to `main` deploys through `.github/workflows/deploy.yml` with `BASE_PATH=/island/`. The three public Supabase keys are repo secrets, as in Studdy.
 
 ## Run
 - `npm install`, then `npm run dev`. It serves on port 5600, under the launch.json entry `island`.
