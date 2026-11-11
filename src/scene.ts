@@ -134,7 +134,7 @@ export class Scene {
   private gateArt = paintGate()
   /** Eggs in the nest (0..1 warmth each); the nest shows when there are eggs or a Day Care pair. */
   nest = { show: false, eggs: [] as number[] }
-  /** The opening clouds (intro.ts), while they are parting. */
+  /** The opening clouds (intro.ts), while they are parting. Updated here on sim time; main.ts draws them on their own full-window layer. */
   intro?: Intro
   /** Little hearts that float up when you pet a Pokémon. */
   hearts: { x: number; y: number; t: number }[] = []
@@ -552,7 +552,6 @@ export class Scene {
       }
     this.overlay?.(g)
     // the opening clouds cover everything, dimmed by the hour's light
-    this.intro?.draw(g, lightAt(this.hour))
   }
 
   /** The normals buffer for this frame, starting from the island's own (flat top, cliff faces turned south). */

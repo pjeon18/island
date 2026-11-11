@@ -315,3 +315,6 @@ html:has(.float), body:has(.float) { background: transparent; }
 .stat-rows span { color: var(--fr-soft); text-shadow: 1px 1px 0 var(--fr-soft-shadow); }
 .stat-rows b { font-weight: 400; color: var(--fr-ink); }
 .log-cell:first-child { flex-grow: 1.6; }
+
+/* the opening clouds cover the whole window, not just the island's picture */
+.intro-layer { position: absolute; z-index: 40; pointer-events: none; image-rendering: pixelated; }

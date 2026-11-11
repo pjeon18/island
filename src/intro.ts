@@ -58,17 +58,19 @@ export class Intro {
     private W: number,
     private H: number,
   ) {
+    // wider windows get more clouds, so the bank stays as full
+    const per = Math.max(1, W / 240)
     this.haze = new ImageData(W, H)
     const r = rng(29)
     // the haze edge wanders a little down the screen so it is not a straight wipe
     for (let y = 0; y < H; y++) this.wob.push(Math.sin(y * 0.09 + 1) * 4 + Math.sin(y * 0.031 + 2) * 7)
     // a bank of small, faint clouds in the distance, then three larger near ones a side
     for (const side of [-1, 1] as const)
-      for (let i = 0; i < 5; i++) {
+      for (let i = 0, n = Math.round(5 * per); i < n; i++) {
         const w = Math.round(44 + r() * 28)
         this.clouds.push({
           img: paintCloud(w, Math.round(w * 0.44), Math.floor(r() * 1e6), true),
-          y: Math.round((i + 0.1 + r() * 0.6) * (H / 5) - w * 0.22 + (side > 0 ? 10 : 0)),
+          y: Math.round(((i * 0.618 + r() * 0.2) % 1) * H - w * 0.22),
           side,
           home: W / 2 + side * (10 + ((i * 0.53 + r() * 0.35) % 1) * (W / 2 - 24)),
           lag: 0.04 + r() * 0.08,
@@ -76,17 +78,23 @@ export class Intro {
         })
       }
     for (const side of [-1, 1] as const)
-      for (let i = 0; i < 3; i++) {
+      for (let i = 0, n = Math.round(3 * per); i < n; i++) {
         const w = Math.round(96 + r() * 40)
         this.clouds.push({
           img: paintCloud(w, Math.round(w * 0.46), Math.floor(r() * 1e6)),
-          y: Math.round((i + 0.2 + r() * 0.5) * (H / 3) - w * 0.25 + (side > 0 ? 18 : 0)),
+          y: Math.round(((i * 0.618 + 0.2 + r() * 0.15 + (side > 0 ? 0.3 : 0)) % 1) * H - w * 0.25),
           side,
           home: W / 2 + side * (18 + ((i * 0.37 + r() * 0.3) % 1) * (W / 2 - 40)),
           lag: r() * 0.08,
           speed: 1,
         })
       }
+  }
+  get width() {
+    return this.W
+  }
+  get height() {
+    return this.H
   }
   get done() {
     return this.t >= INTRO_SECONDS

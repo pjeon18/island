@@ -12,7 +12,7 @@ import { Intro } from './intro'
 import { Hud, fmtMinutes } from './hud'
 import { H, W, seaCss, useIsland } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
-import { NEST, Scene, nightness } from './scene'
+import { NEST, Scene, lightAt, nightness } from './scene'
 import { Manifest, Species, loadManifest, loadSpecies } from './sprites'
 
 const STARTERS = [1, 4, 7]
@@ -57,8 +57,64 @@ let hud: Hud
 useIsland(visitData ? visitData.scene.island : (loadSave().island ?? 'home'))
 const scene = new Scene()
 scene.overlay = (gg) => catching?.draw(gg)
-// every load opens under a bank of clouds that part to reveal the island
-scene.intro = new Intro(W, H)
+// every load opens under a bank of clouds that part to reveal the island. They are drawn on
+// their own layer the size of the whole window (in island pixels, aligned with the canvas), so
+// the page around the island is covered too and no frame of open sea shows (Paul, 2026-11-11).
+// In float mode the window is the desktop, so the clouds stay the size of the island.
+const introCanvas = document.createElement('canvas')
+introCanvas.className = 'intro-layer'
+const introCtx = introCanvas.getContext('2d')!
+let introKey = ''
+function startIntro() {
+  introKey = ''
+  scene.intro = new Intro(W, H) // resized to the window on its first frame
+}
+startIntro()
+/** The layer's size in island pixels: the window, rounded so the island's pixels line up. */
+function introSize(): [number, number] {
+  if (floatMode) return [W, H]
+  const s = canvas.clientWidth / W || 1
+  const stage = canvas.closest<HTMLElement>('.pip-stage') ?? document.body
+  const ow = W + 2 * Math.ceil(Math.max(0, stage.clientWidth / s - W) / 2 + 1)
+  const oh = H + 2 * Math.ceil(Math.max(0, stage.clientHeight / s - H) / 2 + 1)
+  return [ow, oh]
+}
+function drawIntro() {
+  const intro = scene.intro
+  if (!intro) {
+    if (introCanvas.isConnected) introCanvas.remove()
+    return
+  }
+  const stage = canvas.closest<HTMLElement>('.pip-stage')
+  if (!stage || !canvas.clientWidth) return
+  // match the window; a rebuild keeps the clock, so a resize never restarts it
+  const [sw, sh] = introSize()
+  if (sw !== intro.width || sh !== intro.height) {
+    const t = intro.t
+    scene.intro = new Intro(sw, sh)
+    scene.intro.t = t
+    return drawIntro()
+  }
+  if (!introCanvas.isConnected || introCanvas.parentElement !== stage) stage.append(introCanvas)
+  const s = canvas.clientWidth / W || 1
+  const [ow, oh] = [intro.width, intro.height]
+  const cr = canvas.getBoundingClientRect()
+  const sr = stage.getBoundingClientRect()
+  const key = `${ow}x${oh}@${s}:${cr.left - sr.left},${cr.top - sr.top}`
+  if (key !== introKey) {
+    introKey = key
+    introCanvas.width = ow
+    introCanvas.height = oh
+    Object.assign(introCanvas.style, {
+      width: `${ow * s}px`,
+      height: `${oh * s}px`,
+      left: `${cr.left - sr.left - ((ow - W) / 2) * s}px`,
+      top: `${cr.top - sr.top - ((oh - H) / 2) * s}px`,
+    })
+  }
+  introCtx.clearRect(0, 0, ow, oh)
+  intro.draw(introCtx, lightAt(scene.hour))
+}
 scene.float = floatMode
 const species = new Map<number, Species>()
 const loading = new Map<number, Promise<Species>>()
@@ -1068,6 +1124,7 @@ function frame(now: number) {
     scene.render(g, dt)
   }
   hud?.update()
+  drawIntro()
   // the menus fade in as the clouds clear
   const intro = scene.intro
   const layer = hud?.el ?? win.querySelector<HTMLElement>('.hud')
@@ -1100,7 +1157,7 @@ setInterval(() => {
 // the page around the canvas takes the open sea's colour as the light changes, so there is no seam
 if (!floatMode)
   setInterval(() => {
-    if (host !== window) return
+    if (host !== window || scene.intro) return
     const [r, gg, b] = g.getImageData(0, 0, 1, 1).data
     document.documentElement.style.setProperty('--sea-page', `rgb(${r},${gg},${b})`)
   }, 1000)
@@ -1599,7 +1656,7 @@ window.__island = {
     return guardianC
   },
   placeGuardian: () => placeGuardian(),
-  replayIntro: () => (scene.intro = new Intro(W, H)),
+  replayIntro: () => startIntro(),
   cheat: (id: string) => cheat(id),
   scene,
   /** Advance the island by `sec` seconds of simulation (not the focus clock). */
