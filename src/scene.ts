@@ -1,7 +1,7 @@
 // The living island: static base + y-sorted props and Pokémon + calm ambient
 // layers (water glints, lapping foam, swaying tall grass, day/night light).
 import { Creature } from './creature'
-import { H, IslandLayout, PAL, TUFT, W, buildIsland, paintBush, paintLantern, paintTree } from './island'
+import { H, ISLAND_SCALE, IslandLayout, PAL, TUFT, W, buildIsland, onIsland, paintBush, paintLantern, paintTree } from './island'
 import { hash2, rng } from './pixel'
 import { DecorArt, SLOTS, decorArt } from './decor'
 import type { Species } from './sprites'
@@ -34,7 +34,7 @@ function paintFind(kind: FindKind) {
 }
 const FIND_IMG = Object.fromEntries((Object.keys(FIND_ART) as FindKind[]).map((k) => [k, paintFind(k)])) as Record<FindKind, HTMLCanvasElement>
 /** Where eggs rest, with the Day Care pair beside it: open ground east of the windmill. */
-export const NEST = { x: 114, y: 66 }
+export const NEST = onIsland(114, 66)
 interface Drop {
   x: number
   y: number
@@ -733,7 +733,7 @@ export class Scene {
       if (v < 0.55) continue
       const dx = p.x < 120 ? -1 : 1
       const dy = p.y < 90 ? -1 : 1
-      const ox = Math.abs(p.x - 120) / 76 > Math.abs(p.y - 90) / 42 ? dx : 0
+      const ox = Math.abs(p.x - 120) / (76 * ISLAND_SCALE) > Math.abs(p.y - 90) / (42 * ISLAND_SCALE) ? dx : 0
       const oy = ox === 0 ? dy : 0
       g.globalAlpha = (v - 0.55) * 1.1
       g.fillRect(p.x + ox * 2, p.y + oy * 2, 1, 1)

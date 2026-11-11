@@ -11,7 +11,7 @@ import { CatchAnim } from './catch'
 import { Intro } from './intro'
 import { STARTER_CHOICES, Tour, blackScreen, liftBlack, runPrologue } from './tutorial'
 import { Hud, fmtMinutes } from './hud'
-import { H, W, seaCss, useIsland } from './island'
+import { H, W, seaCss, seaEdge, useIsland } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
 import { NEST, Scene, lightAt, nightness } from './scene'
 import { Manifest, Species, loadManifest, loadSpecies } from './sprites'
@@ -85,6 +85,58 @@ function introSize(): [number, number] {
   const oh = H + 2 * Math.ceil(Math.max(0, stage.clientHeight / s - H) / 2 + 1)
   return [ow, oh]
 }
+// the darkest water only at the very edge of the window: a dithered band on its own layer,
+// above the island and below the menus, in island pixels (Paul, 2026-11-11)
+const edgeCanvas = document.createElement('canvas')
+edgeCanvas.className = 'sea-edge'
+let edgeKey = ''
+let edgeRgb: number[] | null = null
+function drawEdge(rgb: number[] | null = edgeRgb) {
+  if (!rgb) return
+  edgeRgb = rgb
+  if (floatMode || !canvas.clientWidth) return
+  const stage = canvas.closest<HTMLElement>('.pip-stage')
+  if (!stage) return
+  const [ow, oh] = introSize()
+  const s = canvas.clientWidth / W
+  const cr = canvas.getBoundingClientRect()
+  const sr = stage.getBoundingClientRect()
+  const key = `${ow}x${oh}@${s}:${cr.left - sr.left},${cr.top - sr.top}:${rgb.join(',')}`
+  if (key === edgeKey) return
+  edgeKey = key
+  if (edgeCanvas.parentElement !== stage) stage.append(edgeCanvas)
+  edgeCanvas.width = ow
+  edgeCanvas.height = oh
+  // the layer is bigger than the window; measure the band from the window's own edges
+  const ox = Math.max(0, Math.round(((ow - W) / 2) * s - (cr.left - sr.left)) / s)
+  const oy = Math.max(0, Math.round(((oh - H) / 2) * s - (cr.top - sr.top)) / s)
+  const vw = sr.width / s
+  const vh = sr.height / s
+  Object.assign(edgeCanvas.style, {
+    width: `${ow * s}px`,
+    height: `${oh * s}px`,
+    left: `${cr.left - sr.left - ((ow - W) / 2) * s}px`,
+    top: `${cr.top - sr.top - ((oh - H) / 2) * s}px`,
+  })
+  const img = new ImageData(ow, oh)
+  const BAND = 9
+  for (let y = 0; y < oh; y++)
+    for (let x = 0; x < ow; x++) {
+      const d = Math.min(x - ox, y - oy, ox + vw - 1 - x, oy + vh - 1 - y)
+      const a = Math.max(0, Math.min(1, (BAND - d) / BAND))
+      if (a <= 0 || bayerAt(x, y) >= a) continue
+      const i = (y * ow + x) * 4
+      img.data[i] = rgb[0]
+      img.data[i + 1] = rgb[1]
+      img.data[i + 2] = rgb[2]
+      img.data[i + 3] = 255
+    }
+  edgeCanvas.getContext('2d')!.putImageData(img, 0, 0)
+}
+const BAYER4 = [0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5].map((v) => (v + 0.5) / 16)
+const bayerAt = (x: number, y: number) => BAYER4[(y & 3) * 4 + (x & 3)]
+
+const hexRgb = (css: string) => css.match(/\d+/g)!.map(Number)
 function drawIntro() {
   const intro = scene.intro
   if (!intro) {
@@ -1162,9 +1214,13 @@ setInterval(() => {
 // the page around the canvas takes the open sea's colour as the light changes, so there is no seam
 if (!floatMode)
   setInterval(() => {
-    if (host !== window || scene.intro) return
+    if (host !== window) return // (the clouds are on their own layer, so the canvas corner is always open sea)
     const [r, gg, b] = g.getImageData(0, 0, 1, 1).data
     document.documentElement.style.setProperty('--sea-page', `rgb(${r},${gg},${b})`)
+    // the edge band takes the same light: the darkest shade, scaled like the sampled open sea
+    const open = hexRgb(seaCss())
+    const edge = seaEdge()
+    drawEdge([r, gg, b].map((v, i) => Math.round((v * edge[i]) / Math.max(1, open[i]))))
   }, 1000)
 document.addEventListener('visibilitychange', () => clockOwner && game?.beat())
 window.addEventListener('storage', (e) => {
@@ -1189,6 +1245,7 @@ function fitInto(w: Window) {
   canvas.style.width = `${W * s}px`
   canvas.style.height = `${H * s}px`
   hud?.fit(canvas)
+  requestAnimationFrame(() => drawEdge())
 }
 function plainPopOut() {
   window.open(`${location.pathname}?popout`, 'island', `width=${W * 2},height=${H * 2}`)

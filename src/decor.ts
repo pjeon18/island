@@ -1,7 +1,7 @@
 // Decorations: bought with shells (1 per focused minute), placed on one of a
 // few fixed spots so a tiny window never needs a drag-and-drop editor. They are
 // expression only: nothing here changes odds, growth or what friends see.
-import { PAL } from './island'
+import { PAL, onIsland } from './island'
 import { Pix, RGB, bayer, hex } from './pixel'
 
 export interface DecorDef {
@@ -27,15 +27,15 @@ export const CATALOG: DecorDef[] = [
 
 /** Ground points on the grassy top where a decoration can stand. */
 export const SLOTS: { id: string; x: number; y: number; minHours?: number }[] = [
-  { id: 'a', x: 98, y: 70 },
-  { id: 'b', x: 134, y: 63 },
-  { id: 'c', x: 182, y: 88 },
-  { id: 'd', x: 176, y: 120 },
-  { id: 'e', x: 100, y: 126 },
-  { id: 'f', x: 157, y: 122 }, // moved right so the umbrella clears the dungeon doorway
+  { id: 'a', ...onIsland(98, 70) },
+  { id: 'b', ...onIsland(134, 63) },
+  { id: 'c', ...onIsland(182, 88) },
+  { id: 'd', ...onIsland(176, 120) },
+  { id: 'e', ...onIsland(100, 126) },
+  { id: 'f', ...onIsland(157, 122) }, // moved right so the umbrella clears the dungeon doorway
   // the island grows: two more spots after 3 focused hours
-  { id: 'g', x: 188, y: 76, minHours: 3 },
-  { id: 'h', x: 58, y: 100, minHours: 3 },
+  { id: 'g', ...onIsland(188, 76), minHours: 3 },
+  { id: 'h', ...onIsland(58, 100), minHours: 3 },
 ]
 
 export interface DecorArt {

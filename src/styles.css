@@ -334,3 +334,7 @@ html:has(.float), body:has(.float) { background: transparent; }
 .hud-dialog.task { top: 6px; bottom: auto; left: 6px; right: auto; margin: 0; width: calc(100% - 172px); max-width: 420px; }
 .hud.narrow .hud-dialog.task { top: 6px; bottom: auto; left: 6px; right: auto; width: calc(100% - 96px); }
 .hud:has(.hud-sheet:not([hidden])) .hud-dialog.task, .hud:has(.hud-catch:not([hidden])) .hud-dialog.task { display: none; }
+
+/* the darkest water: a dithered band at the window's edges, above the island, below the menus */
+.sea-edge { position: absolute; z-index: 5; pointer-events: none; image-rendering: pixelated; }
+.hud { z-index: 10; }

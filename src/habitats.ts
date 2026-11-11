@@ -2,15 +2,15 @@
 // changes who comes (game.ts HABITATS) and is painted here in the island's
 // palette. The tall grass habitat reuses the island's tuft drawing in scene.ts.
 import type { Habitat } from './game'
-import { PAL } from './island'
+import { PAL, onIsland } from './island'
 import { Pix, bayer, hash2, hex } from './pixel'
 
 /** Fixed spots, chosen from the island map so they clear the props and decoration slots. */
 export const HABITAT_SPOTS: Record<Habitat, { x: number; y: number; r: number }> = {
-  pond: { x: 118, y: 84, r: 13 },
-  rocks: { x: 64, y: 76, r: 9 },
-  grass: { x: 146, y: 92, r: 9 },
-  cave: { x: 66, y: 118, r: 9 },
+  pond: { ...onIsland(118, 84), r: 13 },
+  rocks: { ...onIsland(64, 76), r: 9 },
+  grass: { ...onIsland(146, 92), r: 9 },
+  cave: { ...onIsland(66, 118), r: 9 },
 }
 
 export interface HabitatArt {

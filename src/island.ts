@@ -12,7 +12,8 @@ const CLIFF = 7
 
 export const PAL = {
   deep: hex('#3f86bf'),
-  abyss: hex('#1d4a7c'), // the open sea past the island's water: darker, so it reads as out of reach
+  dusk: hex('#2b659e'), // the open sea past the island's water: darker, so it reads as out of reach
+  abyss: hex('#1d4a7c'), // only at the very edge of the window (main.ts edge layer)
   sea: hex('#4c98cd'),
   seaRipple: hex('#58a3d4'),
   shallow: hex('#67b6da'),
@@ -79,7 +80,7 @@ export const TUFT = { out: '#24602c', dark: '#3b8735', mid: '#4fa13f', light: '#
 export function useIsland(id: string) {
   if (id !== 'frost') return
   const F: Partial<Record<keyof typeof PAL, string>> = {
-    deep: '#2a6fae', abyss: '#123866', sea: '#3580c2', seaRipple: '#438dca', shallow: '#68b4dc', shallow2: '#a6daf0', foam: '#f4fbff',
+    deep: '#2a6fae', dusk: '#1c5088', abyss: '#123866', sea: '#3580c2', seaRipple: '#438dca', shallow: '#68b4dc', shallow2: '#a6daf0', foam: '#f4fbff',
     sandLight: '#eef3f8', sand: '#dbe4ee', sandDark: '#bfcbd9', cliffTop: '#b9c7d6', earth: '#8a9bb0', earthDark: '#6a7b92', earthWet: '#4b5a71',
     grassLight: '#f7fbfe', grass: '#e6eff7', grassDark: '#cbdcea', grassDeep: '#aac3d9',
     leaf: '#2d6a5a', leafMid: '#3d816f', leafLight: '#e8f2f7', leafDeep: '#1d4a3f', trunk: '#6e4e38', trunkDark: '#4c3424',
@@ -89,15 +90,29 @@ export function useIsland(id: string) {
 }
 
 /** The open-sea colour, for the page behind the canvas. */
-export const seaCss = () => `rgb(${PAL.abyss.join(',')})`
+export const seaCss = () => `rgb(${PAL.dusk.join(',')})`
+/** The darkest water, drawn only in a thin band at the window's edges. */
+export const seaEdge = () => PAL.abyss
 
 // ---------- shape ----------
-const LOBES: [number, number, number, number][] = [
-  [120, 90, 76, 42],
-  [80, 100, 36, 24],
-  [164, 97, 36, 26],
-  [126, 71, 44, 23],
-]
+/**
+ * The island is drawn 14% bigger than it was first laid out, about its centre, so the
+ * Pokémon read smaller against it (Paul, 2026-11-11). Every fixed spot on it (props,
+ * habitats, decoration slots, the nest, the shallows' rocks) goes through `onIsland`.
+ */
+export const ISLAND_SCALE = 1.14
+export const onIsland = (x: number, y: number) => ({ x: Math.round(120 + (x - 120) * ISLAND_SCALE), y: Math.round(92 + (y - 92) * ISLAND_SCALE) })
+const LOBES: [number, number, number, number][] = (
+  [
+    [120, 90, 76, 42],
+    [80, 100, 36, 24],
+    [164, 97, 36, 26],
+    [126, 71, 44, 23],
+  ] as [number, number, number, number][]
+).map(([x, y, rx, ry]) => {
+  const p = onIsland(x, y)
+  return [p.x, p.y, rx * ISLAND_SCALE, ry * ISLAND_SCALE]
+})
 
 function inTop(x: number, y: number) {
   const wob = (noise(x / 11, y / 11, 3) - 0.5) * 0.22 + (noise(x / 4, y / 4, 9) - 0.5) * 0.06
@@ -149,10 +164,10 @@ export function buildIsland(): IslandLayout {
   const seaDist = distanceField(fpOut, W, H) // distance from the shore, out at sea
 
   // props (ground points)
-  const tree = { x: 158, y: 74 }
-  const bush = { x: 184, y: 104 }
-  const grassPatch = { x: 76, y: 96, r: 15 }
-  const dockX = 114
+  const tree = onIsland(158, 74)
+  const bush = onIsland(184, 104)
+  const grassPatch = { ...onIsland(76, 96), r: Math.round(15 * ISLAND_SCALE) }
+  const dockX = onIsland(114, 0).x
   const DW = 20 // Paul asked for a bigger, wider pier (2026-11-11)
   let lip = 0
   for (let y = H - 1; y >= 0; y--)
@@ -167,22 +182,21 @@ export function buildIsland(): IslandLayout {
   const p = new Pix(W, H)
 
   // ---------- water ----------
-  const DUSK: RGB = [0, 1, 2].map((i) => Math.round((PAL.deep[i] + PAL.abyss[i]) / 2)) as RGB
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       if (footprint[y * W + x]) continue
       const d = seaDist[y * W + x]
       // the island's water deepens in a soft ring, then gives way to the darker open sea,
       // which meets the window's edge in exactly the page's colour (no visible frame)
-      const r = Math.hypot((x - 120) / 128, (y - 90) / 92)
+      const r = Math.hypot((x - 120) / 120, (y - 92) / 90)
       const edge = Math.min(x, W - 1 - x, y, H - 1 - y)
       const dith = bayer(x, y) - 0.5
       let c: RGB = r + dith * 0.1 > 0.84 ? PAL.deep : PAL.sea
       // one in-between shade, so the step down to the dark open sea is gradual
-      if (r + dith * 0.1 > 0.93 || edge + dith * 8 < 11) c = DUSK
-      if (r + dith * 0.1 > 1.01 || edge + dith * 8 < 6) c = PAL.abyss
+      // the open sea; the canvas edge is always exactly this colour, the page's, so no frame shows
+      if (r + dith * 0.1 > 0.95 || edge + dith * 8 < 6) c = PAL.dusk
       // faint static ripples
-      if (hash2(x >> 2, y, 17) < 0.035 && (x & 3) !== 3 && d > 8 && c !== PAL.abyss) c = PAL.seaRipple
+      if (hash2(x >> 2, y, 17) < 0.035 && (x & 3) !== 3 && d > 8 && c !== PAL.dusk) c = PAL.seaRipple
       if (d < 12) c = d + bayer(x, y) * 3 < 9 ? (d < 4 + bayer(x + 1, y) * 2 ? PAL.shallow2 : PAL.shallow) : c
       p.set(x, y, c)
     }
@@ -321,10 +335,15 @@ export function buildIsland(): IslandLayout {
       }
     for (let x = cx - r; x <= cx + r; x++) p.set(x, cy + r + 1, PAL.shallow2)
   }
-  rock(34, 128, 3)
-  rock(40, 132, 2)
-  rock(210, 62, 3)
-  rock(198, 146, 2)
+  for (const [x, y, r] of [
+    [34, 128, 3],
+    [40, 132, 2],
+    [210, 62, 3],
+    [198, 146, 2],
+  ]) {
+    const q = onIsland(x, y)
+    rock(q.x, q.y, r)
+  }
 
   // shoreline pixels for the animated foam
   const shoreline: { x: number; y: number }[] = []
