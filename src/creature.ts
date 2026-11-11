@@ -218,6 +218,10 @@ export class Creature {
   }
 
   /** Which PMD action to show for the current state. */
+  /** The animation frame being shown (for the lighting pass's normals). */
+  currentAnim() {
+    return this.anim()
+  }
   private anim() {
     const A = this.sp.anims
     switch (this.state) {

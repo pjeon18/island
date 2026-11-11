@@ -7,6 +7,8 @@ import { DecorArt, SLOTS, decorArt } from './decor'
 import type { Species } from './sprites'
 import type { FindKind, Habitat, Weather } from './game'
 import { HABITAT_SPOTS, HabitatArt, baitArt, habitatArt } from './habitats'
+import { FLAT, Light, applyLighting, normalMapFor } from './lighting'
+import { drawFrame, frameAt } from './sprites'
 
 // Finds: tiny pixel items a party Pokémon dug up, drawn from these rows.
 // '.' is clear; other letters index the palette below.
@@ -128,6 +130,10 @@ export class Scene {
   private bait: { img: HTMLCanvasElement; x: number; y: number } | null = null
   /** Eggs in the nest (0..1 warmth each); the nest shows when there are eggs or a Day Care pair. */
   nest = { show: false, eggs: [] as number[] }
+  /** Pokémon that give off light at night (fire types), by dex4; set by main.ts from the roster. */
+  glowDex = new Set<string>()
+  private ncv = document.createElement('canvas') // the scene's normals, drawn alongside the colours
+  private baseN: HTMLCanvasElement | null = null
   /** Drawn last, above everything: the catch ring and the thrown ball. */
   overlay?: (g: CanvasRenderingContext2D) => void
 
@@ -291,17 +297,19 @@ export class Scene {
     }
 
     // y-sorted world: props, tufts, Pokémon
-    type Item = { y: number; draw: () => void }
+    type Item = { y: number; draw: () => void; norm?: (n: CanvasRenderingContext2D) => void }
     const items: Item[] = []
     const { tree, bush, lantern } = this.island
-    items.push({ y: tree.y, draw: () => g.drawImage(this.tree.img, tree.x - this.tree.ax, tree.y - this.tree.ay) })
-    items.push({ y: bush.y, draw: () => g.drawImage(this.bush.img, bush.x - this.bush.ax, bush.y - this.bush.ay) })
-    items.push({ y: lantern.y, draw: () => g.drawImage(this.lantern.img, lantern.x - this.lantern.ax, lantern.y - this.lantern.ay) })
+    const prop = (img: HTMLCanvasElement, x: number, y: number) => (n: CanvasRenderingContext2D) => n.drawImage(normalMapFor(img), x, y)
+    items.push({ y: tree.y, draw: () => g.drawImage(this.tree.img, tree.x - this.tree.ax, tree.y - this.tree.ay), norm: prop(this.tree.img, tree.x - this.tree.ax, tree.y - this.tree.ay) })
+    items.push({ y: bush.y, draw: () => g.drawImage(this.bush.img, bush.x - this.bush.ax, bush.y - this.bush.ay), norm: prop(this.bush.img, bush.x - this.bush.ax, bush.y - this.bush.ay) })
+    items.push({ y: lantern.y, draw: () => g.drawImage(this.lantern.img, lantern.x - this.lantern.ax, lantern.y - this.lantern.ay), norm: prop(this.lantern.img, lantern.x - this.lantern.ax, lantern.y - this.lantern.ay) })
     for (const tf of this.tufts) items.push({ y: tf.y, draw: () => this.drawTuft(g, tf) })
     for (const d of this.decor) {
       // flat ground pieces (no footprint) sit under everything
       items.push({
         y: d.art.r ? d.y : -1,
+        norm: d.art.r ? prop(d.art.img, d.x - d.art.ax, d.y - d.art.ay) : undefined,
         draw: () => {
           g.drawImage(d.art.img, d.x - d.art.ax, d.y - d.art.ay)
           // moving parts that are not light (windmill sails) take the day/night grade
@@ -314,6 +322,7 @@ export class Scene {
       if (!art) continue
       items.push({
         y: art.flat ? -2 : h.y,
+        norm: art.flat ? undefined : prop(art.img, h.x - art.ax, h.y - art.ay),
         draw: () => {
           g.drawImage(art.img, h.x - art.ax, h.y - art.ay)
           art.live?.(g, h.x, h.y, this.time)
@@ -329,9 +338,26 @@ export class Scene {
       const img = FIND_IMG[f.kind]
       items.push({ y: f.y, draw: () => g.drawImage(img, Math.round(f.x - img.width / 2), Math.round(f.y - img.height)) })
     }
-    for (const c of this.creatures) items.push({ y: c.y, draw: () => c.draw(g) })
+    for (const c of this.creatures)
+      items.push({
+        y: c.y,
+        draw: () => c.draw(g),
+        norm: (n) => {
+          if (c.state === 'gone' || c.hidden) return
+          const { a, t, loop } = c.currentAnim()
+          const dir = c.state === 'sleep' || c.state === 'lay' ? (a.rows === 1 ? 0 : c.dir) : c.dir
+          drawFrame(n, { ...a, img: normalMapFor(a.img) as unknown as HTMLImageElement }, frameAt(a, t, loop), dir, c.x, c.y)
+        },
+      })
     items.sort((a, b) => a.y - b.y)
     for (const it of items) it.draw()
+
+    // after dark: real lights instead of a flat tint (lighting.ts)
+    const lit = night > 0.04
+    if (lit) {
+      const n = this.normals()
+      for (const it of items) it.norm?.(n)
+    }
 
     // light: multiply the whole scene by the hour's colour
     if (this.float) {
@@ -343,11 +369,19 @@ export class Scene {
       mg.clearRect(0, 0, W, H)
       mg.drawImage(g.canvas, 0, 0)
     }
-    g.globalCompositeOperation = 'multiply'
-    g.fillStyle = lightAt(this.hour)
-    g.fillRect(0, 0, W, H)
+    if (lit) {
+      const [r0, g0, b0] = lightAt(this.hour).match(/\d+/g)!.map(Number)
+      // the night ambient, deepened so lights can read against it
+      const deep = 1 - 0.5 * night
+      applyLighting(g, this.ncv.getContext('2d', { willReadFrequently: true })!, [(r0 / 255) * deep, (g0 / 255) * deep, (b0 / 255) * deep], this.lights(night))
+    } else {
+      g.globalCompositeOperation = 'multiply'
+      g.fillStyle = lightAt(this.hour)
+      g.fillRect(0, 0, W, H)
+    }
+    g.globalCompositeOperation = 'source-over'
     this.drawWeather(g)
-    if (this.float) {
+    if (this.float && !lit) {
       g.globalCompositeOperation = 'destination-in'
       g.drawImage(this.mask, 0, 0)
     }
@@ -361,8 +395,8 @@ export class Scene {
       g.globalCompositeOperation = 'lighter'
       const r = 30
       const grad = g.createRadialGradient(fx, fy, 0, fx, fy, r)
-      grad.addColorStop(0, `rgba(255, 190, 110, ${0.34 * night * breath})`)
-      grad.addColorStop(0.35, `rgba(255, 160, 80, ${0.12 * night * breath})`)
+      grad.addColorStop(0, `rgba(255, 190, 110, ${0.14 * night * breath})`)
+      grad.addColorStop(0.35, `rgba(255, 160, 80, ${0.05 * night * breath})`)
       grad.addColorStop(1, 'rgba(255, 140, 60, 0)')
       g.fillStyle = grad
       g.fillRect(fx - r, fy - r, r * 2, r * 2)
@@ -399,8 +433,8 @@ export class Scene {
         const breath = 0.88 + 0.12 * Math.sin((this.time * Math.PI * 2) / 9 + d.x)
         g.globalCompositeOperation = 'lighter'
         const grad = g.createRadialGradient(cx, cy, 0, cx, cy, gl.r)
-        grad.addColorStop(0, `rgba(${gl.rgb}, ${0.3 * night * breath})`)
-        grad.addColorStop(0.4, `rgba(${gl.rgb}, ${0.1 * night * breath})`)
+        grad.addColorStop(0, `rgba(${gl.rgb}, ${0.12 * night * breath})`)
+        grad.addColorStop(0.4, `rgba(${gl.rgb}, ${0.04 * night * breath})`)
         grad.addColorStop(1, `rgba(${gl.rgb}, 0)`)
         g.fillStyle = grad
         g.fillRect(cx - gl.r, cy - gl.r, gl.r * 2, gl.r * 2)
@@ -439,6 +473,53 @@ export class Scene {
         g.fillRect(x + 3, y + 6, 1, 1)
       }
     this.overlay?.(g)
+  }
+
+  /** The normals buffer for this frame, starting from the island's own (flat top, cliff faces turned south). */
+  private normals() {
+    if (this.ncv.width !== W) {
+      this.ncv.width = W
+      this.ncv.height = H
+    }
+    const n = this.ncv.getContext('2d', { willReadFrequently: true })!
+    if (!this.baseN) {
+      const b = document.createElement('canvas')
+      b.width = W
+      b.height = H
+      const bg = b.getContext('2d')!
+      bg.fillStyle = FLAT
+      bg.fillRect(0, 0, W, H)
+      // the cliff face below the grass leans toward the viewer (south)
+      const top = this.island.top
+      const fp = this.island.footprint
+      bg.fillStyle = 'rgb(128,200,200)'
+      for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (fp[y * W + x] && !top[y * W + x]) bg.fillRect(x, y, 1, 1)
+      this.baseN = b
+    }
+    n.globalCompositeOperation = 'source-over'
+    n.drawImage(this.baseN, 0, 0)
+    return n
+  }
+  /** Every light on the island right now: lanterns, the campfire, fire-type Pokémon. */
+  private lights(night: number): Light[] {
+    const out: Light[] = []
+    const t = this.time
+    const k = Math.min(1, night * 1.4)
+    const warm: [number, number, number] = [1, 0.66, 0.36]
+    const L = this.island.lantern
+    out.push({ x: L.x - this.lantern.ax + this.lantern.flame.x, y: L.y - this.lantern.ay + this.lantern.flame.y + 4, z: 14, r: 46, color: warm, power: 1.7 * k * (0.94 + 0.06 * Math.sin((t * Math.PI * 2) / 9)) })
+    for (const d of this.decor) {
+      const gl = d.art.glow
+      if (!gl) continue
+      const fire = gl.r >= 28
+      const flick = fire ? 0.88 + 0.08 * Math.sin(t * 2.3 + d.x) + 0.04 * Math.sin(t * 5.1) : 0.95 + 0.05 * Math.sin((t * Math.PI * 2) / 9)
+      out.push({ x: d.x + gl.x, y: d.y + gl.y + 3, z: fire ? 10 : 14, r: fire ? 62 : 44, color: fire ? [1, 0.56, 0.26] : warm, power: (fire ? 2.1 : 1.5) * k * flick })
+    }
+    for (const c of this.creatures) {
+      if (c.state === 'gone' || c.hidden || !this.glowDex.has(c.sp.dex)) continue
+      out.push({ x: c.x, y: c.y - 8, z: 12, r: 34, color: [1, 0.6, 0.3], power: 1.2 * k * (0.92 + 0.08 * Math.sin(t * 3 + c.x)) })
+    }
+    return out
   }
 
   /** A straw nest; eggs close to hatching rock gently. */

@@ -11,7 +11,7 @@ import { CatchAnim } from './catch'
 import { Hud, fmtMinutes } from './hud'
 import { H, W, seaCss, useIsland } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
-import { NEST, Scene } from './scene'
+import { NEST, Scene, nightness } from './scene'
 import { Manifest, Species, loadManifest, loadSpecies } from './sprites'
 
 const STARTERS = [1, 4, 7]
@@ -46,7 +46,7 @@ const win = app.querySelector<HTMLElement>('.window')!
 const canvas = app.querySelector<HTMLCanvasElement>('canvas.stage')!
 canvas.width = W
 canvas.height = H
-const g = canvas.getContext('2d')!
+const g = canvas.getContext('2d', { willReadFrequently: true })! // the night lighting pass reads it back each frame
 
 // ---------- state ----------
 let manifest: Manifest
@@ -1019,6 +1019,7 @@ const presence: PresenceHandlers = {
 let host: Window = window
 let last = performance.now()
 let lastFrameAt = last
+let lastRenderAt = 0
 
 function tick(dt: number) {
   const target = hourOverride ?? clockHour()
@@ -1034,7 +1035,11 @@ function frame(now: number) {
   const dt = Math.min(0.1, (now - last) / 1000)
   last = now
   tick(dt)
-  scene.render(g, dt)
+  // night frames carry a per-pixel lighting pass, so draw them at 30 fps
+  if (nightness(scene.hour) <= 0.04 || now - lastRenderAt >= 32) {
+    lastRenderAt = now
+    scene.render(g, dt)
+  }
   hud?.update()
 }
 function raf(now: number) {
@@ -1239,6 +1244,8 @@ async function boot() {
   const [m, roster] = await Promise.all([loadManifest(), fetch(import.meta.env.BASE_URL + `data/roster.json?v=${__BUILD__}`).then((r) => r.json())])
   manifest = m
   game = new Game((roster as { species: Roster }).species)
+  // fire types light up the dark around them
+  for (const [k, sp] of Object.entries((roster as { species: Roster }).species)) if (sp.types?.includes('fire')) scene.glowDex.add(k.padStart(4, '0'))
   scene.hour = clockHour()
 
   hud = new Hud(

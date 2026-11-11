@@ -183,6 +183,34 @@ These were chosen while building stage 2, since the interview left them open.
   - Gifts arrive at the friend's next break, or when they open the island, with "Mina sent you Pikachu!". A gifted egg waits for room in the nest.
 - **Trades:** a two-sided trade (offer one, ask for one) is not built. Gifts cover sending both ways.
 
+## Stage 6: dungeons, real lighting, and a map editor (planned 2026-11-11)
+
+Paul's direction: PokéSurvivor's real-time, move-and-attack feel (from his recordings), but in set dungeons rather than endless waves. Night lighting should feel real, like the Moonfell pixel lighter. He also wants a whiteboard-style map editor for making dungeons.
+
+**Decisions (Paul, 2026-11-11):**
+- **Controls:** WASD or arrow keys to move. The lead attacks the nearest enemy on its own with its type's move, and keys 1 and 2 fire two stronger moves on cooldowns.
+- **Party:** you steer the lead, and the other two party members follow and fight on their own. Tab switches who you control.
+- **Guardians:** each island's gate becomes a dungeon with the guardian as the boss in the last room. Clearing it replaces the auto-battle.
+- **EXP:** dungeons give no EXP. Levels come only from focus, so a dungeon of level-20 Pokémon means studying and building a team first. Dungeons give items, Star Pieces and the unlock.
+
+**Build order:**
+1. **Lighting.**
+   - Per-pixel 2D lighting like the Moonfell tool. Every sprite and prop gets a normal map generated from its silhouette.
+   - Lights (lanterns, the campfire, the pier lantern, fire-type Pokémon, dungeon torches) shade each pixel by how it faces the light, with distance falloff and a dark, cool ambient at night.
+   - Pokémon next to a fire light up on the side facing it.
+   - Computed on the CPU at 240×180, only at dusk, at night and in dungeons.
+2. **Map editor** (`editor.html` in this repo):
+   - A pannable, zoomable board on a 16 px grid.
+   - A palette of tiles (floor, wall, water, grass, dirt) and preset stamps (rooms, corridors, a pond room, a boss arena).
+   - Props (trees, rocks, torches) and entities (enemy with species and level, boss, start, exit, item).
+   - Drag to place, select, move, duplicate, delete, undo. An inspector for the selected entity.
+   - Saved in the browser, with export and import as JSON, and a Play test button.
+3. **Dungeon runtime:**
+   - Loads an editor map. Tile collision and a camera that follows the lead.
+   - Enemies that wake and chase, moves from the type chart, damage numbers, HP, a boss room.
+   - Win or carried out. It is entered from a stone gate on the island, between sessions only.
+4. **The first dungeon**, built in the editor: the gate to Frost Isle, with level-20 Pokémon and Snorlax as the boss.
+
 ## Still open
 
 - Which 50 species the first island holds, and its guardian.
