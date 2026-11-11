@@ -12,7 +12,7 @@ const CLIFF = 7
 
 export const PAL = {
   deep: hex('#3f86bf'),
-  abyss: hex('#2b659e'), // the open sea past the island's water: darker, so it reads as out of reach
+  abyss: hex('#1d4a7c'), // the open sea past the island's water: darker, so it reads as out of reach
   sea: hex('#4c98cd'),
   seaRipple: hex('#58a3d4'),
   shallow: hex('#67b6da'),
@@ -79,7 +79,7 @@ export const TUFT = { out: '#24602c', dark: '#3b8735', mid: '#4fa13f', light: '#
 export function useIsland(id: string) {
   if (id !== 'frost') return
   const F: Partial<Record<keyof typeof PAL, string>> = {
-    deep: '#2a6fae', abyss: '#1c5088', sea: '#3580c2', seaRipple: '#438dca', shallow: '#68b4dc', shallow2: '#a6daf0', foam: '#f4fbff',
+    deep: '#2a6fae', abyss: '#123866', sea: '#3580c2', seaRipple: '#438dca', shallow: '#68b4dc', shallow2: '#a6daf0', foam: '#f4fbff',
     sandLight: '#eef3f8', sand: '#dbe4ee', sandDark: '#bfcbd9', cliffTop: '#b9c7d6', earth: '#8a9bb0', earthDark: '#6a7b92', earthWet: '#4b5a71',
     grassLight: '#f7fbfe', grass: '#e6eff7', grassDark: '#cbdcea', grassDeep: '#aac3d9',
     leaf: '#2d6a5a', leafMid: '#3d816f', leafLight: '#e8f2f7', leafDeep: '#1d4a3f', trunk: '#6e4e38', trunkDark: '#4c3424',
@@ -167,6 +167,7 @@ export function buildIsland(): IslandLayout {
   const p = new Pix(W, H)
 
   // ---------- water ----------
+  const DUSK: RGB = [0, 1, 2].map((i) => Math.round((PAL.deep[i] + PAL.abyss[i]) / 2)) as RGB
   for (let y = 0; y < H; y++)
     for (let x = 0; x < W; x++) {
       if (footprint[y * W + x]) continue
@@ -177,7 +178,9 @@ export function buildIsland(): IslandLayout {
       const edge = Math.min(x, W - 1 - x, y, H - 1 - y)
       const dith = bayer(x, y) - 0.5
       let c: RGB = r + dith * 0.1 > 0.84 ? PAL.deep : PAL.sea
-      if (r + dith * 0.12 > 0.98 || edge + dith * 8 < 6) c = PAL.abyss
+      // one in-between shade, so the step down to the dark open sea is gradual
+      if (r + dith * 0.1 > 0.93 || edge + dith * 8 < 11) c = DUSK
+      if (r + dith * 0.1 > 1.01 || edge + dith * 8 < 6) c = PAL.abyss
       // faint static ripples
       if (hash2(x >> 2, y, 17) < 0.035 && (x & 3) !== 3 && d > 8 && c !== PAL.abyss) c = PAL.seaRipple
       if (d < 12) c = d + bayer(x, y) * 3 < 9 ? (d < 4 + bayer(x + 1, y) * 2 ? PAL.shallow2 : PAL.shallow) : c
