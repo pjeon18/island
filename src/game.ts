@@ -1,3 +1,5 @@
+import { simulate } from './battle'
+
 // The rules, kept apart from drawing. docs/GAME_DESIGN.md is the loop (stage 1,
 // catching: passers-by arrive while you focus and wait for your break, balls
 // come from the shop, a throw's odds depend on the ball and the timing ring).
@@ -21,6 +23,8 @@ export interface SpeciesInfo {
   types?: string[]
   needs?: Habitat // a habitat that must be built before it comes at all
   time?: 'night' | 'morning' // night: only at night; morning: likelier from 5 to 10
+  islands?: IslandId[] // where it passes by (default: home)
+  guardian?: IslandId // this island's guardian: never passes by
   evolvesTo: Evolution[]
   stage: number
   line: number
@@ -76,8 +80,32 @@ export interface Find {
   x?: number
   y?: number
 }
-export type Weather = 'clear' | 'rain' | 'fog' | 'sun'
-export type Habitat = 'pond' | 'rocks' | 'grass'
+export type Weather = 'clear' | 'rain' | 'fog' | 'sun' | 'snow'
+export type Habitat = 'pond' | 'rocks' | 'grass' | 'cave'
+
+// ---------- islands (stage 4) ----------
+export type IslandId = 'home' | 'frost'
+export const ISLANDS: {
+  id: IslandId
+  name: string
+  guardian: { dex: number; level: number; where: string }
+  unlock?: { from: IslandId; share: number; hours: number }
+}[] = [
+  { id: 'home', name: 'Home Island', guardian: { dex: 143, level: 35, where: 'asleep across the end of the pier' } },
+  { id: 'frost', name: 'Frost Isle', guardian: { dex: 131, level: 45, where: 'resting in the water by the pier' }, unlock: { from: 'home', share: 0.7, hours: 20 } },
+]
+/** The island grows with your total focused hours. */
+export const GROWTH: { hours: number; text: string }[] = [
+  { hours: 3, text: 'Two more decoration spots' },
+  { hours: 10, text: 'A cave can be dug into the cliff' },
+]
+/** Each island keeps its own habitats, decorations, finds and food. */
+export interface IslandState {
+  habitats: Habitat[]
+  decor: { owned: string[]; slots: Record<string, string | null> }
+  finds: Find[]
+  bait: string | null
+}
 
 // ---------- helpers: eggs, Day Care, jobs, expeditions (stage 3) ----------
 export interface Egg {
@@ -121,7 +149,9 @@ export const HABITATS: { id: Habitat; name: string; stars: number; shells: numbe
   { id: 'grass', name: 'Tall grass', stars: 2, shells: 60, types: ['bug', 'grass'] },
   { id: 'rocks', name: 'Rocks', stars: 2, shells: 80, types: ['rock', 'ground'] },
   { id: 'pond', name: 'Pond', stars: 3, shells: 100, types: ['water'] },
+  { id: 'cave', name: 'Cave', stars: 3, shells: 120, types: ['rock', 'ghost', 'poison', 'dark'] },
 ]
+export const HABITAT_HOURS: Partial<Record<Habitat, number>> = { cave: 10 }
 /** Food you set out before a session; it is eaten when the session ends. */
 export const FOODS: { id: string; name: string; price: number; types: string[] }[] = [
   { id: 'honey', name: 'Honey', price: 15, types: ['bug', 'grass', 'flying'] },
@@ -129,7 +159,7 @@ export const FOODS: { id: string; name: string; price: number; types: string[] }
   { id: 'pecha-berry', name: 'Pecha Berry', price: 15, types: ['water', 'ground', 'normal'] },
   { id: 'chesto-berry', name: 'Chesto Berry', price: 15, types: ['ghost', 'dark', 'psychic'] },
 ]
-export const WEATHER_TYPES: Record<Weather, string[]> = { clear: [], rain: ['water', 'electric'], sun: ['grass', 'fire'], fog: ['ghost', 'normal', 'psychic'] }
+export const WEATHER_TYPES: Record<Weather, string[]> = { clear: [], rain: ['water', 'electric'], sun: ['grass', 'fire'], fog: ['ghost', 'normal', 'psychic'], snow: ['ice', 'water'] }
 /** Each decoration has a few Pokémon that love it. */
 export const DECOR_LOVES: Record<string, number[]> = {
   flowers: [43, 187, 1],
@@ -185,6 +215,9 @@ export interface Save {
   jobProgress: Partial<Record<JobId, number>>
   expedition: Expedition | null
   carry: Record<string, number> // half-EXP remainders for helpers
+  island: IslandId
+  stash: Partial<Record<IslandId, IslandState>>
+  guardians: IslandId[] // beaten
 }
 
 export const PARTY_MAX = 3
@@ -265,6 +298,9 @@ export function emptySave(): Save {
     jobProgress: {},
     expedition: null,
     carry: {},
+    island: 'home',
+    stash: {},
+    guardians: [],
   }
 }
 
@@ -313,6 +349,8 @@ export type GameEvent =
   | { type: 'expeditionOut'; mon: Mon }
   | { type: 'expeditionBack'; mon: Mon; haul: Haul }
   | { type: 'rolesChanged' }
+  | { type: 'sail'; to: IslandId }
+  | { type: 'guardian'; island: IslandId; win: boolean }
 
 export class Game {
   save: Save
@@ -704,10 +742,91 @@ export class Game {
     return notes
   }
 
+  // ---------- islands ----------
+  totalHours() {
+    return Object.values(this.save.days).reduce((a, b) => a + b, 0) / 60
+  }
+  get islandDef() {
+    return ISLANDS.find((i) => i.id === this.save.island)!
+  }
+  /** Every species that lives on an island (all stages), and how many you have caught. */
+  dexOf(island: IslandId) {
+    const all = Object.entries(this.roster)
+      .filter(([, s]) => (s.islands ?? ['home']).includes(island))
+      .map(([k]) => Number(k))
+    const caught = all.filter((d) => this.save.caught.includes(d)).length
+    return { all, caught, share: all.length ? caught / all.length : 0 }
+  }
+  /** What still stands between you and an island. Empty means you can sail. */
+  sailNeeds(to: IslandId) {
+    const def = ISLANDS.find((i) => i.id === to)!
+    const u = def.unlock
+    if (!u) return []
+    const out: { text: string; done: boolean }[] = []
+    const g = ISLANDS.find((i) => i.id === u.from)!.guardian
+    out.push({ text: `Beat ${this.name(g.dex)}`, done: this.save.guardians.includes(u.from) })
+    const dex = this.dexOf(u.from)
+    const need = Math.ceil(dex.all.length * u.share)
+    out.push({ text: `Catch ${need} of ${dex.all.length} (${dex.caught})`, done: dex.caught >= need })
+    out.push({ text: `Focus ${u.hours} hours (${Math.floor(this.totalHours())})`, done: this.totalHours() >= u.hours })
+    return out
+  }
+  canSail(to: IslandId) {
+    if (to === this.save.island || this.save.session) return false
+    // once you have been somewhere you can always sail back
+    if (this.save.stash[to] || to === 'home') return true
+    return this.sailNeeds(to).every((n) => n.done)
+  }
+  /** Travel between sessions. Your Pokémon, eggs and helpers come along; the island's own things stay. */
+  sail(to: IslandId) {
+    if (!this.canSail(to)) return false
+    const s = this.save
+    s.stash[s.island] = { habitats: s.habitats, decor: s.decor, finds: s.finds, bait: s.bait }
+    // jobs tied to a decoration on the island you leave stop until you return
+    const next = s.stash[to] ?? { habitats: [], decor: { owned: s.decor.owned, slots: {} }, finds: [], bait: null }
+    s.habitats = next.habitats
+    s.decor = { owned: s.decor.owned, slots: next.decor.slots }
+    s.finds = next.finds
+    s.bait = next.bait
+    s.wild = []
+    s.island = to
+    this.persist()
+    this.emit({ type: 'sail', to })
+    return true
+  }
+  /** Decoration spots open with focused hours (decor.ts SLOTS minHours). */
+  hoursOk(minHours?: number) {
+    return !minHours || this.totalHours() >= minHours
+  }
+
+  /** Challenge this island's guardian with the party. Decided up front, played back by the battle window. */
+  challenge(rand = Math.random) {
+    const isl = this.islandDef
+    if (this.save.session || this.save.guardians.includes(isl.id)) return null
+    const team = this.party.map((m) => ({ name: this.name(m), dex: m.dex, level: m.level, types: this.species(m.dex)?.types ?? ['normal'] }))
+    const g = isl.guardian
+    const foe = { name: this.name(g.dex), dex: g.dex, level: g.level, types: this.species(g.dex)?.types ?? ['normal'] }
+    const result = simulate(team, foe, rand)
+    if (result.win) {
+      this.save.guardians.push(isl.id)
+      this.save.starPieces += 3
+      this.persist()
+    }
+    this.emit({ type: 'guardian', island: isl.id, win: result.win })
+    return result
+  }
+  /** After a win the guardian wakes and joins you (called when the battle has played out). */
+  guardianJoins() {
+    const g = this.islandDef.guardian
+    if (!this.save.guardians.includes(this.islandDef.id) || this.save.mons.some((m) => m.dex === g.dex)) return null
+    return this.addMon(g.dex, g.level - 5)
+  }
+
   // ---------- habitats and food ----------
   buildHabitat(id: Habitat) {
     const h = HABITATS.find((x) => x.id === id)
     if (!h || this.save.session || this.save.habitats.includes(id)) return false
+    if (!this.hoursOk(HABITAT_HOURS[id])) return false
     if (this.save.starPieces < h.stars || this.save.shells < h.shells) return false
     this.save.starPieces -= h.stars
     this.save.shells -= h.shells
@@ -893,7 +1012,7 @@ export class Game {
       s.nextWeather += WEATHER_EVERY
       if (this.save.weather.until < this.now() && rand() < 0.45) {
         const r = rand()
-        const kind: Weather = r < 0.45 ? 'rain' : r < 0.7 ? 'fog' : 'sun'
+        const kind: Weather = r < 0.45 ? (this.save.island === 'frost' ? 'snow' : 'rain') : r < 0.7 ? 'fog' : 'sun'
         this.save.weather = { kind, until: this.now() + (10 + rand() * 15) * 60 * 1000 }
         this.persist()
         this.emit({ type: 'weather', kind })
@@ -1076,7 +1195,8 @@ export class Game {
     const bait = FOODS.find((f) => f.id === lure.bait)
     const table: { dex: number; w: number; rarity: Rarity }[] = []
     for (const [k, s] of Object.entries(this.roster)) {
-      if (s.stage !== 1 || !s.rarity) continue
+      if (s.stage !== 1 || !s.rarity || s.guardian) continue
+      if (!(s.islands ?? ['home']).includes(this.save.island)) continue
       const dex = Number(k)
       if (s.rarity === 'starter' && dex === starterLine) continue
       // gates: a habitat it needs, night-only, rare ones only in long sessions
@@ -1093,7 +1213,7 @@ export class Game {
       if (s.time === 'morning' && morning) w *= 2
       table.push({ dex, w, rarity: s.rarity })
     }
-    if (!table.length) table.push({ dex: 16, w: 1, rarity: 'common' })
+    if (!table.length) table.push({ dex: 54, w: 1, rarity: 'common' })
     const total = table.reduce((a, b) => a + b.w, 0)
     let r = rand() * total
     let pick = table[0]

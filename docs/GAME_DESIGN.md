@@ -95,7 +95,7 @@ Paul wants all four parts. They build in this order because each one feeds the n
    - The first buildable habitats: a pond, tall grass and rocks.
    - The island's curated Pokédex of about 50 species.
 3. **Eggs, Day Care, island jobs and expeditions.** Built 2026-11-11 with the defaults below (friends' egg gifts wait for stage 5).
-4. **Island growth, the guardian battle and the second island**, with the three unlock conditions.
+4. **Island growth, the guardian battle and the second island**, with the three unlock conditions. Built 2026-11-11 with the defaults below.
 5. **Friends:** visits, trading and gifting, and the study-together bonus. This needs new server functions on Studdy's Supabase, which Paul runs.
 
 ## Stage 2 defaults (Paul can change any of these)
@@ -147,6 +147,24 @@ These were chosen while building stage 2, since the interview left them open.
 - **Expeditions:** one at a time, 30 or 90 focused minutes. The Pokémon walks off down the pier and comes back with:
   - shells (10 + level×2, or 30 + level×4 on a long trip) and 1 to 4 items: berries, balls, food;
   - on a long trip, sometimes a Star Piece (30% plus level/200) or an egg.
+
+## Stage 4 defaults (Paul can change any of these)
+
+- **Guardians:**
+  - Home Island's guardian is a Snorlax (level 35) asleep across the end of the pier. Frost Isle's is a Lapras (level 45) resting in the water by its pier. Tap one, or use Battle in the Town Map menu, between sessions.
+  - The party fights automatically, one Pokémon at a time. Moves are named after each Pokémon's types (Gust, Water Gun…) and use the standard type chart.
+  - The result is decided before it plays back in a FireRed-style battle window, and Skip jumps to the end.
+  - Balance: a level-33 party wins about half the time, level 35 almost always, and a good type matchup makes up several levels (three Fighting-type Poliwrath win at level 30).
+  - A loss costs nothing. A win gives 3 Star Pieces, and the guardian joins you five levels lower.
+- **Frost Isle:**
+  - The same island shape under snow: snowy tree, frosted grass, a colder sea, and snow instead of rain.
+  - 31 species: Swinub, Snorunt (night), Spheal, Delibird (mornings), Seel (needs the pond), Shellder (needs the rocks), Smoochum, Snover, Sneasel (night), Piplup (rare), plus Psyduck and Eevee from home.
+- **Sailing:** Frost Isle opens when you have beaten Snorlax, caught 70% of the home Pokédex (41 of 58) and focused 20 hours in total.
+  - You sail from the Town Map menu between sessions. The screen fades to sea, and the page reloads on the other island.
+  - Your Pokémon, eggs, helpers, items and owned decorations travel with you.
+  - Each island keeps its own habitats, placed decorations, finds and food. Waiting Pokémon leave when you sail.
+  - Once you have been to an island you can always sail back.
+- **Home Island grows:** two more decoration spots at 3 focused hours, and the Cave habitat (3 Star Pieces and 120 shells) at 10 hours. The cave draws rock, ghost, poison and dark types. Zubat needs it, and cave Pokémon come out of its mouth.
 
 ## Still open
 

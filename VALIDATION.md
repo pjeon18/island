@@ -1,5 +1,21 @@
 # Validation
 
+## Stage 4, guardians, growth and Frost Isle (2026-11-11)
+
+- **Roster:** 79 species. Every Frost Isle species, Zubat's line, Snorlax and Lapras have PMD sprites.
+- **Snorlax** sleeps at the end of the pier (with z's). The lookout helper stands mid-pier. Tapping Snorlax asks to battle.
+- **Battle balance:** sampled 300 battles per setup.
+  - Party at level 28 or 31: 0% wins.
+  - Level 33: 56%. Level 35: 99%. Level 38: 100%.
+  - Three Poliwrath (Water/Fighting) at level 30: 100%.
+- **The battle window** played through with move names, HP bars (green, yellow, red) and hit shakes. Skip worked. The win gave +3 Star Pieces, and "Snorlax joined you and went to your box." (party full; it joined at level 30).
+- **Islands menu:**
+  - It shows the island, its Pokédex and hours, the guardian, growth milestones with checkboxes, and Frost Isle's three conditions.
+  - Sail stays disabled until all three are met (checked before and after filling them with debug controls).
+- **Sailing** faded out and loaded Frost Isle: snow palette, Lapras by the pier, a 31-species Pokédex, and an empty set of habitats. Sailing back restored Home Island's habitats and decorations, and Snorlax stayed gone.
+- **Growth:** spots g and h open at 3 hours. The cave is built from the menu at 10 hours, sits on the south-west shore, and draws Zubat (3.2% with all lures as they were).
+- **Font:** Press Start 2P has no ✓ glyph, so milestone checks are drawn checkboxes.
+
 ## Stage 3, eggs and helpers (2026-11-11)
 
 Checked in the browser with `?debug` and `__island.step()`:

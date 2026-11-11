@@ -33,7 +33,7 @@ Read `docs/GAME_DESIGN.md` first: it is the game loop and core features from Pau
 - `?popout` shows the window-only view. `?float` previews the desktop-pet mode in a browser.
 - `npm run desktop` runs the Tauri app, and `npm run desktop:build` builds the .app and .dmg. Both need Rust.
 - `.env` (gitignored) holds Studdy's public Supabase URL, anon key and Turnstile site key. Without it, the online part switches off.
-- `?debug` adds demo controls below the window, including passer-by now, a find now, +5 of each ball, and the weather: add focused minutes, finish the session, a visitor, the lead ready to evolve, an ask or idle prompt, screen lock, activity, a sleep gap, the hour, and reset.
+- `?debug` adds demo controls below the window, including +5 focused hours, party to Lv 34, catch 70% of this dex, passer-by now, a find now, +5 of each ball, and the weather: add focused minutes, finish the session, a visitor, the lead ready to evolve, an ask or idle prompt, screen lock, activity, a sleep gap, the hour, and reset.
 
 ## Map
 - `src/island.ts`: the island, painted pixel by pixel into a static base (`PAL`, `buildIsland`), plus the props: tree, bush and lantern.
@@ -55,6 +55,7 @@ Read `docs/GAME_DESIGN.md` first: it is the game loop and core features from Pau
   - Waves arrive at your next break.
   - Every call no-ops politely when the island's tables are missing (the `missingSchema` state).
 - Stage 3 helpers live in `game.ts`: `roleOf`/`assign` (party, box, daycare, `job:*`, expedition), `work(n)` per focused minute (eggs, Day Care, `JOBS`, the expedition), `addEgg`/`hatch`, half EXP for helpers in `giveExp`. In `main.ts`: `anchorFor`/`applyAnchors` keep helpers at their work, `NEST` (scene.ts) holds eggs, and `spawnNext` puts a hatchling at the nest.
+- Stage 4: `src/battle.ts` (type chart, `simulate`, guardian stats), `game.ts` `ISLANDS`/`sail`/`sailNeeds`/`dexOf`/`challenge`/`guardianJoins`/`stash` (per-island habitats, decor slots, finds, food), and `island.ts` `useIsland('frost')` (palette swap applied before the Scene is built; travel reloads the page). The guardian creature is `guardianC` in main.ts.
 - `src/habitats.ts`: stage 2. The fixed habitat spots (`HABITAT_SPOTS`), the pond and rocks art, and the food dish. The spawn rules live in `game.ts`: `HABITATS`, `FOODS`, `DECOR_LOVES`, `WEATHER_TYPES`, `lure()` and `pickVisitor` (gates first, then multipliers), plus `lureNotes` for the Pokédex. The roster's lure data (`needs`, `time`) is in `scripts/roster.mjs`.
 - `src/catch.ts`: the throw on the canvas (stage 1): the breathing ring coloured by the odds, the ball's arc, entering, wobbles, stars or a break-free. `main.ts` owns the flow (`openCatch`, `throwNow`, `finishCatch`, `spawnWild`, `digUp`, `partyLife`); the rules are in `game.ts` (`passerBy`, `dig`, `collectFind`, `buyBall`, `catchChance`, `throwBall`, weather).
 - `src/decor.ts`: the decoration catalog, the six fixed `SLOTS`, and pixel-art painters, with a glow or live animation per item.

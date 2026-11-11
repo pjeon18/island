@@ -1,7 +1,7 @@
 // The living island: static base + y-sorted props and Pokémon + calm ambient
 // layers (water glints, lapping foam, swaying tall grass, day/night light).
 import { Creature } from './creature'
-import { H, IslandLayout, PAL, W, buildIsland, paintBush, paintLantern, paintTree } from './island'
+import { H, IslandLayout, PAL, TUFT, W, buildIsland, paintBush, paintLantern, paintTree } from './island'
 import { hash2, rng } from './pixel'
 import { DecorArt, SLOTS, decorArt } from './decor'
 import type { Species } from './sprites'
@@ -255,12 +255,16 @@ export class Scene {
       this.wk = Math.max(0, this.wk - dt / 4)
       if (this.wk === 0) this.shown = this.weather
     } else this.wk = Math.min(1, this.wk + dt / 4)
+    if (this.shown === 'snow' && this.wk > 0) {
+      while (this.drops.length < 90 * this.wk) this.drops.push({ x: this.rand() * W, y: -this.rand() * H, vy: 10 + this.rand() * 10, life: this.rand() * 6 })
+    }
     if (this.shown === 'rain' && this.wk > 0) {
       while (this.drops.length < 130 * this.wk) this.drops.push({ x: this.rand() * (W + 40), y: -this.rand() * H, vy: 70 + this.rand() * 30, life: 0 })
     }
     for (const d of this.drops) {
       d.y += d.vy * dt
-      d.x -= d.vy * 0.25 * dt
+      // rain slants; snow sways
+      d.x += this.shown === 'snow' ? Math.sin(this.time * 0.9 + d.life) * 4 * dt : -d.vy * 0.25 * dt
     }
     // when the rain eases off, the drops already falling finish their fall
     this.drops = this.drops.filter((d) => d.y < H + 4)
@@ -492,6 +496,16 @@ export class Scene {
         g.fillRect(px - r, py, 1, 1)
         g.fillRect(px + r, py, 1, 1)
       }
+    } else if (this.shown === 'snow') {
+      g.globalCompositeOperation = 'multiply'
+      g.fillStyle = `rgba(214, 226, 240, ${0.35 * k})`
+      g.fillRect(0, 0, W, H)
+      g.globalCompositeOperation = 'source-over'
+      for (const d of this.drops) {
+        g.fillStyle = `rgba(255, 255, 255, ${0.85 * k})`
+        const big = d.life > 4
+        g.fillRect(Math.round(d.x), Math.round(d.y), big ? 2 : 1, big ? 2 : 1)
+      }
     } else if (this.shown === 'fog') {
       // wide soft bands that drift sideways
       g.fillStyle = `rgba(226, 234, 242, ${0.38 * k})`
@@ -572,10 +586,10 @@ export class Scene {
     const calm = Math.sin(this.time * 0.8 + tf.phase) * 0.8
     const shake = r * Math.sin(this.time * 20 + tf.phase * 3) * 1.8
     const lean = calm + shake
-    const OUT = '#24602c'
-    const DARK = '#3b8735'
-    const MID = '#4fa13f'
-    const LIGHT = '#8ad35c'
+    const OUT = TUFT.out
+    const DARK = TUFT.dark
+    const MID = TUFT.mid
+    const LIGHT = TUFT.light
     const px = (x: number, y: number, c: string) => {
       g.fillStyle = c
       g.fillRect(x, y, 1, 1)

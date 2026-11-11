@@ -13,9 +13,12 @@
      "level": 16
     }
    ],
-   "rarity": "starter",
    "stage": 1,
-   "line": 1
+   "line": 1,
+   "islands": [
+    "home"
+   ],
+   "rarity": "starter"
   },
   "2": {
    "name": "Ivysaur",
@@ -30,7 +33,10 @@
     }
    ],
    "stage": 2,
-   "line": 1
+   "line": 1,
+   "islands": [
+    "home"
+   ]
   },
   "3": {
    "name": "Venusaur",
@@ -40,7 +46,10 @@
    ],
    "evolvesTo": [],
    "stage": 3,
-   "line": 1
+   "line": 1,
+   "islands": [
+    "home"
+   ]
   },
   "4": {
    "name": "Charmander",
@@ -53,9 +62,12 @@
      "level": 16
     }
    ],
-   "rarity": "starter",
    "stage": 1,
-   "line": 4
+   "line": 4,
+   "islands": [
+    "home"
+   ],
+   "rarity": "starter"
   },
   "5": {
    "name": "Charmeleon",
@@ -69,7 +81,10 @@
     }
    ],
    "stage": 2,
-   "line": 4
+   "line": 4,
+   "islands": [
+    "home"
+   ]
   },
   "6": {
    "name": "Charizard",
@@ -79,7 +94,10 @@
    ],
    "evolvesTo": [],
    "stage": 3,
-   "line": 4
+   "line": 4,
+   "islands": [
+    "home"
+   ]
   },
   "7": {
    "name": "Squirtle",
@@ -92,9 +110,12 @@
      "level": 16
     }
    ],
-   "rarity": "starter",
    "stage": 1,
-   "line": 7
+   "line": 7,
+   "islands": [
+    "home"
+   ],
+   "rarity": "starter"
   },
   "8": {
    "name": "Wartortle",
@@ -108,7 +129,10 @@
     }
    ],
    "stage": 2,
-   "line": 7
+   "line": 7,
+   "islands": [
+    "home"
+   ]
   },
   "9": {
    "name": "Blastoise",
@@ -117,7 +141,10 @@
    ],
    "evolvesTo": [],
    "stage": 3,
-   "line": 7
+   "line": 7,
+   "islands": [
+    "home"
+   ]
   },
   "10": {
    "name": "Caterpie",
@@ -130,9 +157,12 @@
      "level": 7
     }
    ],
-   "rarity": "common",
    "stage": 1,
-   "line": 10
+   "line": 10,
+   "islands": [
+    "home"
+   ],
+   "rarity": "common"
   },
   "11": {
    "name": "Metapod",
@@ -146,7 +176,10 @@
     }
    ],
    "stage": 2,
-   "line": 10
+   "line": 10,
+   "islands": [
+    "home"
+   ]
   },
   "12": {
    "name": "Butterfree",
@@ -156,7 +189,10 @@
    ],
    "evolvesTo": [],
    "stage": 3,
-   "line": 10
+   "line": 10,
+   "islands": [
+    "home"
+   ]
   },
   "16": {
    "name": "Pidgey",
@@ -170,9 +206,12 @@
      "level": 18
     }
    ],
-   "rarity": "common",
    "stage": 1,
    "line": 16,
+   "islands": [
+    "home"
+   ],
+   "rarity": "common",
    "time": "morning"
   },
   "17": {
@@ -188,7 +227,10 @@
     }
    ],
    "stage": 2,
-   "line": 16
+   "line": 16,
+   "islands": [
+    "home"
+   ]
   },
   "18": {
    "name": "Pidgeot",
@@ -198,7 +240,10 @@
    ],
    "evolvesTo": [],
    "stage": 3,
-   "line": 16
+   "line": 16,
+   "islands": [
+    "home"
+   ]
   },
   "25": {
    "name": "Pikachu",
@@ -211,9 +256,12 @@
      "item": "thunder-stone"
     }
    ],
-   "rarity": "uncommon",
    "stage": 1,
-   "line": 25
+   "line": 25,
+   "islands": [
+    "home"
+   ],
+   "rarity": "uncommon"
   },
   "26": {
    "name": "Raichu",
@@ -222,7 +270,49 @@
    ],
    "evolvesTo": [],
    "stage": 2,
-   "line": 25
+   "line": 25,
+   "islands": [
+    "home"
+   ]
+  },
+  "41": {
+   "name": "Zubat",
+   "types": [
+    "poison",
+    "flying"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 42,
+     "level": 22
+    }
+   ],
+   "stage": 1,
+   "line": 41,
+   "islands": [
+    "home"
+   ],
+   "rarity": "uncommon",
+   "needs": "cave"
+  },
+  "42": {
+   "name": "Golbat",
+   "types": [
+    "poison",
+    "flying"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 169,
+     "friendship": true,
+     "time": null
+    }
+   ],
+   "stage": 2,
+   "line": 41,
+   "islands": [
+    "home"
+   ]
   },
   "43": {
    "name": "Oddish",
@@ -236,9 +326,12 @@
      "level": 21
     }
    ],
-   "rarity": "common",
    "stage": 1,
-   "line": 43
+   "line": 43,
+   "islands": [
+    "home"
+   ],
+   "rarity": "common"
   },
   "44": {
    "name": "Gloom",
@@ -257,7 +350,10 @@
     }
    ],
    "stage": 2,
-   "line": 43
+   "line": 43,
+   "islands": [
+    "home"
+   ]
   },
   "45": {
    "name": "Vileplume",
@@ -267,7 +363,10 @@
    ],
    "evolvesTo": [],
    "stage": 3,
-   "line": 43
+   "line": 43,
+   "islands": [
+    "home"
+   ]
   },
   "54": {
    "name": "Psyduck",
@@ -280,9 +379,13 @@
      "level": 33
     }
    ],
-   "rarity": "common",
    "stage": 1,
-   "line": 54
+   "line": 54,
+   "islands": [
+    "home",
+    "frost"
+   ],
+   "rarity": "common"
   },
   "55": {
    "name": "Golduck",
@@ -291,7 +394,11 @@
    ],
    "evolvesTo": [],
    "stage": 2,
-   "line": 54
+   "line": 54,
+   "islands": [
+    "home",
+    "frost"
+   ]
   },
   "60": {
    "name": "Poliwag",
@@ -304,9 +411,12 @@
      "level": 25
     }
    ],
-   "rarity": "uncommon",
    "stage": 1,
    "line": 60,
+   "islands": [
+    "home"
+   ],
+   "rarity": "uncommon",
    "needs": "pond"
   },
   "61": {
@@ -321,7 +431,10 @@
     }
    ],
    "stage": 2,
-   "line": 60
+   "line": 60,
+   "islands": [
+    "home"
+   ]
   },
   "62": {
    "name": "Poliwrath",
@@ -331,7 +444,10 @@
    ],
    "evolvesTo": [],
    "stage": 3,
-   "line": 60
+   "line": 60,
+   "islands": [
+    "home"
+   ]
   },
   "74": {
    "name": "Geodude",
@@ -345,9 +461,12 @@
      "level": 25
     }
    ],
-   "rarity": "uncommon",
    "stage": 1,
    "line": 74,
+   "islands": [
+    "home"
+   ],
+   "rarity": "uncommon",
    "needs": "rocks"
   },
   "75": {
@@ -358,7 +477,74 @@
    ],
    "evolvesTo": [],
    "stage": 2,
-   "line": 74
+   "line": 74,
+   "islands": [
+    "home"
+   ]
+  },
+  "86": {
+   "name": "Seel",
+   "types": [
+    "water"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 87,
+     "level": 34
+    }
+   ],
+   "stage": 1,
+   "line": 86,
+   "islands": [
+    "frost"
+   ],
+   "rarity": "uncommon",
+   "needs": "pond"
+  },
+  "87": {
+   "name": "Dewgong",
+   "types": [
+    "water",
+    "ice"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 86,
+   "islands": [
+    "frost"
+   ]
+  },
+  "90": {
+   "name": "Shellder",
+   "types": [
+    "water"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 91,
+     "item": "water-stone"
+    }
+   ],
+   "stage": 1,
+   "line": 90,
+   "islands": [
+    "frost"
+   ],
+   "rarity": "uncommon",
+   "needs": "rocks"
+  },
+  "91": {
+   "name": "Cloyster",
+   "types": [
+    "water",
+    "ice"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 90,
+   "islands": [
+    "frost"
+   ]
   },
   "92": {
    "name": "Gastly",
@@ -372,9 +558,12 @@
      "level": 25
     }
    ],
-   "rarity": "uncommon",
    "stage": 1,
    "line": 92,
+   "islands": [
+    "home"
+   ],
+   "rarity": "uncommon",
    "time": "night"
   },
   "93": {
@@ -385,7 +574,37 @@
    ],
    "evolvesTo": [],
    "stage": 2,
-   "line": 92
+   "line": 92,
+   "islands": [
+    "home"
+   ]
+  },
+  "124": {
+   "name": "Jynx",
+   "types": [
+    "ice",
+    "psychic"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 238,
+   "islands": [
+    "frost"
+   ]
+  },
+  "131": {
+   "name": "Lapras",
+   "types": [
+    "water",
+    "ice"
+   ],
+   "evolvesTo": [],
+   "stage": 1,
+   "line": 131,
+   "islands": [
+    "frost"
+   ],
+   "guardian": "frost"
   },
   "133": {
    "name": "Eevee",
@@ -424,9 +643,13 @@
      "item": "ice-stone"
     }
    ],
-   "rarity": "rare",
    "stage": 1,
-   "line": 133
+   "line": 133,
+   "islands": [
+    "home",
+    "frost"
+   ],
+   "rarity": "rare"
   },
   "134": {
    "name": "Vaporeon",
@@ -435,7 +658,11 @@
    ],
    "evolvesTo": [],
    "stage": 2,
-   "line": 133
+   "line": 133,
+   "islands": [
+    "home",
+    "frost"
+   ]
   },
   "135": {
    "name": "Jolteon",
@@ -444,7 +671,11 @@
    ],
    "evolvesTo": [],
    "stage": 2,
-   "line": 133
+   "line": 133,
+   "islands": [
+    "home",
+    "frost"
+   ]
   },
   "136": {
    "name": "Flareon",
@@ -453,7 +684,24 @@
    ],
    "evolvesTo": [],
    "stage": 2,
-   "line": 133
+   "line": 133,
+   "islands": [
+    "home",
+    "frost"
+   ]
+  },
+  "143": {
+   "name": "Snorlax",
+   "types": [
+    "normal"
+   ],
+   "evolvesTo": [],
+   "stage": 1,
+   "line": 143,
+   "islands": [
+    "home"
+   ],
+   "guardian": "home"
   },
   "163": {
    "name": "Hoothoot",
@@ -467,9 +715,12 @@
      "level": 20
     }
    ],
-   "rarity": "common",
    "stage": 1,
    "line": 163,
+   "islands": [
+    "home"
+   ],
+   "rarity": "common",
    "time": "night"
   },
   "164": {
@@ -480,7 +731,23 @@
    ],
    "evolvesTo": [],
    "stage": 2,
-   "line": 163
+   "line": 163,
+   "islands": [
+    "home"
+   ]
+  },
+  "169": {
+   "name": "Crobat",
+   "types": [
+    "poison",
+    "flying"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 41,
+   "islands": [
+    "home"
+   ]
   },
   "179": {
    "name": "Mareep",
@@ -493,9 +760,12 @@
      "level": 15
     }
    ],
-   "rarity": "uncommon",
    "stage": 1,
-   "line": 179
+   "line": 179,
+   "islands": [
+    "home"
+   ],
+   "rarity": "uncommon"
   },
   "180": {
    "name": "Flaaffy",
@@ -509,7 +779,10 @@
     }
    ],
    "stage": 2,
-   "line": 179
+   "line": 179,
+   "islands": [
+    "home"
+   ]
   },
   "181": {
    "name": "Ampharos",
@@ -518,7 +791,10 @@
    ],
    "evolvesTo": [],
    "stage": 3,
-   "line": 179
+   "line": 179,
+   "islands": [
+    "home"
+   ]
   },
   "182": {
    "name": "Bellossom",
@@ -527,7 +803,10 @@
    ],
    "evolvesTo": [],
    "stage": 3,
-   "line": 43
+   "line": 43,
+   "islands": [
+    "home"
+   ]
   },
   "187": {
    "name": "Hoppip",
@@ -541,9 +820,12 @@
      "level": 18
     }
    ],
-   "rarity": "common",
    "stage": 1,
    "line": 187,
+   "islands": [
+    "home"
+   ],
+   "rarity": "common",
    "time": "morning"
   },
   "188": {
@@ -559,7 +841,10 @@
     }
    ],
    "stage": 2,
-   "line": 187
+   "line": 187,
+   "islands": [
+    "home"
+   ]
   },
   "189": {
    "name": "Jumpluff",
@@ -569,7 +854,10 @@
    ],
    "evolvesTo": [],
    "stage": 3,
-   "line": 187
+   "line": 187,
+   "islands": [
+    "home"
+   ]
   },
   "194": {
    "name": "Wooper",
@@ -583,9 +871,12 @@
      "level": 20
     }
    ],
-   "rarity": "common",
    "stage": 1,
-   "line": 194
+   "line": 194,
+   "islands": [
+    "home"
+   ],
+   "rarity": "common"
   },
   "195": {
    "name": "Quagsire",
@@ -595,7 +886,10 @@
    ],
    "evolvesTo": [],
    "stage": 2,
-   "line": 194
+   "line": 194,
+   "islands": [
+    "home"
+   ]
   },
   "196": {
    "name": "Espeon",
@@ -604,7 +898,11 @@
    ],
    "evolvesTo": [],
    "stage": 2,
-   "line": 133
+   "line": 133,
+   "islands": [
+    "home",
+    "frost"
+   ]
   },
   "197": {
    "name": "Umbreon",
@@ -613,7 +911,221 @@
    ],
    "evolvesTo": [],
    "stage": 2,
-   "line": 133
+   "line": 133,
+   "islands": [
+    "home",
+    "frost"
+   ]
+  },
+  "215": {
+   "name": "Sneasel",
+   "types": [
+    "dark",
+    "ice"
+   ],
+   "evolvesTo": [],
+   "stage": 1,
+   "line": 215,
+   "islands": [
+    "frost"
+   ],
+   "rarity": "uncommon",
+   "time": "night"
+  },
+  "220": {
+   "name": "Swinub",
+   "types": [
+    "ice",
+    "ground"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 221,
+     "level": 33
+    }
+   ],
+   "stage": 1,
+   "line": 220,
+   "islands": [
+    "frost"
+   ],
+   "rarity": "common"
+  },
+  "221": {
+   "name": "Piloswine",
+   "types": [
+    "ice",
+    "ground"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 220,
+   "islands": [
+    "frost"
+   ]
+  },
+  "225": {
+   "name": "Delibird",
+   "types": [
+    "ice",
+    "flying"
+   ],
+   "evolvesTo": [],
+   "stage": 1,
+   "line": 225,
+   "islands": [
+    "frost"
+   ],
+   "rarity": "common",
+   "time": "morning"
+  },
+  "238": {
+   "name": "Smoochum",
+   "types": [
+    "ice",
+    "psychic"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 124,
+     "level": 30
+    }
+   ],
+   "stage": 1,
+   "line": 238,
+   "islands": [
+    "frost"
+   ],
+   "rarity": "uncommon"
+  },
+  "361": {
+   "name": "Snorunt",
+   "types": [
+    "ice"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 362,
+     "level": 42
+    }
+   ],
+   "stage": 1,
+   "line": 361,
+   "islands": [
+    "frost"
+   ],
+   "rarity": "common",
+   "time": "night"
+  },
+  "362": {
+   "name": "Glalie",
+   "types": [
+    "ice"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 361,
+   "islands": [
+    "frost"
+   ]
+  },
+  "363": {
+   "name": "Spheal",
+   "types": [
+    "ice",
+    "water"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 364,
+     "level": 32
+    }
+   ],
+   "stage": 1,
+   "line": 363,
+   "islands": [
+    "frost"
+   ],
+   "rarity": "common"
+  },
+  "364": {
+   "name": "Sealeo",
+   "types": [
+    "ice",
+    "water"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 365,
+     "level": 44
+    }
+   ],
+   "stage": 2,
+   "line": 363,
+   "islands": [
+    "frost"
+   ]
+  },
+  "365": {
+   "name": "Walrein",
+   "types": [
+    "ice",
+    "water"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 363,
+   "islands": [
+    "frost"
+   ]
+  },
+  "393": {
+   "name": "Piplup",
+   "types": [
+    "water"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 394,
+     "level": 16
+    }
+   ],
+   "stage": 1,
+   "line": 393,
+   "islands": [
+    "frost"
+   ],
+   "rarity": "rare"
+  },
+  "394": {
+   "name": "Prinplup",
+   "types": [
+    "water"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 395,
+     "level": 36
+    }
+   ],
+   "stage": 2,
+   "line": 393,
+   "islands": [
+    "frost"
+   ]
+  },
+  "395": {
+   "name": "Empoleon",
+   "types": [
+    "water",
+    "steel"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 393,
+   "islands": [
+    "frost"
+   ]
   },
   "396": {
    "name": "Starly",
@@ -627,9 +1139,12 @@
      "level": 14
     }
    ],
-   "rarity": "common",
    "stage": 1,
    "line": 396,
+   "islands": [
+    "home"
+   ],
+   "rarity": "common",
    "time": "morning"
   },
   "397": {
@@ -645,7 +1160,10 @@
     }
    ],
    "stage": 2,
-   "line": 396
+   "line": 396,
+   "islands": [
+    "home"
+   ]
   },
   "398": {
    "name": "Staraptor",
@@ -655,7 +1173,10 @@
    ],
    "evolvesTo": [],
    "stage": 3,
-   "line": 396
+   "line": 396,
+   "islands": [
+    "home"
+   ]
   },
   "403": {
    "name": "Shinx",
@@ -668,9 +1189,12 @@
      "level": 15
     }
    ],
-   "rarity": "uncommon",
    "stage": 1,
-   "line": 403
+   "line": 403,
+   "islands": [
+    "home"
+   ],
+   "rarity": "uncommon"
   },
   "404": {
    "name": "Luxio",
@@ -684,7 +1208,10 @@
     }
    ],
    "stage": 2,
-   "line": 403
+   "line": 403,
+   "islands": [
+    "home"
+   ]
   },
   "405": {
    "name": "Luxray",
@@ -693,7 +1220,42 @@
    ],
    "evolvesTo": [],
    "stage": 3,
-   "line": 403
+   "line": 403,
+   "islands": [
+    "home"
+   ]
+  },
+  "459": {
+   "name": "Snover",
+   "types": [
+    "grass",
+    "ice"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 460,
+     "level": 40
+    }
+   ],
+   "stage": 1,
+   "line": 459,
+   "islands": [
+    "frost"
+   ],
+   "rarity": "uncommon"
+  },
+  "460": {
+   "name": "Abomasnow",
+   "types": [
+    "grass",
+    "ice"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 459,
+   "islands": [
+    "frost"
+   ]
   },
   "470": {
    "name": "Leafeon",
@@ -702,7 +1264,11 @@
    ],
    "evolvesTo": [],
    "stage": 2,
-   "line": 133
+   "line": 133,
+   "islands": [
+    "home",
+    "frost"
+   ]
   },
   "471": {
    "name": "Glaceon",
@@ -711,7 +1277,11 @@
    ],
    "evolvesTo": [],
    "stage": 2,
-   "line": 133
+   "line": 133,
+   "islands": [
+    "home",
+    "frost"
+   ]
   }
  }
 }

@@ -26,13 +26,16 @@ export const CATALOG: DecorDef[] = [
 ]
 
 /** Ground points on the grassy top where a decoration can stand. */
-export const SLOTS: { id: string; x: number; y: number }[] = [
+export const SLOTS: { id: string; x: number; y: number; minHours?: number }[] = [
   { id: 'a', x: 98, y: 70 },
   { id: 'b', x: 134, y: 63 },
   { id: 'c', x: 182, y: 88 },
   { id: 'd', x: 176, y: 120 },
   { id: 'e', x: 100, y: 126 },
   { id: 'f', x: 146, y: 127 },
+  // the island grows: two more spots after 3 focused hours
+  { id: 'g', x: 188, y: 76, minHours: 3 },
+  { id: 'h', x: 58, y: 100, minHours: 3 },
 ]
 
 export interface DecorArt {

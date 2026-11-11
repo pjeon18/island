@@ -5,7 +5,8 @@
 // the sheet, and the sheet's choices only unlock between sessions.
 import type { CloudState, Friend, FriendRequest, Me } from './cloud'
 import { CATALOG, SLOTS, decorDef } from './decor'
-import { BALLS, BERRY_EXP, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, EGG_MAX, Evolution, FOODS, Game, HABITATS, Habitat, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
+import { BALLS, BERRY_EXP, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, EGG_MAX, Evolution, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
+import type { BattleResult } from './battle'
 
 const BASE = import.meta.env.BASE_URL
 export const portraitUrl = (dex: number, emo = 'Normal') => `${BASE}sprites/${String(dex).padStart(4, '0')}/${emo}.png`
@@ -72,6 +73,8 @@ export interface HudHandlers {
   setBait: (id: string) => void
   assign: (id: string, role: Role) => void
   expedition: (id: string, long: boolean) => void
+  challenge: () => void
+  sail: (to: IslandId) => void
   popOut?: () => void
   quit?: () => void
   cloud: {
@@ -152,6 +155,7 @@ export class Hud {
       </div>
       <div class="hud-sheet" hidden></div>
       <div class="hud-catch px-panel" hidden></div>
+      <div class="hud-battle px-panel" hidden></div>
       <div class="hud-starter" hidden></div>`
     host.append(this.el)
     this.focus = this.el.querySelector('.hud-focus')!
@@ -530,12 +534,126 @@ export class Hud {
       <div class="dex-grid">${cells}</div><p class="hint dex-cap">${caption}</p>`
   }
 
+  /** Where you are, its guardian, the other islands and what opens them, and how the island grows. */
+  private islandsHtml() {
+    const g = this.game
+    const here = g.islandDef
+    const gd = here.guardian
+    const beaten = g.save.guardians.includes(here.id)
+    const dex = g.dexOf(here.id)
+    const others = ISLANDS.filter((i) => i.id !== here.id)
+      .map((i) => {
+        const needs = g.sailNeeds(i.id)
+        const can = g.canSail(i.id)
+        const list = g.save.stash[i.id] || !needs.length ? '' : needs.map((n) => `<p class="hint"><i class="tick${n.done ? ' on' : ''}"></i>${n.text}</p>`).join('')
+        return `<div class="decor-row"><div class="mon-main"><p>${i.name}</p>${list}</div><div class="row-actions row"><button class="px-btn small${can ? ' primary' : ''}" data-sail="${i.id}" ${!can || g.inSession ? 'disabled' : ''}>Sail</button></div></div>`
+      })
+      .join('')
+    const hours = Math.floor(g.totalHours())
+    const growth = here.id === 'home' ? GROWTH.map((x) => `<p class="hint"><i class="tick${hours >= x.hours ? ' on' : ''}"></i>${x.hours} h: ${x.text}</p>`).join('') : ''
+    return `<p class="row-title">${here.name}</p>
+      <p class="hint">Pokédex ${dex.caught}/${dex.all.length} · ${hours} focused hours</p>
+      <div class="decor-row"><img class="shop-ico mini-face" src="${portraitUrl(gd.dex)}" alt="" /><div class="mon-main"><p>${g.name(gd.dex)} <span class="hint">Lv${gd.level}</span></p><p class="hint">${beaten ? 'Beaten. It joined you.' : `Guardian, ${gd.where}.`}</p></div><div class="row-actions row">${beaten ? '' : `<button class="px-btn small primary" data-act="challenge" ${g.inSession ? 'disabled' : ''}>Battle</button>`}</div></div>
+      ${growth}
+      <p class="row-title">Islands</p>${others}`
+  }
+
+  // ---------- guardian battle ----------
+  /** Play back a decided battle, one hit at a time, then call done. */
+  showBattle(r: BattleResult, done: () => void) {
+    this.closeSheet()
+    const el = this.el.querySelector<HTMLElement>('.hud-battle')!
+    const team = r.team.map((f) => ({ ...f }))
+    const foe = { ...r.foe }
+    let active = 0
+    const pct = (hp: number, max: number) => Math.max(0, Math.round((hp / max) * 100))
+    const hpCol = (p: number) => (p > 50 ? 'ok' : p > 20 ? 'mid' : 'low')
+    el.innerHTML = `
+      <div class="bt-row foe"><div class="bt-box"><p><span class="bt-name"></span> <span class="hint bt-lv"></span></p><span class="hp"><i></i></span></div><img class="bt-face" alt="" /></div>
+      <div class="bt-row you"><img class="bt-face" alt="" /><div class="bt-box"><p><span class="bt-name"></span> <span class="hint bt-lv"></span></p><span class="hp"><i></i></span><p class="hint bt-hp"></p></div></div>
+      <p class="bt-text"></p>
+      <div class="bt-actions"><button class="px-btn small" data-b="skip">Skip</button></div>`
+    const $ = (q: string) => el.querySelector<HTMLElement>(q)!
+    const paint = () => {
+      const f = foe
+      $('.foe .bt-name').textContent = f.name
+      $('.foe .bt-lv').textContent = `Lv${f.level}`
+      ;($('.foe .bt-face') as HTMLImageElement).src = portraitUrl(f.dex)
+      const fp = pct(f.hp, f.maxHp)
+      const fi = $('.foe .hp i')
+      fi.style.width = `${fp}%`
+      fi.className = hpCol(fp)
+      const m = team[Math.min(active, team.length - 1)]
+      $('.you .bt-name').textContent = m.name
+      $('.you .bt-lv').textContent = `Lv${m.level}`
+      ;($('.you .bt-face') as HTMLImageElement).src = portraitUrl(m.dex)
+      const mp = pct(m.hp, m.maxHp)
+      const mi = $('.you .hp i')
+      mi.style.width = `${mp}%`
+      mi.className = hpCol(mp)
+      $('.bt-hp').textContent = `${m.hp}/${m.maxHp}`
+    }
+    const say = (t: string) => ($('.bt-text').textContent = t)
+    const shake = (q: string) => {
+      const n = $(q)
+      n.classList.remove('hit')
+      void n.offsetWidth
+      n.classList.add('hit')
+    }
+    // lines to play, each with its effect on the bars
+    const lines: { text: string; apply?: () => void }[] = [{ text: `${foe.name} blocks the way. Go, ${team[0].name}!` }]
+    for (const st of r.steps) {
+      if (st.side === 'you') {
+        const a = team[st.attacker]
+        lines.push({ text: `${a.name} used ${st.move}!`, apply: () => { foe.hp = st.hp; shake('.foe .bt-face') } })
+        if (st.eff > 1) lines.push({ text: "It's super effective!" })
+        if (st.eff > 0 && st.eff < 1) lines.push({ text: "It's not very effective…" })
+        if (st.fainted) lines.push({ text: `${foe.name} is worn out!` })
+      } else {
+        lines.push({ text: `${foe.name} used ${st.move}!`, apply: () => { team[st.target].hp = st.hp; shake('.you .bt-face') } })
+        if (st.eff > 1) lines.push({ text: "It's super effective!" })
+        if (st.fainted) {
+          lines.push({ text: `${team[st.target].name} fainted!` })
+          if (st.target + 1 < team.length) lines.push({ text: `Go, ${team[st.target + 1].name}!`, apply: () => { active = st.target + 1 } })
+        }
+      }
+    }
+    lines.push({ text: r.win ? `${foe.name} woke up and wants to join you!` : `Your party could not move ${foe.name}. Train and try again.` })
+    let i = 0
+    let timer = 0
+    const finish = () => {
+      window.clearTimeout(timer)
+      el.hidden = true
+      done()
+    }
+    const next = () => {
+      if (i >= lines.length) return finish()
+      const ln = lines[i++]
+      ln.apply?.()
+      say(ln.text)
+      paint()
+      timer = window.setTimeout(next, i >= lines.length ? 2600 : 1100)
+    }
+    el.onclick = (e) => {
+      if ((e.target as HTMLElement).closest('[data-b="skip"]')) {
+        // jump to the end with the final bars
+        for (; i < lines.length - 1; i++) lines[i].apply?.()
+        window.clearTimeout(timer)
+        next()
+      }
+    }
+    el.hidden = false
+    paint()
+    next()
+  }
+
   // Island: decorations bought with shells, placed on fixed spots
   private islandTab() {
     const g = this.game
     const d = g.save.decor
     const placed = new Set(Object.values(d.slots).filter(Boolean) as string[])
-    const free = SLOTS.filter((s) => !d.slots[s.id]).length
+    const open = SLOTS.filter((s) => g.hoursOk(s.minHours))
+    const free = open.filter((s) => !d.slots[s.id]).length
     const locked = g.inSession
     const rows = CATALOG.map((item) => {
       const owned = d.owned.includes(item.id)
@@ -552,7 +670,8 @@ export class Hud {
     const habitats = HABITATS.map((h) => {
       const built = g.save.habitats.includes(h.id)
       const can = g.save.starPieces >= h.stars && g.save.shells >= h.shells
-      const act = built ? `<span class="hint">Built</span>` : `<button class="px-btn small${can ? ' primary' : ''}" data-habitat="${h.id}" ${!can || locked ? 'disabled' : ''}>${star}${h.stars} ${shell}${h.shells}</button>`
+      const hrs = HABITAT_HOURS[h.id]
+      const act = built ? `<span class="hint">Built</span>` : !g.hoursOk(hrs) ? `<span class="hint">At ${hrs} h</span>` : `<button class="px-btn small${can ? ' primary' : ''}" data-habitat="${h.id}" ${!can || locked ? 'disabled' : ''}>${star}${h.stars} ${shell}${h.shells}</button>`
       return `<div class="decor-row"><div class="mon-main"><p>${h.name}</p><p class="hint">${h.types.map((t) => t[0].toUpperCase() + t.slice(1)).join(', ')} types</p></div><div class="row-actions row">${act}</div></div>`
     }).join('')
     const food = FOODS.map((f) => {
@@ -564,10 +683,11 @@ export class Hud {
     ).join('')
     return `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${g.save.shells}</b></span>${g.save.starPieces ? `<span title="Star Pieces">${icon('star-piece')}<b>×${g.save.starPieces}</b></span>` : ''}</p>
       ${locked ? '<p class="note">Locked while focusing.</p>' : ''}
+      ${this.islandsHtml()}
       <p class="row-title">Habitats</p>${habitats}
       <p class="row-title">Food</p>${g.save.bait ? `<p class="note">${FOODS.find((f) => f.id === g.save.bait)?.name} is out.</p>` : ''}${food}
       <p class="row-title">Balls</p>${shop}
-      <p class="row-title">Decorations <span class="hint">${free}/${SLOTS.length} spots free</span></p>${rows}`
+      <p class="row-title">Decorations <span class="hint">${free}/${open.length} spots free</span></p>${rows}`
   }
 
   private friendsTab() {
@@ -639,6 +759,7 @@ export class Hud {
     if (act === 'close') return this.closeSheet()
     if (act === 'idle') return this.h.enableIdle()
     if (act === 'quit') return this.h.quit?.()
+    if (act === 'challenge') return this.h.challenge()
     if (act === 'popout') {
       this.closeSheet()
       return this.h.popOut?.()
@@ -648,6 +769,8 @@ export class Hud {
       this.friendsCache = null
       return this.renderSheet()
     }
+    const sailTo = at('sail')
+    if (sailTo) return this.h.sail(sailTo as IslandId)
     const roleAt = at('role')
     if (roleAt) {
       const [id, r] = roleAt.split('|')

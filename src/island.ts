@@ -68,6 +68,25 @@ function saturate([r, g, b]: RGB, k: number): RGB {
 }
 const WATER = new Set(['deep', 'sea', 'seaRipple', 'shallow', 'shallow2'])
 for (const k of Object.keys(PAL) as (keyof typeof PAL)[]) PAL[k] = saturate(PAL[k], WATER.has(k) ? 1.4 : 1.25)
+/** Tall grass colours (scene.ts drawTuft); Frost Isle frosts them. */
+export const TUFT = { out: '#24602c', dark: '#3b8735', mid: '#4fa13f', light: '#8ad35c' }
+
+/**
+ * Frost Isle: the same shape under snow. Called before the scene is built, so
+ * the island, props and decorations all paint with these colours.
+ */
+export function useIsland(id: string) {
+  if (id !== 'frost') return
+  const F: Partial<Record<keyof typeof PAL, string>> = {
+    deep: '#2a6fae', sea: '#3580c2', seaRipple: '#438dca', shallow: '#68b4dc', shallow2: '#a6daf0', foam: '#f4fbff',
+    sandLight: '#eef3f8', sand: '#dbe4ee', sandDark: '#bfcbd9', cliffTop: '#b9c7d6', earth: '#8a9bb0', earthDark: '#6a7b92', earthWet: '#4b5a71',
+    grassLight: '#f7fbfe', grass: '#e6eff7', grassDark: '#cbdcea', grassDeep: '#aac3d9',
+    leaf: '#2d6a5a', leafMid: '#3d816f', leafLight: '#e8f2f7', leafDeep: '#1d4a3f', trunk: '#6e4e38', trunkDark: '#4c3424',
+  }
+  for (const [k, v] of Object.entries(F)) PAL[k as keyof typeof PAL] = hex(v!)
+  Object.assign(TUFT, { out: '#6d8aa6', dark: '#a9c2d8', mid: '#c9dbea', light: '#f4f9fd' })
+}
+
 /** The open-sea colour, for the page behind the canvas. */
 export const seaCss = () => `rgb(${PAL.deep.join(',')})`
 

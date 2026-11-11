@@ -10,6 +10,7 @@ export const HABITAT_SPOTS: Record<Habitat, { x: number; y: number; r: number }>
   pond: { x: 118, y: 84, r: 13 },
   rocks: { x: 64, y: 76, r: 9 },
   grass: { x: 146, y: 92, r: 9 },
+  cave: { x: 66, y: 118, r: 9 },
 }
 
 export interface HabitatArt {
@@ -87,10 +88,39 @@ function rocks(): HabitatArt {
   return { img: p.toCanvas(), ax: 12, ay: 14, flat: false }
 }
 
+/** A rocky mound with a dark mouth: the cave (opens at 10 focused hours). */
+function cave(): HabitatArt {
+  const p = new Pix(24, 16)
+  for (let y = 0; y < 16; y++)
+    for (let x = 0; x < 24; x++) {
+      const dx = (x + 0.5 - 12) / 11.5
+      const dy = (y + 0.5 - 15) / 14
+      const d = dx * dx + dy * dy
+      if (d > 1) continue
+      let c = PAL.stone
+      if (dy < -0.55 && dx < 0.2) c = PAL.stoneLight
+      if (dx > 0.45) c = PAL.stoneDark
+      if (d > 0.84) c = hex('#5e5c58')
+      if (hash2(x, y, 31) < 0.08 && d < 0.8) c = PAL.stoneDark
+      // moss on top
+      if (y < 4 && d < 0.84 && hash2(x, y, 7) < 0.5) c = PAL.grassDark
+      p.set(x, y, c)
+    }
+  // the mouth: a dark arch, darker inside
+  for (let y = 7; y < 16; y++)
+    for (let x = 7; x < 17; x++) {
+      const dx = (x + 0.5 - 12) / 5
+      const dy = (y + 0.5 - 16) / 8.5
+      if (dx * dx + dy * dy > 1) continue
+      p.set(x, y, dx * dx + dy * dy > 0.6 ? hex('#3a3632') : hex('#1c1a18'))
+    }
+  return { img: p.toCanvas(), ax: 12, ay: 15, flat: false }
+}
+
 const cache: Partial<Record<Habitat, HabitatArt>> = {}
 export function habitatArt(id: Habitat): HabitatArt | null {
   if (id === 'grass') return null // tufts, drawn by the scene
-  return (cache[id] ??= id === 'pond' ? pond() : rocks())
+  return (cache[id] ??= id === 'pond' ? pond() : id === 'cave' ? cave() : rocks())
 }
 
 const BAIT_COLORS: Record<string, string> = { honey: '#f8c030', 'cheri-berry': '#e83838', 'pecha-berry': '#f8a0c0', 'chesto-berry': '#5a5ab8' }

@@ -5,11 +5,11 @@ import './styles.css'
 import { Creature } from './creature'
 import * as cloud from './cloud'
 import { SLOTS, decorDef } from './decor'
-import { BALLS, Ball, FOODS, Find, Game, GameEvent, HABITATS, Haul, JOBS, Mon, RARE_50, Role, Roster, STONES, Weather, Wild, aStone, stoneName } from './game'
+import { BALLS, Ball, FOODS, Find, Game, GameEvent, HABITATS, Haul, ISLANDS, JOBS, Mon, RARE_50, Role, Roster, STONES, Weather, Wild, aStone, loadSave, stoneName } from './game'
 import { HABITAT_SPOTS } from './habitats'
 import { CatchAnim } from './catch'
 import { Hud, fmtMinutes } from './hud'
-import { H, W, seaCss } from './island'
+import { H, W, seaCss, useIsland } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
 import { NEST, Scene } from './scene'
 import { Manifest, Species, loadManifest, loadSpecies } from './sprites'
@@ -42,6 +42,8 @@ const g = canvas.getContext('2d')!
 let manifest: Manifest
 let game: Game
 let hud: Hud
+// the island you are on decides the palette before anything is painted
+useIsland(loadSave().island ?? 'home')
 const scene = new Scene()
 scene.overlay = (gg) => catching?.draw(gg)
 scene.float = floatMode
@@ -138,7 +140,7 @@ function anchorFor(role: Role): { x: number; y: number; r: number } | undefined 
   if (role === 'job:bush') return { x: scene.island.bush.x - 10, y: scene.island.bush.y + 4, r: 6 }
   if (role === 'job:lookout') {
     const d = scene.island.dock
-    return { x: d.x + d.w / 2 - 2, y: d.y1 - 3, r: 0 }
+    return { x: d.x + d.w / 2 - 2, y: d.y1 - 13, r: 0 }
   }
   if (role === 'job:campfire') {
     const slot = Object.entries(game.save.decor.slots).find(([, v]) => v === 'campfire')?.[0]
@@ -266,7 +268,15 @@ async function spawnWild(w: Wild, arrive: boolean) {
     return
   }
   const types = game.species(w.dex)?.types ?? []
-  const home = types.includes('water') && scene.hasHabitat('pond') ? HABITAT_SPOTS.pond : (types.includes('rock') || types.includes('ground')) && scene.hasHabitat('rocks') ? HABITAT_SPOTS.rocks : null
+  const sp0 = game.species(w.dex)
+  const home =
+    (sp0?.needs === 'cave' || types.includes('ghost') || types.includes('dark')) && scene.hasHabitat('cave')
+      ? { ...HABITAT_SPOTS.cave, y: HABITAT_SPOTS.cave.y - 2 }
+      : types.includes('water') && scene.hasHabitat('pond')
+        ? HABITAT_SPOTS.pond
+        : (types.includes('rock') || types.includes('ground')) && scene.hasHabitat('rocks')
+          ? HABITAT_SPOTS.rocks
+          : null
   if (home) {
     // it climbs out of the pond, or out from behind the rocks
     const c = scene.add(sp, home.x, home.y + 7)
@@ -340,7 +350,7 @@ const FIND_TEXT: Record<Find['kind'], (n: number) => string> = {
   'poke-ball': () => 'A Poké Ball',
   'star-piece': () => 'A Star Piece',
 }
-const WEATHER_TEXT: Record<Weather, string> = { clear: 'The sky cleared.', rain: 'It started to rain.', fog: 'Fog rolled in.', sun: 'The sun came out.' }
+const WEATHER_TEXT: Record<Weather, string> = { clear: 'The sky cleared.', rain: 'It started to rain.', fog: 'Fog rolled in.', sun: 'The sun came out.', snow: 'It started to snow.' }
 
 let catching: CatchAnim | null = null
 let catchBall: Ball = 'poke-ball'
@@ -428,6 +438,7 @@ canvas.addEventListener('click', (e) => {
     hud.refreshSheet()
     return
   }
+  if (guardianC && Math.abs(guardianC.x - x) < 16 && y > guardianC.y - 30 && y < guardianC.y + 4) return askBattle()
   const c = scene.creatures.find((c) => c.wildId && !c.hidden && c.state !== 'leave' && Math.abs(c.x - x) < 11 && y > c.y - 26 && y < c.y + 3)
   if (!c) return
   if (game.inSession) return hud.toast(`${c.name} is waiting for your break.`)
@@ -451,6 +462,72 @@ window.addEventListener('keydown', (e) => {
     throwNow()
   } else if (e.code === 'Escape') cancelCatch()
 })
+
+// ---------- the guardian (stage 4) ----------
+let guardianC: Creature | null = null
+async function placeGuardian() {
+  const isl = game.islandDef
+  if (game.save.guardians.includes(isl.id) || guardianC) return
+  const sp = await ensure(isl.guardian.dex)
+  const d = scene.island.dock
+  // Snorlax sleeps across the end of the pier; Lapras rests in the water beside it
+  const pos = isl.id === 'home' ? { x: d.x + d.w / 2, y: d.y1 + 3 } : { x: d.x + d.w + 16, y: d.y1 - 2 }
+  const c = scene.add(sp, pos.x, pos.y)
+  c.anchor = { ...pos, r: 0 }
+  c.dir = isl.id === 'home' ? 0 : 6
+  if (isl.id === 'home') c.sleep(true, 0)
+  guardianC = c
+}
+function askBattle() {
+  const g = game.islandDef.guardian
+  if (game.inSession) return hud.toast(`${game.name(g.dex)} can wait for your break.`)
+  hud.say({
+    dex: g.dex,
+    text: `${game.name(g.dex)} is ${g.where}. Battle it with your party?`,
+    actions: [
+      { label: 'Battle', primary: true, run: startBattle },
+      { label: 'Not now', run: () => {} },
+    ],
+  })
+}
+function startBattle() {
+  const c = guardianC
+  const r = game.challenge()
+  if (!r) return
+  c?.sleep(false, 0)
+  hud.showBattle(r, () => {
+    if (!r.win) {
+      if (game.islandDef.id === 'home') c?.sleep(true, 1)
+      return
+    }
+    // it wakes, gets up and joins you
+    if (c) adopt = { dex: game.islandDef.guardian.dex, c }
+    const m = game.guardianJoins()
+    const inParty = !!m && game.save.party.includes(m.id)
+    if (c && adopt?.c === c) adopt = null
+    if (c) {
+      c.anchor = undefined
+      if (inParty) c.walkTo(scene.dockTop.x, scene.dockTop.y - 14, 'hop')
+      else {
+        c.walkTo(c.x, c.y + 10)
+        c.enter('leave', 99)
+      }
+    }
+    guardianC = null
+    hud.say({ dex: game.islandDef.guardian.dex, emotion: 'Happy', text: inParty ? `${game.name(game.islandDef.guardian.dex)} joined your party!` : `${game.name(game.islandDef.guardian.dex)} joined you and went to your box.`, auto: 6000 })
+    hud.refreshSheet()
+    publishParty()
+  })
+}
+function sailAway(to: string) {
+  // a slow fade to open sea, then the other island
+  const veil = document.createElement('div')
+  veil.style.cssText = 'position:fixed;inset:0;background:var(--sea-page);opacity:0;transition:opacity 1.4s ease;z-index:50;pointer-events:none'
+  document.body.append(veil)
+  requestAnimationFrame(() => (veil.style.opacity = '1'))
+  hud.toast(`Sailing to ${ISLANDS.find((i) => i.id === to)!.name}…`)
+  setTimeout(() => location.reload(), 1600)
+}
 
 /** Party life: now and then two Pokémon play together or nap side by side. */
 function partyLife() {
@@ -589,7 +666,7 @@ function decorSlotOf(id: string) {
   return Object.entries(game.save.decor.slots).find(([, v]) => v === id)?.[0]
 }
 function freeSlotAfter(from?: string) {
-  const ids = SLOTS.map((s) => s.id)
+  const ids = SLOTS.filter((s) => game.hoursOk(s.minHours)).map((s) => s.id)
   const start = from ? ids.indexOf(from) + 1 : 0
   for (let i = 0; i < ids.length; i++) {
     const id = ids[(start + i) % ids.length]
@@ -677,6 +754,11 @@ function onGame(e: GameEvent) {
     case 'expeditionBack':
       hud.say({ dex: e.mon.dex, emotion: 'Happy', text: `${game.name(e.mon)} came back with ${haulText(e.haul)}.`, auto: 7000 })
       hud.refreshSheet()
+      break
+    case 'sail':
+      sailAway(e.to)
+      break
+    case 'guardian':
       break
     case 'rolesChanged':
       syncNest()
@@ -901,7 +983,7 @@ function buildDebug() {
     <div class="debug-row">${b('m1', 'Add 1 focused minute')}${b('m10', 'Add 10 minutes')}${b('m60', 'Add 60 minutes')}${b('finish', 'Finish the session')}</div>
     <div class="debug-row">${b('berries', 'Add 3 berries')}${b('shells', 'Add 300 shells')}${b('stone', 'A stone washes ashore')}${b('bond', 'Lead has 10 hours of bond')}${b('visit50', 'Visitor at 50-minute odds')}</div>
     <div class="debug-row">${b('visit', 'Visitor now')}${b('evolve', 'Lead is ready to evolve')}${b('checkin', 'Ask now')}${b('idle', 'Simulate 10 idle minutes')}${b('lock', 'Simulate screen lock')}${b('active', 'Simulate activity')}${b('gap', 'Simulate a 10 minute sleep')}</div>
-    <div class="debug-row">${b('passer', 'Passer-by now')}${b('find', 'A find now')}${b('balls', '+5 of each ball')}${b('stars', '+5 Star Pieces')}${b('night', 'Night')}${b('egg', 'An egg')}${b('hatch', 'Eggs nearly ready')}</div><div class="debug-row">${b('m30', 'Add 30 minutes')}${b('w-rain', 'Rain')}${b('w-fog', 'Fog')}${b('w-sun', 'Sun')}${b('w-clear', 'Clear sky')}</div>
+    <div class="debug-row">${b('passer', 'Passer-by now')}${b('find', 'A find now')}${b('balls', '+5 of each ball')}${b('stars', '+5 Star Pieces')}${b('night', 'Night')}${b('egg', 'An egg')}${b('hatch', 'Eggs nearly ready')}</div><div class="debug-row">${b('m30', 'Add 30 minutes')}${b('hours', '+5 focused hours (days)')}${b('strong', 'Party to Lv 34')}${b('dexfill', 'Catch 70% of this dex')}${b('w-rain', 'Rain')}${b('w-fog', 'Fog')}${b('w-sun', 'Sun')}${b('w-clear', 'Clear sky')}</div>
     <div class="debug-row"><label class="time"><span>Hour</span><input type="range" min="0" max="24" step="0.1" value="${clockHour()}" /><output></output></label>${b('clock', 'Use my clock')}${b('reset', 'Reset save')}</div>`
   const slider = el.querySelector<HTMLInputElement>('input')!
   const out = el.querySelector('output')!
@@ -940,6 +1022,15 @@ function buildDebug() {
     if (d === 'egg') game.addEgg(16, 'find')
     if (d === 'hatch') for (const eg of game.save.eggs) eg.progress = eg.need - 1
     if (d === 'm30') game.grantMinutes(30)
+    if (d === 'hours') {
+      const k = '2000-01-01'
+      game.save.days[k] = (game.save.days[k] ?? 0) + 300
+    }
+    if (d === 'strong') for (const m of game.party) { m.level = Math.max(m.level, 34); m.noEvolve = true }
+    if (d === 'dexfill') {
+      const dx = game.dexOf(game.save.island)
+      for (const sp of dx.all.slice(0, Math.ceil(dx.all.length * 0.7))) if (!game.save.caught.includes(sp)) game.save.caught.push(sp)
+    }
     if (d.startsWith('w-')) {
       const kind = d.slice(2) as Weather
       game.save.weather = { kind, until: kind === 'clear' ? 0 : Date.now() + 20 * 60 * 1000 }
@@ -1097,6 +1188,10 @@ async function boot() {
         hud.refreshSheet()
         if (!ok) hud.toast('Idle detection is off.')
       },
+      challenge: askBattle,
+      sail: (to) => {
+        if (!game.sail(to)) hud.toast(game.inSession ? 'Sail between sessions.' : 'Not yet.')
+      },
       assign: (id, role) => {
         if (!game.assign(id, role)) hud.toast(game.inSession ? 'Change roles between sessions.' : 'That spot is taken.')
         hud.refreshSheet()
@@ -1169,6 +1264,7 @@ async function boot() {
   scene.setDecor(game.save.decor.slots)
   scene.setHabitats(game.save.habitats)
   scene.setBait(game.save.bait)
+  void placeGuardian()
   game.hour = () => hourOverride ?? clockHour()
   syncWild()
   syncFinds()
@@ -1202,6 +1298,10 @@ window.__island = {
   get hud() {
     return hud
   },
+  get guardian() {
+    return guardianC
+  },
+  placeGuardian: () => placeGuardian(),
   scene,
   /** Advance the island by `sec` seconds of simulation (not the focus clock). */
   step: (sec: number) => {

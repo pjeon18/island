@@ -67,7 +67,13 @@ function method(details) {
 }
 
 for (const line of LINES) {
-  const s = await addSpecies(line.dex, { rarity: line.rarity, stage: 1, line: line.dex, ...(line.needs ? { needs: line.needs } : {}), ...(line.time ? { time: line.time } : {}) })
+  const extra = { stage: 1, line: line.dex, islands: line.islands ?? (line.guardian ? [line.guardian] : ['home']) }
+  if (line.rarity) extra.rarity = line.rarity
+  if (line.needs) extra.needs = line.needs
+  if (line.time) extra.time = line.time
+  if (line.guardian) extra.guardian = line.guardian
+  const s = await addSpecies(line.dex, extra)
+  if (line.guardian) continue // guardians do not evolve on the island
   const chain = (await getJson(s.evolution_chain.url)).chain
   // find this line's first stage in the chain (Pikachu sits under Pichu)
   const find = (node) => (idFromUrl(node.species.url) === line.dex ? node : node.evolves_to.map(find).find(Boolean))
@@ -78,7 +84,7 @@ for (const line of LINES) {
       const m = method(next.evolution_details)
       if (!m || to > MAX_DEX) continue
       species[from].evolvesTo.push({ dex: to, ...m })
-      await addSpecies(to, { stage: stage + 1, line: line.dex })
+      await addSpecies(to, { stage: stage + 1, line: line.dex, islands: extra.islands })
       await walk(next, stage + 1)
     }
   }
