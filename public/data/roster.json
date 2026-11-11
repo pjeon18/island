@@ -1,0 +1,334 @@
+{
+ "source": "https://pokeapi.co",
+ "species": {
+  "1": {
+   "name": "Bulbasaur",
+   "evolvesTo": [
+    {
+     "dex": 2,
+     "level": 16
+    }
+   ],
+   "rarity": "starter",
+   "stage": 1,
+   "line": 1
+  },
+  "2": {
+   "name": "Ivysaur",
+   "evolvesTo": [
+    {
+     "dex": 3,
+     "level": 32
+    }
+   ],
+   "stage": 2,
+   "line": 1
+  },
+  "3": {
+   "name": "Venusaur",
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 1
+  },
+  "4": {
+   "name": "Charmander",
+   "evolvesTo": [
+    {
+     "dex": 5,
+     "level": 16
+    }
+   ],
+   "rarity": "starter",
+   "stage": 1,
+   "line": 4
+  },
+  "5": {
+   "name": "Charmeleon",
+   "evolvesTo": [
+    {
+     "dex": 6,
+     "level": 36
+    }
+   ],
+   "stage": 2,
+   "line": 4
+  },
+  "6": {
+   "name": "Charizard",
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 4
+  },
+  "7": {
+   "name": "Squirtle",
+   "evolvesTo": [
+    {
+     "dex": 8,
+     "level": 16
+    }
+   ],
+   "rarity": "starter",
+   "stage": 1,
+   "line": 7
+  },
+  "8": {
+   "name": "Wartortle",
+   "evolvesTo": [
+    {
+     "dex": 9,
+     "level": 36
+    }
+   ],
+   "stage": 2,
+   "line": 7
+  },
+  "9": {
+   "name": "Blastoise",
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 7
+  },
+  "10": {
+   "name": "Caterpie",
+   "evolvesTo": [
+    {
+     "dex": 11,
+     "level": 7
+    }
+   ],
+   "rarity": "common",
+   "stage": 1,
+   "line": 10
+  },
+  "11": {
+   "name": "Metapod",
+   "evolvesTo": [
+    {
+     "dex": 12,
+     "level": 10
+    }
+   ],
+   "stage": 2,
+   "line": 10
+  },
+  "12": {
+   "name": "Butterfree",
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 10
+  },
+  "16": {
+   "name": "Pidgey",
+   "evolvesTo": [
+    {
+     "dex": 17,
+     "level": 18
+    }
+   ],
+   "rarity": "common",
+   "stage": 1,
+   "line": 16
+  },
+  "17": {
+   "name": "Pidgeotto",
+   "evolvesTo": [
+    {
+     "dex": 18,
+     "level": 36
+    }
+   ],
+   "stage": 2,
+   "line": 16
+  },
+  "18": {
+   "name": "Pidgeot",
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 16
+  },
+  "25": {
+   "name": "Pikachu",
+   "evolvesTo": [],
+   "rarity": "uncommon",
+   "stage": 1,
+   "line": 25
+  },
+  "43": {
+   "name": "Oddish",
+   "evolvesTo": [
+    {
+     "dex": 44,
+     "level": 21
+    }
+   ],
+   "rarity": "common",
+   "stage": 1,
+   "line": 43
+  },
+  "44": {
+   "name": "Gloom",
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 43
+  },
+  "54": {
+   "name": "Psyduck",
+   "evolvesTo": [
+    {
+     "dex": 55,
+     "level": 33
+    }
+   ],
+   "rarity": "common",
+   "stage": 1,
+   "line": 54
+  },
+  "55": {
+   "name": "Golduck",
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 54
+  },
+  "133": {
+   "name": "Eevee",
+   "evolvesTo": [],
+   "rarity": "rare",
+   "stage": 1,
+   "line": 133
+  },
+  "179": {
+   "name": "Mareep",
+   "evolvesTo": [
+    {
+     "dex": 180,
+     "level": 15
+    }
+   ],
+   "rarity": "uncommon",
+   "stage": 1,
+   "line": 179
+  },
+  "180": {
+   "name": "Flaaffy",
+   "evolvesTo": [
+    {
+     "dex": 181,
+     "level": 30
+    }
+   ],
+   "stage": 2,
+   "line": 179
+  },
+  "181": {
+   "name": "Ampharos",
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 179
+  },
+  "187": {
+   "name": "Hoppip",
+   "evolvesTo": [
+    {
+     "dex": 188,
+     "level": 18
+    }
+   ],
+   "rarity": "common",
+   "stage": 1,
+   "line": 187
+  },
+  "188": {
+   "name": "Skiploom",
+   "evolvesTo": [
+    {
+     "dex": 189,
+     "level": 27
+    }
+   ],
+   "stage": 2,
+   "line": 187
+  },
+  "189": {
+   "name": "Jumpluff",
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 187
+  },
+  "194": {
+   "name": "Wooper",
+   "evolvesTo": [
+    {
+     "dex": 195,
+     "level": 20
+    }
+   ],
+   "rarity": "common",
+   "stage": 1,
+   "line": 194
+  },
+  "195": {
+   "name": "Quagsire",
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 194
+  },
+  "396": {
+   "name": "Starly",
+   "evolvesTo": [
+    {
+     "dex": 397,
+     "level": 14
+    }
+   ],
+   "rarity": "common",
+   "stage": 1,
+   "line": 396
+  },
+  "397": {
+   "name": "Staravia",
+   "evolvesTo": [
+    {
+     "dex": 398,
+     "level": 34
+    }
+   ],
+   "stage": 2,
+   "line": 396
+  },
+  "398": {
+   "name": "Staraptor",
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 396
+  },
+  "403": {
+   "name": "Shinx",
+   "evolvesTo": [
+    {
+     "dex": 404,
+     "level": 15
+    }
+   ],
+   "rarity": "uncommon",
+   "stage": 1,
+   "line": 403
+  },
+  "404": {
+   "name": "Luxio",
+   "evolvesTo": [
+    {
+     "dex": 405,
+     "level": 30
+    }
+   ],
+   "stage": 2,
+   "line": 403
+  },
+  "405": {
+   "name": "Luxray",
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 403
+  }
+ }
+}
