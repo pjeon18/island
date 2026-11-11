@@ -96,7 +96,7 @@ Paul wants all four parts. They build in this order because each one feeds the n
    - The island's curated Pokédex of about 50 species.
 3. **Eggs, Day Care, island jobs and expeditions.** Built 2026-11-11 with the defaults below (friends' egg gifts wait for stage 5).
 4. **Island growth, the guardian battle and the second island**, with the three unlock conditions. Built 2026-11-11 with the defaults below.
-5. **Friends:** visits, trading and gifting, and the study-together bonus. This needs new server functions on Studdy's Supabase, which Paul runs.
+5. **Friends:** visits, trading and gifting, and the study-together bonus. Built 2026-11-11 (client and `supabase/island_stage5.sql`). It goes live once Paul runs that SQL.
 
 ## Stage 2 defaults (Paul can change any of these)
 
@@ -165,6 +165,23 @@ These were chosen while building stage 2, since the interview left them open.
   - Each island keeps its own habitats, placed decorations, finds and food. Waiting Pokémon leave when you sail.
   - Once you have been to an island you can always sail back.
 - **Home Island grows:** two more decoration spots at 3 focused hours, and the Cave habitat (3 Star Pieces and 120 shells) at 10 hours. The cave draws rock, ghost, poison and dark types. Zubat needs it, and cave Pokémon come out of its mouth.
+
+## Stage 5 defaults (Paul can change any of these)
+
+- **Friends' Pokémon visit:**
+  - Every 2 minutes the island checks which friends are studying.
+  - Up to two of them send their lead Pokémon up your pier. Tap one to see whose it is.
+  - It walks back down the pier when they stop.
+- **Studying together:** while your session is running and a friend is studying too, you get double shells for those minutes, and rare passers-by are 1.3× likelier. The clock reads "With Mina".
+- **Visiting:** Visit on a friend's row fades to sea and opens their island, read-only.
+  - It shows their island's palette, habitats, decorations and party, with whether they are studying.
+  - Go home brings you back. Only between sessions.
+- **Sending gifts:** Send on a friend's row opens a picker.
+  - You can send a Pokémon (not the last in your party, not one on an expedition), an egg, or one item at a time.
+  - Sending a Pokémon asks first, because it leaves your island for good.
+  - The server limits you to 10 gifts a day and only to friends who have not blocked you. It caps a gifted Pokémon's level at what your verified focus minutes could have earned.
+  - Gifts arrive at the friend's next break, or when they open the island, with "Mina sent you Pikachu!". A gifted egg waits for room in the nest.
+- **Trades:** a two-sided trade (offer one, ask for one) is not built. Gifts cover sending both ways.
 
 ## Still open
 

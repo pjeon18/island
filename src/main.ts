@@ -22,6 +22,16 @@ const tauri = '__TAURI_INTERNALS__' in window
 const floatMode = tauri || params.has('float')
 const popoutMode = params.has('popout') || floatMode
 const debug = params.has('debug')
+// visiting a friend's island (stage 5): the scene was fetched before the page reloaded into it
+const visitData: (cloud.FriendScene & { id: string }) | null = params.has('visit')
+  ? (() => {
+      try {
+        return JSON.parse(sessionStorage.getItem('island-visit') ?? 'null')
+      } catch {
+        return null
+      }
+    })()
+  : null
 type Invoke = (cmd: string, args?: Record<string, unknown>) => Promise<unknown>
 const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke: Invoke } }).__TAURI_INTERNALS__?.invoke
 
@@ -43,7 +53,7 @@ let manifest: Manifest
 let game: Game
 let hud: Hud
 // the island you are on decides the palette before anything is painted
-useIsland(loadSave().island ?? 'home')
+useIsland(visitData ? visitData.scene.island : (loadSave().island ?? 'home'))
 const scene = new Scene()
 scene.overlay = (gg) => catching?.draw(gg)
 scene.float = floatMode
@@ -438,6 +448,8 @@ canvas.addEventListener('click', (e) => {
     hud.refreshSheet()
     return
   }
+  const vis = scene.creatures.find((c) => c.visitor && c.state !== 'leave' && Math.abs(c.x - x) < 11 && y > c.y - 26 && y < c.y + 3)
+  if (vis) return hud.say({ dex: Number(vis.sp.dex), text: `${vis.visitor}'s ${vis.name} is visiting. ${vis.visitor} is studying too.`, auto: 5000 })
   if (guardianC && Math.abs(guardianC.x - x) < 16 && y > guardianC.y - 30 && y < guardianC.y + 4) return askBattle()
   const c = scene.creatures.find((c) => c.wildId && !c.hidden && c.state !== 'leave' && Math.abs(c.x - x) < 11 && y > c.y - 26 && y < c.y + 3)
   if (!c) return
@@ -527,6 +539,135 @@ function sailAway(to: string) {
   requestAnimationFrame(() => (veil.style.opacity = '1'))
   hud.toast(`Sailing to ${ISLANDS.find((i) => i.id === to)!.name}…`)
   setTimeout(() => location.reload(), 1600)
+}
+
+// ---------- friends (stage 5) ----------
+function currentScene(): cloud.Scene5 {
+  const slots = Object.fromEntries(Object.entries(game.save.decor.slots).filter(([, v]) => v)) as Record<string, string>
+  return { island: game.save.island, habitats: game.save.habitats, decor: slots }
+}
+/** Friends studying now: their Pokémon visit, and you study together (double shells, better odds). */
+async function refreshFriends() {
+  if (cloud.cloudState() !== 'ready') return
+  const { friends } = await cloud.listFriends()
+  const studying = friends.filter((f) => f.studying && f.party.length)
+  const running = game.save.session?.state === 'running'
+  const before = game.together.length
+  game.together = running ? studying.map((f) => f.name) : []
+  if (running && !before && game.together.length) hud.toast(`Studying with ${game.together[0]}. Shells are doubled.`)
+  syncVisitors(studying.slice(0, 2).map((f) => ({ name: f.name, dex: f.party[0].dex })))
+}
+async function syncVisitors(want: { name: string; dex: number }[]) {
+  for (const c of scene.creatures)
+    if (c.visitor && c.state !== 'leave' && !want.some((w) => w.name === c.visitor)) {
+      const d = scene.island.dock
+      c.walkTo(d.x + d.w / 2, d.y1 - 1)
+      c.enter('leave', 99)
+    }
+  for (const w of want) {
+    if (scene.creatures.some((c) => c.visitor === w.name && c.state !== 'leave')) continue
+    const sp = await ensure(w.dex)
+    const d = scene.island.dock
+    const c = scene.add(sp, d.x + d.w / 2, d.y1 - 1)
+    c.visitor = w.name
+    const p = scene.freeSpot({ x: d.x + d.w / 2, y: d.y0 - 22 })
+    c.walkTo(p.x, p.y)
+  }
+}
+async function takeGifts() {
+  if (game.inSession) return
+  const gifts = await cloud.claimGifts()
+  for (const g of gifts) {
+    const m = game.receive(g.kind, g.payload)
+    const what =
+      g.kind === 'mon' ? game.name(g.payload.dex ?? 0) : g.kind === 'egg' ? 'an egg' : `${(g.payload.n ?? 1) > 1 ? `${g.payload.n} ` : 'a '}${itemName(g.payload.id ?? '')}${(g.payload.n ?? 1) > 1 ? 's' : ''}`
+    hud.say({ dex: m?.dex ?? lead(), emotion: 'Happy', text: `${g.from} sent you ${what}!`, auto: 5000 })
+  }
+  if (gifts.length) hud.refreshSheet()
+}
+const itemName = (id: string) =>
+  BALLS.find((b) => b.id === id)?.name ?? FOODS.find((f) => f.id === id)?.name ?? (id === 'star-piece' ? 'Star Piece' : id === 'oran-berry' ? 'Oran Berry' : stoneName(id))
+async function visitFriend(id: string) {
+  if (game.inSession) return hud.toast('Visit between sessions.')
+  const sc = await cloud.friendScene(id)
+  if (typeof sc === 'string') return hud.toast(sc)
+  sessionStorage.setItem('island-visit', JSON.stringify({ ...sc, id }))
+  const veil = document.createElement('div')
+  veil.style.cssText = 'position:fixed;inset:0;background:var(--sea-page);opacity:0;transition:opacity 1.2s ease;z-index:50;pointer-events:none'
+  document.body.append(veil)
+  requestAnimationFrame(() => (veil.style.opacity = '1'))
+  setTimeout(() => (location.href = `${location.pathname}?visit=1`), 1300)
+}
+async function sendGift(friendId: string, friendName: string, kind: cloud.GiftKind, ref: string) {
+  if (game.inSession) return hud.toast('Send gifts between sessions.')
+  let payload: cloud.Gift['payload']
+  if (kind === 'mon') {
+    const m = game.mon(ref)
+    if (!m || !game.canGiveMon(ref)) return hud.toast('That Pokémon cannot be sent.')
+    payload = { dex: m.dex, level: m.level }
+  } else if (kind === 'egg') {
+    const e = game.save.eggs.find((x) => x.id === ref)
+    if (!e) return
+    payload = { dex: e.dex }
+  } else {
+    if (game.itemCount(ref) < 1) return
+    payload = { id: ref, n: 1 }
+  }
+  const go = async () => {
+    const r = await cloud.sendGift(friendId, kind, payload)
+    if (r !== 'ok') return hud.toast(r)
+    game.giveAway(kind, ref)
+    hud.toast(`Sent to ${friendName}.`)
+    hud.refreshSheet()
+  }
+  if (kind === 'mon')
+    hud.say({
+      dex: payload.dex,
+      text: `Send ${game.name(payload.dex!)} to ${friendName}? It leaves your island for good.`,
+      actions: [
+        { label: 'Send', primary: true, run: () => void go() },
+        { label: 'Keep', run: () => {} },
+      ],
+    })
+  else void go()
+}
+
+/** The read-only view of a friend's island. */
+async function bootVisit(v: cloud.FriendScene & { id: string }) {
+  scene.hour = clockHour()
+  scene.setHabitats(v.scene.habitats.filter((h) => ['grass', 'rocks', 'pond', 'cave'].includes(h)) as never)
+  scene.setDecor(v.scene.decor)
+  for (const p of v.party) {
+    const sp = await ensure(p.dex)
+    const q = scene.freeSpot()
+    scene.add(sp, q.x, q.y)
+  }
+  const el = document.createElement('div')
+  el.className = 'visit-banner px-panel'
+  el.innerHTML = `<p>${v.name.replace(/[<>&]/g, '')}'s island</p><p class="hint">${v.studying ? 'Studying now' : 'Not studying right now'}</p><button class="px-btn primary">Go home</button>`
+  el.querySelector('button')!.addEventListener('click', () => {
+    sessionStorage.removeItem('island-visit')
+    location.href = location.pathname
+  })
+  const hudLayer = document.createElement('div')
+  hudLayer.className = 'hud'
+  hudLayer.append(el)
+  win.append(hudLayer)
+  const fitVisit = () => {
+    const cw = canvas.clientWidth
+    const hs = cw >= 1680 ? 3 : cw >= 560 ? 2 : cw >= 400 ? 1.5 : Math.max(1, cw / 300)
+    hudLayer.style.width = `${cw / hs}px`
+    hudLayer.style.height = `${canvas.clientHeight / hs}px`
+    hudLayer.style.transform = `scale(${hs})`
+  }
+  fitInto(window)
+  window.addEventListener('resize', () => {
+    fitInto(window)
+    fitVisit()
+  })
+  new ResizeObserver(fitVisit).observe(canvas)
+  fitVisit()
+  window.requestAnimationFrame(raf)
 }
 
 /** Party life: now and then two Pokémon play together or nap side by side. */
@@ -676,6 +817,7 @@ function freeSlotAfter(from?: string) {
 }
 function saveDecor() {
   game.persist()
+  cloud.publishScene(currentScene())
   scene.setDecor(game.save.decor.slots)
   hud.refreshSheet()
 }
@@ -685,6 +827,7 @@ function onGame(e: GameEvent) {
   switch (e.type) {
     case 'sessionStart':
       hud.toast('Session started.')
+      void refreshFriends()
       cancelCatch()
       scene.markWild = false
       syncSleep()
@@ -709,6 +852,8 @@ function onGame(e: GameEvent) {
           if (n) hud.say({ dex: game.save.wild[0].dex, text: n === 1 ? `${game.name(game.save.wild[0].dex)} is waiting. Tap it to throw a ball.` : `${n} Pokémon are waiting. Tap one to throw a ball.`, auto: 5500 })
         })
       after(6, () => void showWaves())
+      game.together = []
+      after(8, () => void takeGifts())
       break
     case 'passer':
       void spawnWild(e.wild, true)
@@ -766,6 +911,7 @@ function onGame(e: GameEvent) {
       hud.refreshSheet()
       break
     case 'habitat':
+      cloud.publishScene(currentScene())
       scene.setHabitats(game.save.habitats)
       hud.toast(`${HABITATS.find((h) => h.id === e.id)!.name} built.`)
       break
@@ -983,7 +1129,7 @@ function buildDebug() {
     <div class="debug-row">${b('m1', 'Add 1 focused minute')}${b('m10', 'Add 10 minutes')}${b('m60', 'Add 60 minutes')}${b('finish', 'Finish the session')}</div>
     <div class="debug-row">${b('berries', 'Add 3 berries')}${b('shells', 'Add 300 shells')}${b('stone', 'A stone washes ashore')}${b('bond', 'Lead has 10 hours of bond')}${b('visit50', 'Visitor at 50-minute odds')}</div>
     <div class="debug-row">${b('visit', 'Visitor now')}${b('evolve', 'Lead is ready to evolve')}${b('checkin', 'Ask now')}${b('idle', 'Simulate 10 idle minutes')}${b('lock', 'Simulate screen lock')}${b('active', 'Simulate activity')}${b('gap', 'Simulate a 10 minute sleep')}</div>
-    <div class="debug-row">${b('passer', 'Passer-by now')}${b('find', 'A find now')}${b('balls', '+5 of each ball')}${b('stars', '+5 Star Pieces')}${b('night', 'Night')}${b('egg', 'An egg')}${b('hatch', 'Eggs nearly ready')}</div><div class="debug-row">${b('m30', 'Add 30 minutes')}${b('hours', '+5 focused hours (days)')}${b('strong', 'Party to Lv 34')}${b('dexfill', 'Catch 70% of this dex')}${b('w-rain', 'Rain')}${b('w-fog', 'Fog')}${b('w-sun', 'Sun')}${b('w-clear', 'Clear sky')}</div>
+    <div class="debug-row">${b('passer', 'Passer-by now')}${b('find', 'A find now')}${b('balls', '+5 of each ball')}${b('stars', '+5 Star Pieces')}${b('night', 'Night')}${b('egg', 'An egg')}${b('hatch', 'Eggs nearly ready')}</div><div class="debug-row">${b('m30', 'Add 30 minutes')}${b('hours', '+5 focused hours (days)')}${b('strong', 'Party to Lv 34')}${b('dexfill', 'Catch 70% of this dex')}${b('fakefriend', 'A friend studies too')}${b('fakegift', 'A gift arrives')}${b('w-rain', 'Rain')}${b('w-fog', 'Fog')}${b('w-sun', 'Sun')}${b('w-clear', 'Clear sky')}</div>
     <div class="debug-row"><label class="time"><span>Hour</span><input type="range" min="0" max="24" step="0.1" value="${clockHour()}" /><output></output></label>${b('clock', 'Use my clock')}${b('reset', 'Reset save')}</div>`
   const slider = el.querySelector<HTMLInputElement>('input')!
   const out = el.querySelector('output')!
@@ -1025,6 +1171,17 @@ function buildDebug() {
     if (d === 'hours') {
       const k = '2000-01-01'
       game.save.days[k] = (game.save.days[k] ?? 0) + 300
+    }
+    if (d === 'fakefriend') {
+      game.together = game.save.session ? ['Mina'] : []
+      void syncVisitors([{ name: 'Mina', dex: 25 }])
+      hud.toast(game.together.length ? 'Studying with Mina. Shells are doubled.' : 'Mina is visiting.')
+    }
+    if (d === 'fakegift') {
+      for (const [kind, payload] of [['mon', { dex: 133, level: 12 }], ['egg', { dex: 393 }], ['item', { id: 'ultra-ball', n: 2 }]] as const) {
+        const m = game.receive(kind, payload)
+        hud.say({ dex: m?.dex ?? lead(), emotion: 'Happy', text: `Mina sent you ${kind === 'mon' ? game.name(133) : kind === 'egg' ? 'an egg' : '2 Ultra Balls'}!`, auto: 4000 })
+      }
     }
     if (d === 'strong') for (const m of game.party) { m.level = Math.max(m.level, 34); m.noEvolve = true }
     if (d === 'dexfill') {
@@ -1074,6 +1231,11 @@ function buildDebug() {
 
 // ---------- boot ----------
 async function boot() {
+  if (visitData) {
+    const [m] = await Promise.all([loadManifest()])
+    manifest = m
+    return bootVisit(visitData)
+  }
   const [m, roster] = await Promise.all([loadManifest(), fetch(import.meta.env.BASE_URL + `data/roster.json?v=${__BUILD__}`).then((r) => r.json())])
   manifest = m
   game = new Game((roster as { species: Roster }).species)
@@ -1189,6 +1351,8 @@ async function boot() {
         if (!ok) hud.toast('Idle detection is off.')
       },
       challenge: askBattle,
+      visit: (id) => void visitFriend(id),
+      gift: (id, name, kind, ref) => void sendGift(id, name, kind, ref),
       sail: (to) => {
         if (!game.sail(to)) hud.toast(game.inSession ? 'Sail between sessions.' : 'Not yet.')
       },
@@ -1275,8 +1439,13 @@ async function boot() {
     cloud.onCloud(() => hud.refreshSheet())
     hud.refreshSheet()
     publishParty()
+    cloud.publishScene(currentScene())
     if (game.inSession && game.save.session?.state === 'running') void cloud.sessionBegin()
     else void showWaves()
+    void takeGifts()
+    void refreshFriends()
+    setInterval(() => void refreshFriends(), 120_000)
+    setInterval(() => void takeGifts(), 300_000)
   })
   syncSleep(true)
   buildDebug()

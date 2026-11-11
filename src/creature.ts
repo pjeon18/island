@@ -28,6 +28,7 @@ export class Creature {
   onArrive?: () => void
   monId?: string // set for party members
   wildId?: string // set for passers-by waiting to be caught
+  visitor?: string // a friend's Pokémon visiting while they study: the friend's name
   hidden = false // inside a thrown ball
   anchor?: { x: number; y: number; r: number } // helpers stay near their job; r 0 = stand still
   glowOut = false // fade the white glow away (a hatchling)

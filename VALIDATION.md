@@ -1,5 +1,29 @@
 # Validation
 
+## What Paul needs to do for stage 5
+
+Run `supabase/island_stage5.sql` in Studdy's Supabase SQL editor (after `island.sql`, which is already live).
+
+## Stage 5, friends (2026-11-11)
+
+- **SQL:** `npm run test:sql` now also applies `supabase/island_stage5.sql` twice and checks it.
+  - Scenes are cleaned: an unknown habitat, slot and item were dropped.
+  - Only friends can read a scene.
+  - A level-90 Snorlax gift was clamped to level 8, the most the sender's verified minutes could earn.
+  - Refused: a Master Ball, 9 Star Pieces, dex 9999, and gifts to non-friends.
+  - Gifts are claimed once.
+  - The 11th gift in a day says "too many".
+  - Direct inserts, updates and truncates on gifts are denied, and so are signed-out calls.
+- **In the browser, with debug controls standing in for a friend:**
+  - Studying together doubled shells (10 for 5 minutes), and the clock read "With Mina".
+  - Mina's Pikachu walked up the pier and wandered.
+  - Three gifts arrived with messages: an Eevee at level 12 into the box, a Piplup egg in the nest, and 2 Ultra Balls.
+- **Friends menu (with a faked signed-in friend):** each row shows Wave, Visit and Send. Send lists your spare Pokémon, eggs and items.
+- **Visit mode (with a faked scene):**
+  - Mina's island loaded in the Frost palette with her pond, rocks, windmill, lantern and bench, and her party wandering.
+  - The banner read "Mina's island · Studying now". Go home returned to the home island and cleared the visit.
+- **Not checked live:** the real round trip to Supabase. Paul has to run `supabase/island_stage5.sql` first. Until then the island reports "Visiting is not set up yet." and "Gifts are not set up yet." and everything else works.
+
 ## Stage 4, guardians, growth and Frost Isle (2026-11-11)
 
 - **Roster:** 79 species. Every Frost Isle species, Zubat's line, Snorlax and Lapras have PMD sprites.

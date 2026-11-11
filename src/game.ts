@@ -218,6 +218,7 @@ export interface Save {
   island: IslandId
   stash: Partial<Record<IslandId, IslandState>>
   guardians: IslandId[] // beaten
+  eggQueue: number[] // gifted eggs waiting for room in the nest
 }
 
 export const PARTY_MAX = 3
@@ -301,6 +302,7 @@ export function emptySave(): Save {
     island: 'home',
     stash: {},
     guardians: [],
+    eggQueue: [],
   }
 }
 
@@ -354,6 +356,8 @@ export type GameEvent =
 
 export class Game {
   save: Save
+  /** Friends focusing at the same time as you (set by main.ts from the friends list). */
+  together: string[] = []
   /** The hour as the island sees it; main.ts swaps this for the debug clock. */
   hour = () => {
     const d = new Date(this.now())
@@ -603,6 +607,7 @@ export class Game {
   }
   private giveExp(n: number) {
     this.save.shells += n
+    if (this.together.length) this.save.shells += n // studying together: double shells
     for (const m of this.party) {
       m.focusedMin += n
       this.addExp(m, n)
@@ -822,6 +827,58 @@ export class Game {
     return this.addMon(g.dex, g.level - 5)
   }
 
+  // ---------- gifts (stage 5) ----------
+  /** Can this be sent? A Pokémon must not be the last in the party or away on an expedition. */
+  canGiveMon(id: string) {
+    const r = this.roleOf(id)
+    return !this.save.session && r !== 'expedition' && !(r === 'party' && this.save.party.length <= 1)
+  }
+  /** Remove what was sent, once the server has accepted it. */
+  giveAway(kind: 'mon' | 'egg' | 'item', ref: string, n = 1) {
+    const s = this.save
+    if (s.session) return false
+    if (kind === 'mon') {
+      if (!this.canGiveMon(ref)) return false
+      this.assign(ref, 'box')
+      s.mons = s.mons.filter((m) => m.id !== ref)
+    } else if (kind === 'egg') {
+      if (!s.eggs.some((e) => e.id === ref)) return false
+      s.eggs = s.eggs.filter((e) => e.id !== ref)
+    } else {
+      if (this.itemCount(ref) < n) return false
+      this.addItem(ref, -n)
+    }
+    this.persist()
+    this.emit({ type: 'partyChanged' })
+    return true
+  }
+  itemCount(id: string) {
+    const s = this.save
+    if (id in s.balls) return s.balls[id as Ball]
+    if (id === 'star-piece') return s.starPieces
+    if (id === 'oran-berry') return s.berries
+    if (FOODS.some((f) => f.id === id)) return s.foods[id] ?? 0
+    return s.bag[id] ?? 0
+  }
+  addItem(id: string, n: number) {
+    const s = this.save
+    if (id in s.balls) s.balls[id as Ball] = Math.max(0, s.balls[id as Ball] + n)
+    else if (id === 'star-piece') s.starPieces = Math.max(0, s.starPieces + n)
+    else if (id === 'oran-berry') s.berries = Math.max(0, Math.min(BERRIES_MAX, s.berries + n))
+    else if (FOODS.some((f) => f.id === id)) s.foods[id] = Math.max(0, (s.foods[id] ?? 0) + n)
+    else s.bag[id] = Math.max(0, (s.bag[id] ?? 0) + n)
+  }
+  /** Take in a gift from a friend. Returns the new Pokémon, if it was one. */
+  receive(kind: 'mon' | 'egg' | 'item', p: { dex?: number; level?: number; id?: string; n?: number }) {
+    if (kind === 'mon' && p.dex && this.species(p.dex)) return this.addMon(p.dex, Math.max(1, Math.min(100, p.level ?? 5)))
+    if (kind === 'egg' && p.dex && this.species(p.dex)) {
+      if (!this.addEgg(p.dex, 'gift')) this.save.eggQueue.push(p.dex)
+    }
+    if (kind === 'item' && p.id) this.addItem(p.id, Math.max(1, Math.min(5, p.n ?? 1)))
+    this.persist()
+    return null
+  }
+
   // ---------- habitats and food ----------
   buildHabitat(id: Habitat) {
     const h = HABITATS.find((x) => x.id === id)
@@ -961,6 +1018,8 @@ export class Game {
   }
   private hatch(e: Egg) {
     this.save.eggs = this.save.eggs.filter((x) => x !== e)
+    const queued = this.save.eggQueue.shift()
+    if (queued) this.addEgg(queued, 'gift')
     this.emit({ type: 'hatching', egg: e })
     const m = this.addMon(e.dex, 1)
     this.emit({ type: 'hatch', egg: e, mon: m })
@@ -1030,7 +1089,7 @@ export class Game {
     if (this.save.wild.length >= WILD_MAX || this.passersToday() >= PASSERS_PER_DAY) return null
     // longer sessions and sessions without step-aways draw rarer Pokémon
     const lure = this.lure(s)
-    const mult = (lure.long ? RARE_50 : 1) * (lure.clean ? 1 : 0.6)
+    const mult = (lure.long ? RARE_50 : 1) * (lure.clean ? 1 : 0.6) * (this.together.length ? 1.3 : 1)
     const { dex, level } = this.pickVisitor(mult, Math.random, lure)
     this.save.passers = { day: dayKey(this.now()), count: this.passersToday() + 1 }
     const w: Wild = { id: Math.random().toString(36).slice(2, 10), dex, level, tries: 0 }

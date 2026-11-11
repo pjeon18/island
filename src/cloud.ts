@@ -275,3 +275,79 @@ export async function collectWaves(): Promise<string[]> {
   const names = new Map((ps ?? []).map((p) => [p.user_id as string, String(p.name).slice(0, 20)]))
   return [...new Set(rows.map((r) => names.get(r.sender) ?? 'A friend'))]
 }
+
+// ---------- stage 5: visiting and gifts (supabase/island_stage5.sql) ----------
+export interface Scene5 {
+  island: 'home' | 'frost'
+  habitats: string[]
+  decor: Record<string, string>
+}
+export interface FriendScene {
+  name: string
+  handle: string
+  party: { dex: number; level: number }[]
+  scene: Scene5
+  studying: boolean
+}
+export type GiftKind = 'mon' | 'egg' | 'item'
+export interface Gift {
+  id: number
+  from: string
+  kind: GiftKind
+  payload: { dex?: number; level?: number; id?: string; n?: number }
+}
+let stage5 = true // turns false once we learn the stage 5 SQL has not been run
+export const hasStage5 = () => state === 'ready' && stage5
+
+let sceneTimer = 0
+export function publishScene(scene: Scene5) {
+  if (!hasStage5() || !supa) return
+  window.clearTimeout(sceneTimer)
+  sceneTimer = window.setTimeout(async () => {
+    const { error } = await supa!.rpc('island_publish_scene', { p_scene: scene })
+    if (missing(error)) stage5 = false
+  }, 5000)
+}
+export async function friendScene(id: string): Promise<FriendScene | string> {
+  if (!supa || state !== 'ready') return 'You are not signed in.'
+  const { data, error } = await supa.rpc('island_friend_scene', { p_id: id })
+  if (missing(error)) {
+    stage5 = false
+    return 'Visiting is not set up yet.'
+  }
+  if (error) return `That did not work: ${error.message}`
+  const row = (data as Record<string, unknown>[])[0]
+  if (!row) return 'You can only visit friends.'
+  const sc = (row.scene ?? {}) as Partial<Scene5>
+  return {
+    name: String(row.name ?? '').slice(0, 20),
+    handle: String(row.handle ?? ''),
+    party: (Array.isArray(row.party) ? row.party : []).slice(0, 3).map((p: { dex?: unknown; level?: unknown }) => ({ dex: Number(p.dex) | 0, level: Number(p.level) | 0 })).filter((p) => p.dex >= 1 && p.dex <= 493),
+    scene: { island: sc.island === 'frost' ? 'frost' : 'home', habitats: Array.isArray(sc.habitats) ? sc.habitats.map(String) : [], decor: sc.decor && typeof sc.decor === 'object' ? (sc.decor as Record<string, string>) : {} },
+    studying: row.studying === true,
+  }
+}
+export async function sendGift(to: string, kind: GiftKind, payload: Gift['payload']) {
+  if (!supa || state !== 'ready') return 'You are not signed in.'
+  const { data, error } = await supa.rpc('island_send_gift', { p_to: to, p_kind: kind, p_payload: payload })
+  if (missing(error)) {
+    stage5 = false
+    return 'Gifts are not set up yet.'
+  }
+  if (error) return `That did not work: ${error.message}`
+  return data === 'ok' ? 'ok' : data === 'too many' ? 'You have sent a lot today. Try again tomorrow.' : data === 'not friends' ? 'You can only send gifts to friends.' : 'That gift cannot be sent.'
+}
+export async function claimGifts(): Promise<Gift[]> {
+  if (!hasStage5() || !supa) return []
+  const { data, error } = await supa.rpc('island_claim_gifts')
+  if (missing(error)) {
+    stage5 = false
+    return []
+  }
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    id: Number(r.id),
+    from: String(r.sender_name ?? 'A friend').slice(0, 20),
+    kind: r.kind as GiftKind,
+    payload: (r.payload ?? {}) as Gift['payload'],
+  }))
+}

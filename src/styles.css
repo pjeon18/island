@@ -213,6 +213,12 @@ body { -webkit-font-smoothing: none; }
 .tick.on { background: var(--fr-gold); border-color: var(--fr-gold-edge); box-shadow: inset 0 0 0 1px #fff4d0; }
 .mini-face { width: 30px; height: 30px; border: 2px solid var(--fr-edge-2); }
 
+/* friends: the send picker, and the banner on a friend's island */
+.send-pick { margin: 6px 0 2px; padding: 6px; background: var(--fr-tint); border: 2px solid var(--fr-edge-2); }
+.send-pick .row-actions { margin: 2px 0 6px; }
+.visit-banner { position: absolute; left: 6px; top: 6px; padding: 8px 10px 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.visit-banner p { margin: 0; }
+
 /* starter */
 .hud-starter { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(16, 24, 44, .35); z-index: 4; }
 .starter-panel { padding: 12px 14px 14px; text-align: center; }

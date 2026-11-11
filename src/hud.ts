@@ -74,6 +74,8 @@ export interface HudHandlers {
   assign: (id: string, role: Role) => void
   expedition: (id: string, long: boolean) => void
   challenge: () => void
+  visit: (id: string) => void
+  gift: (friendId: string, friendName: string, kind: 'mon' | 'egg' | 'item', ref: string) => void
   sail: (to: IslandId) => void
   popOut?: () => void
   quit?: () => void
@@ -217,7 +219,7 @@ export class Hud {
     const g = this.game
     const s = g.save.session
     const breakLeft = !s && g.save.breakUntil ? (g.save.breakUntil - g.now()) / 1000 : 0
-    const key = !g.hasStarter ? 'none' : !s ? `idle:${g.save.settings.length}:${breakLeft > 0}` : s.state
+    const key = !g.hasStarter ? 'none' : !s ? `idle:${g.save.settings.length}:${breakLeft > 0}` : `${s.state}:${g.together.join(',')}`
     if (key !== this.lastFocusKey) {
       this.lastFocusKey = key
       const len = g.save.settings.length
@@ -232,7 +234,7 @@ export class Hud {
                  <button class="px-btn primary small" data-f="start">Start focusing</button>${segs}`
               : `<button class="px-btn primary" data-f="start">Start focusing</button>${segs}`
             : s.state === 'running'
-              ? `<div class="px-panel clock"><span class="clock-t"></span><span class="clock-l">${s.length ? 'Focusing' : 'Open'}</span></div>
+              ? `<div class="px-panel clock"><span class="clock-t"></span><span class="clock-l">${g.together.length ? `With ${esc(g.together[0])}` : s.length ? 'Focusing' : 'Open'}</span></div>
                  <button class="px-btn small" data-f="end">End session</button>`
               : s.state === 'asking'
                 ? `<div class="px-panel clock"><span class="clock-t"></span><span class="clock-l">Waiting for you</span></div>
@@ -690,6 +692,19 @@ export class Hud {
       <p class="row-title">Decorations <span class="hint">${free}/${open.length} spots free</span></p>${rows}`
   }
 
+  private sendTo: string | null = null
+  /** What you can send a friend: a Pokémon (not the last in the party, not away), an egg, or one item. */
+  private sendPicker(id: string, name: string) {
+    const g = this.game
+    const s = g.save
+    const n = esc(name)
+    const mons = s.mons.filter((m) => g.canGiveMon(m.id)).map((m) => `<button class="px-btn small" data-gift="${id}|${n}|mon|${m.id}">${g.name(m)} ${m.level}</button>`).join('')
+    const eggs = s.eggs.map((e) => `<button class="px-btn small" data-gift="${id}|${n}|egg|${e.id}">${icon('lucky-egg', 'ico-s')}Egg</button>`).join('')
+    const ids = [...BALLS.map((b) => b.id), 'star-piece', 'oran-berry', ...FOODS.map((f) => f.id), ...Object.keys(s.bag)]
+    const items = ids.filter((x) => g.itemCount(x) > 0).map((x) => `<button class="px-btn small" data-gift="${id}|${n}|item|${x}" title="${x}">${icon(x, 'ico-s')}×${g.itemCount(x)}</button>`).join('')
+    return `<div class="send-pick"><p class="hint">Pokémon</p><div class="row-actions">${mons || '<span class="hint">None to spare</span>'}</div>${eggs ? `<p class="hint">Eggs</p><div class="row-actions">${eggs}</div>` : ''}<p class="hint">Items (one at a time)</p><div class="row-actions">${items || '<span class="hint">None</span>'}</div></div>`
+  }
+
   private friendsTab() {
     const c = this.h.cloud
     const st = c.state()
@@ -711,9 +726,12 @@ export class Hud {
     const rows = (fc?.friends ?? [])
       .map((f) => {
         const party = f.party.map((p) => `<span class="mini"><img src="${portraitUrl(p.dex)}" alt="" /><i>${p.level}</i></span>`).join('')
-        const status = f.studying ? 'Studying now' : f.dayMin ? `${fmtMinutes(f.dayMin)} today` : ''
-        const waveBtn = f.studying && !this.game.inSession ? `<button class="px-btn small" data-wave="${f.id}">Wave</button>` : ''
-        return `<div class="friend-row${f.studying ? ' live' : ''}"><div class="mon-main"><p><strong>${esc(f.name)}</strong> <span class="hint">@${esc(f.handle)}</span></p><p class="hint">${status} ${f.dexCount ? `Pokédex: ${f.dexCount}.` : ''}</p></div><div class="mini-party">${party}</div>${waveBtn}</div>`
+        const status = f.studying ? 'Studying now.' : f.dayMin ? `${fmtMinutes(f.dayMin)} today.` : ''
+        const free = !this.game.inSession
+        const waveBtn = f.studying && free ? `<button class="px-btn small" data-wave="${f.id}">Wave</button>` : ''
+        const acts = free ? `<div class="row-actions">${waveBtn}<button class="px-btn small" data-visit="${f.id}">Visit</button><button class="px-btn small" data-sendto="${f.id}">Send</button></div>` : ''
+        const picker = this.sendTo === f.id ? this.sendPicker(f.id, f.name) : ''
+        return `<div class="friend-row${f.studying ? ' live' : ''}"><div class="mon-main"><p><strong>${esc(f.name)}</strong> <span class="hint">@${esc(f.handle)}</span></p><p class="hint">${status} ${f.dexCount ? `Pokédex ${f.dexCount}.` : ''}</p>${acts}${picker}</div><div class="mini-party">${party}</div></div>`
       })
       .join('')
     return `<p class="note">@${esc(me.handle)}</p>
@@ -768,6 +786,18 @@ export class Hud {
       await this.h.cloud.signOut()
       this.friendsCache = null
       return this.renderSheet()
+    }
+    const visitId = at('visit')
+    if (visitId) return this.h.visit(visitId)
+    const sendto = at('sendto')
+    if (sendto) {
+      this.sendTo = this.sendTo === sendto ? null : sendto
+      return this.renderSheet()
+    }
+    const giftAt = at('gift')
+    if (giftAt) {
+      const [fid, fname, kind, ref] = giftAt.split('|')
+      return this.h.gift(fid, fname, kind as 'mon' | 'egg' | 'item', ref)
     }
     const sailTo = at('sail')
     if (sailTo) return this.h.sail(sailTo as IslandId)

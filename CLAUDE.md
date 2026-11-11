@@ -20,6 +20,7 @@ Read `docs/GAME_DESIGN.md` first: it is the game loop and core features from Pau
   - Every choice happens in the 5-minute break after a session.
   - T2 is Studdy accounts and friends: `supabase/island.sql` plus `src/cloud.ts`. T3 is stone and friendship evolutions (45 species), shell decorations, and the Tauri desktop pet (`src-tauri/`, plus `?float`).
 - **What Paul has to do:**
+  - Run `supabase/island_stage5.sql` in Studdy's SQL editor (stage 5, friends).
   - Done 2026-11-11: `supabase/island.sql` is on the live project (probed: all tables and functions exist and refuse signed-out callers) and Paul added the redirect URLs.
   - Still open: a real sign-in on pauljeon.org/island to confirm the redirect and Turnstile.
   - Install Rust (rustup) to build the desktop app.
@@ -56,6 +57,7 @@ Read `docs/GAME_DESIGN.md` first: it is the game loop and core features from Pau
   - Every call no-ops politely when the island's tables are missing (the `missingSchema` state).
 - Stage 3 helpers live in `game.ts`: `roleOf`/`assign` (party, box, daycare, `job:*`, expedition), `work(n)` per focused minute (eggs, Day Care, `JOBS`, the expedition), `addEgg`/`hatch`, half EXP for helpers in `giveExp`. In `main.ts`: `anchorFor`/`applyAnchors` keep helpers at their work, `NEST` (scene.ts) holds eggs, and `spawnNext` puts a hatchling at the nest.
 - Stage 4: `src/battle.ts` (type chart, `simulate`, guardian stats), `game.ts` `ISLANDS`/`sail`/`sailNeeds`/`dexOf`/`challenge`/`guardianJoins`/`stash` (per-island habitats, decor slots, finds, food), and `island.ts` `useIsland('frost')` (palette swap applied before the Scene is built; travel reloads the page). The guardian creature is `guardianC` in main.ts.
+- Stage 5 (friends): `supabase/island_stage5.sql` adds `scene` on island_profiles, `island_publish_scene`, `island_friend_scene`, `island_gifts` with `island_send_gift` and `island_claim_gifts`. The client side is in `cloud.ts` (publishScene, friendScene, sendGift, claimGifts, hasStage5). In `main.ts`: `refreshFriends` (every 2 min: visitors and `game.together`), `takeGifts`, `visitFriend`/`bootVisit` (`?visit=1` with the scene in sessionStorage, a read-only view), and `sendGift`. Debug: 'A friend studies too', 'A gift arrives'.
 - `src/habitats.ts`: stage 2. The fixed habitat spots (`HABITAT_SPOTS`), the pond and rocks art, and the food dish. The spawn rules live in `game.ts`: `HABITATS`, `FOODS`, `DECOR_LOVES`, `WEATHER_TYPES`, `lure()` and `pickVisitor` (gates first, then multipliers), plus `lureNotes` for the Pokédex. The roster's lure data (`needs`, `time`) is in `scripts/roster.mjs`.
 - `src/catch.ts`: the throw on the canvas (stage 1): the breathing ring coloured by the odds, the ball's arc, entering, wobbles, stars or a break-free. `main.ts` owns the flow (`openCatch`, `throwNow`, `finishCatch`, `spawnWild`, `digUp`, `partyLife`); the rules are in `game.ts` (`passerBy`, `dig`, `collectFind`, `buyBall`, `catchChance`, `throwBall`, weather).
 - `src/decor.ts`: the decoration catalog, the six fixed `SLOTS`, and pixel-art painters, with a glow or live animation per item.
