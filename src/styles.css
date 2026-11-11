@@ -22,7 +22,7 @@ body { -webkit-font-smoothing: none; }
    HUD pixels at a whole-number scale (usually 2): Press Start 2P at 8px sits
    on its grid, item icons are 15px (30px art, 1:1) and portraits 40px (2x). */
 .hud {
-  --fr-ink: #404040; --fr-shadow: #d0d0c8; --fr-win: #f8f8f8; --fr-soft: #707070;
+  --fr-ink: #404040; --fr-shadow: #d0d0c8; --fr-win: #f8f8f8; --fr-soft: #5c5c5c; --fr-soft-shadow: #e6e6de;
   --fr-edge: #2c4c70; --fr-edge-2: #8cbce8; --fr-tint: #e0eefa;
   --fr-navy: #202c48; --fr-navy-2: #34446a; --fr-navy-3: #4e6090;
   --fr-gold: #f8d060; --fr-gold-edge: #a06820; --fr-gold-ink: #483010;
@@ -283,3 +283,28 @@ html:has(.float), body:has(.float) { background: transparent; }
 .hud.narrow .chip-name { display: none; }
 .hud.narrow .thin { min-width: 14px; }
 .hud.narrow .hud-focus > .px-btn:not(.small) { padding: 5px 8px; }
+
+/* the journal */
+.strip-tab.fresh { position: relative; }
+.strip-tab.fresh::after { content: ''; position: absolute; right: 2px; top: 2px; width: 4px; height: 4px; background: var(--fr-gold); box-shadow: 0 0 0 1px var(--fr-navy); }
+.log-cells { display: flex; gap: 3px; margin: 2px 0 4px; }
+.log-cells .hint { margin: 0; }
+.log-cell { flex: 1 1 0; min-width: 0; display: flex; flex-direction: column; gap: 3px; padding: 5px 5px 4px; background: var(--fr-tint); line-height: 1; }
+.log-cell b { font-weight: 400; font-size: 16px; color: var(--fr-ink); white-space: nowrap; }
+.log-cell span { color: var(--fr-soft); text-shadow: 1px 1px 0 var(--fr-soft-shadow); white-space: nowrap; }
+.log-day { margin: 8px 0 2px; color: var(--fr-edge); }
+.log-row { display: flex; align-items: flex-start; gap: 6px; padding: 3px 0 3px 4px; border-left: 2px solid transparent; line-height: 1.6; }
+.log-row.new { border-left-color: var(--fr-gold); }
+.log-row p { margin: 0; flex: 1; min-width: 0; }
+.log-face { width: 20px; height: 20px; flex: none; margin-top: -2px; image-rendering: pixelated; }
+.log-face.none { display: inline-block; }
+.log-time { flex: none; color: var(--fr-soft); }
+.log-pager { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 8px; }
+
+/* secondary text: darker grey with a lighter shadow so small numbers stay crisp */
+.hint, .note, .log-time, .inv, .chip-row, .clock-l, .bag-cell span, .box-cell span, .dex-cell span { text-shadow: 1px 1px 0 var(--fr-soft-shadow); }
+.stat-line { display: flex; align-items: baseline; gap: 6px; margin: 2px 0; }
+.stat-line span { color: var(--fr-soft); text-shadow: 1px 1px 0 var(--fr-soft-shadow); }
+.stat-line span:first-child { width: 64px; }
+.stat-line b { font-weight: 400; font-size: 16px; line-height: 1.2; color: var(--fr-ink); }
+.log-cell:first-child { flex-grow: 1.6; }

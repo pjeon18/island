@@ -185,7 +185,7 @@ const haulText = (h: Haul) => {
   const names: Record<string, string> = { berry: 'Oran Berry', 'poke-ball': 'Poké Ball', 'great-ball': 'Great Ball', 'ultra-ball': 'Ultra Ball', 'star-piece': 'Star Piece' }
   for (const it of h.items) {
     const name = it.kind === 'food' ? FOODS.find((f) => f.id === it.id)!.name : names[it.kind]
-    parts.push(it.n > 1 ? `${it.n} ${name}s` : `a ${name}`)
+    parts.push(it.n > 1 ? `${it.n} ${name}s` : `${/^[AEIOU]/.test(name) ? 'an' : 'a'} ${name}`)
   }
   if (h.egg) parts.push('an egg')
   return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}` : parts[0]
@@ -253,6 +253,7 @@ async function runVisit(rareMult = 1) {
                   ? `${name} joined your party.`
                   : `${name} went to your box.`,
               })
+              game.note('catch', `${name} joined you.`, { dex })
               visiting = false
             },
           },
@@ -563,6 +564,7 @@ async function takeGifts() {
     const what =
       g.kind === 'mon' ? game.name(g.payload.dex ?? 0) : g.kind === 'egg' ? 'an egg' : `${(g.payload.n ?? 1) > 1 ? `${g.payload.n} ` : 'a '}${itemName(g.payload.id ?? '')}${(g.payload.n ?? 1) > 1 ? 's' : ''}`
     hud.say({ dex: m?.dex ?? lead(), emotion: 'Happy', text: `${g.from} sent you ${what}!`, auto: 5000 })
+    game.note('friend', `${g.from} sent you ${what}.`, { dex: m?.dex })
   }
   if (gifts.length) hud.refreshSheet()
 }
@@ -765,6 +767,7 @@ function stepEvolution(dt: number) {
       publishParty()
       hud.dismiss()
       hud.say({ dex: e.to, emotion: 'Happy', text: `${from} evolved into ${game.name(e.to)}.`, auto: 5000 })
+      game.note('evolve', `${from} evolved into ${game.name(e.to)}.`, { dex: e.to })
     }
     const k = (e.t - 2.4) / 2.2
     e.c.white = 1 - ease(Math.min(1, k))
@@ -803,6 +806,7 @@ async function showWaves() {
   if (!names.length) return
   const who = names.length === 1 ? names[0] : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
   hud.say({ dex: lead(), emotion: 'Happy', text: `${who} waved.`, auto: 5000 })
+  game.note('friend', `${who} waved.`)
 }
 
 // ---------- decorations ----------
@@ -839,6 +843,7 @@ function onGame(e: GameEvent) {
     case 'sessionEnd':
       hud.clearQueue((d) => d.text.includes('still studying'))
       void cloud.sessionEnd()
+      game.note('focus', `Focused for ${fmtMinutes(e.minutes)}.${e.complete ? ` ${e.berries === 2 ? 'Two berries' : 'A berry'} ripened.` : ''}`, { n: e.minutes, dex: lead() })
       if (e.complete)
         hud.toast(`${fmtMinutes(e.minutes)} focused. ${e.berries === 2 ? 'Two berries' : 'A berry'} ripened.`)
       else
@@ -861,25 +866,33 @@ function onGame(e: GameEvent) {
     case 'passer':
       void spawnWild(e.wild, true)
       hud.toast(`${game.name(e.wild.dex)} came by.`)
+      game.note('visit', `A wild ${game.name(e.wild.dex)} came by.`, { dex: e.wild.dex })
       break
     case 'wildLeave':
       for (const id of e.ids) {
         const c = wildCreature(id)
+        if (c) game.note('other', `${c.name} wandered off.`, { dex: Number(c.sp.dex) })
         if (c) wildLeaves(c)
       }
       break
-    case 'find':
+    case 'find': {
+      const by = game.save.mons.find((m) => m.id === e.find.by)
+      game.note('find', by ? `${game.name(by)} dug something up.` : 'Something turned up in the sand.', { dex: by?.dex })
       digUp(e.find)
+    }
       break
     case 'weather':
       scene.weather = e.kind
       hud.toast(WEATHER_TEXT[e.kind])
+      game.note('other', WEATHER_TEXT[e.kind])
       break
     case 'caught':
+      game.note('catch', `Caught ${game.name(e.mon)}.${e.newSpecies ? ' New to the Pokédex.' : ''}`, { dex: e.mon.dex })
       if (e.newSpecies) after(4.2, () => hud.toast('New species. A Star Piece!'))
       break
     case 'egg':
       syncNest()
+      game.note('hatch', e.egg.source === 'daycare' ? 'The Day Care pair left an egg.' : 'An egg arrived in the nest.')
       hud.toast(e.egg.source === 'daycare' ? 'The Day Care pair left an egg.' : e.egg.source === 'find' ? 'An egg turned up. It is in the nest.' : 'An egg arrived. It is in the nest.')
       hud.refreshSheet()
       break
@@ -889,25 +902,33 @@ function onGame(e: GameEvent) {
     case 'hatch':
       syncNest()
       hud.say({ dex: e.mon.dex, emotion: 'Happy', text: `An egg hatched. It is ${game.name(e.mon)}!`, auto: 5000 })
+      game.note('hatch', `An egg hatched into ${game.name(e.mon)}.`, { dex: e.mon.dex })
       if (!game.save.party.includes(e.mon.id)) spawnNext = null
       hud.refreshSheet()
       break
     case 'job':
       if (e.job === 'bush') hud.toast(`${game.name(e.mon)} watered the bush. A berry ripened.`)
+      game.note('other', e.job === 'bush' ? `${game.name(e.mon)} watered the bush.` : `${game.name(e.mon)} finished a job.`, { dex: e.mon.dex, key: `job:${e.mon.id}` })
       hud.refreshSheet()
       break
     case 'expeditionOut':
       hud.toast(`${game.name(e.mon)} set off.`)
+      game.note('other', `${game.name(e.mon)} set off exploring.`, { dex: e.mon.dex })
       break
     case 'expeditionBack':
       hud.say({ dex: e.mon.dex, emotion: 'Happy', text: `${game.name(e.mon)} came back with ${haulText(e.haul)}.`, auto: 7000 })
+      game.note('find', `${game.name(e.mon)} came back with ${haulText(e.haul)}.`, { dex: e.mon.dex })
       hud.refreshSheet()
       break
     case 'sail':
+      game.note('other', `Sailed to ${ISLANDS.find((i) => i.id === e.to)!.name}.`)
       sailAway(e.to)
       break
-    case 'guardian':
+    case 'guardian': {
+      const isl = ISLANDS.find((i) => i.id === e.island)!
+      if (e.win) game.note('catch', `Beat the guardian of ${isl.name}.`, { dex: isl.guardian.dex })
       break
+    }
     case 'rolesChanged':
       syncNest()
       applyAnchors()
@@ -917,6 +938,7 @@ function onGame(e: GameEvent) {
       cloud.publishScene(currentScene())
       scene.setHabitats(game.save.habitats)
       hud.toast(`${HABITATS.find((h) => h.id === e.id)!.name} built.`)
+      game.note('other', `Built the ${HABITATS.find((h) => h.id === e.id)!.name.toLowerCase()}.`)
       break
     case 'bait':
       scene.setBait(e.food)
@@ -928,6 +950,7 @@ function onGame(e: GameEvent) {
       hud.say({ dex: lead(), text: 'No more visitors today. Your party still grows.', auto: 6000 })
       break
     case 'stone':
+      game.note('find', `${e.streak} days in a row. ${aStone(e.item).replace(/^a/, 'A')} washed ashore.`, { dex: lead() })
       hud.say({
         dex: lead(),
         emotion: 'Happy',
@@ -950,6 +973,7 @@ function onGame(e: GameEvent) {
       break
     case 'levelUp': {
       const c = scene.byMon(e.mon.id)
+      game.note('level', `${game.name(e.mon)} reached level ${e.mon.level}.`, { dex: e.mon.dex, n: 1, key: `lv:${e.mon.id}` })
       publishParty()
       if (!game.inSession) break // berries announce their own level-ups
       hud.toast(`${game.name(e.mon)} grew to level ${e.mon.level}.`)
@@ -1576,6 +1600,7 @@ window.__island = {
   },
   placeGuardian: () => placeGuardian(),
   replayIntro: () => (scene.intro = new Intro(W, H)),
+  cheat: (id: string) => cheat(id),
   scene,
   /** Advance the island by `sec` seconds of simulation (not the focus clock). */
   step: (sec: number) => {

@@ -5,7 +5,7 @@
 // the sheet, and the sheet's choices only unlock between sessions.
 import type { CloudState, Friend, FriendRequest, Me } from './cloud'
 import { CATALOG, SLOTS, decorDef } from './decor'
-import { BALLS, BERRY_EXP, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, EGG_MAX, Evolution, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
+import { BALLS, BERRY_EXP, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, EGG_MAX, Evolution, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
 
 const BASE = import.meta.env.BASE_URL
 export const portraitUrl = (dex: number, emo = 'Normal') => `${BASE}sprites/${String(dex).padStart(4, '0')}/${emo}.png`
@@ -26,11 +26,24 @@ const DEX_ICON = `data:image/svg+xml,${encodeURIComponent(
     <path fill="#38a8f8" d="M2 3h1v2H2z"/>
   </svg>`,
 )}`
+// The journal: a small brown notebook with a bookmark, 15×15.
+const LOG_ICON = `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" shape-rendering="crispEdges">
+    <path fill="#4a2810" d="M3 1h10v13H3z"/>
+    <path fill="#a0582c" d="M4 2h8v11H4z"/>
+    <path fill="#c87840" d="M4 2h8v1H4z"/>
+    <path fill="#4a2810" d="M5 2h1v11H5z"/>
+    <path fill="#f8f0d8" d="M7 4h4v1H7zM7 6h4v1H7zM7 8h3v1H7z"/>
+    <path fill="#e03838" d="M10 0h2v4l-1-1-1 1z"/>
+    <path fill="#2a1408" d="M2 2h1v11H2z"/>
+  </svg>`,
+)}`
 const TABS: [Tab, string, string][] = [
   ['mons', 'Pokémon', itemUrl('poke-ball')],
   ['dex', 'Pokédex', DEX_ICON],
   ['island', 'Island', itemUrl('town-map')],
   ['friends', 'Friends', itemUrl('pal-pad')],
+  ['log', 'Journal', LOG_ICON],
   ['more', 'More', ''],
 ]
 /** Sub-tabs inside a menu, so each view stays short instead of one long scroll. */
@@ -100,7 +113,7 @@ export interface HudHandlers {
   }
 }
 
-type Tab = 'mons' | 'dex' | 'island' | 'friends' | 'more'
+type Tab = 'mons' | 'dex' | 'island' | 'friends' | 'log' | 'more'
 export interface CatchOpts {
   dex: number
   name: string
@@ -227,6 +240,18 @@ export class Hud {
   // ---------- per-frame state ----------
   update() {
     const g = this.game
+    const last = g.save.log[g.save.log.length - 1]?.t ?? 0
+    const lk = `${last}:${g.save.logSeen}:${this.sheet.hidden}:${this.tab}`
+    if (lk !== this.lastLogKey) {
+      this.lastLogKey = lk
+      const open = !this.sheet.hidden && this.tab === 'log'
+      if (open && last > g.save.logSeen) {
+        // a line written while the journal is open counts as seen, and shows up live
+        g.save.logSeen = g.now()
+        this.renderSheet()
+      }
+      this.el.querySelector('[data-open-tab="log"]')?.classList.toggle('fresh', !open && last > g.save.logSeen)
+    }
     const s = g.save.session
     const breakLeft = !s && g.save.breakUntil ? (g.save.breakUntil - g.now()) / 1000 : 0
     const key = !g.hasStarter ? 'none' : !s ? `idle:${g.save.settings.length}:${breakLeft > 0}` : `${s.state}:${g.together.join(',')}`
@@ -462,6 +487,12 @@ export class Hud {
   openSheet(tab: Tab) {
     this.el.querySelector<HTMLElement>('.hud-cheats')!.hidden = true
     if (tab !== 'mons' || !this.openMon) this.hideSummary()
+    if (tab === 'log' && (this.tab !== 'log' || this.sheet.hidden)) {
+      this.logFrom = this.game.save.logSeen
+      this.logPage = 0
+      this.game.save.logSeen = this.game.now()
+      this.game.persist()
+    }
     this.tab = tab
     this.note = ''
     this.sheet.hidden = false
@@ -507,7 +538,9 @@ export class Hud {
             ? this.islandTab()
             : this.tab === 'friends'
               ? this.friendsTab()
-              : this.moreTab()
+              : this.tab === 'log'
+                ? this.logTab()
+                : this.moreTab()
     const view = `${this.tab}:${cur}`
     const scroll = view === this.lastView ? (this.sheet.querySelector('.sheet-body')?.scrollTop ?? 0) : 0
     this.lastView = view
@@ -527,7 +560,7 @@ export class Hud {
     const s = g.save
     const locked = g.inSession ? `<p class="note">Locked while focusing.</p>` : ''
     const view = this.subOf('mons')
-    if (view === 'party') return locked + g.party.map((m) => this.monRow(m)).join('') + `<p class="hint">Party ${g.party.length}/${PARTY_MAX}. Tap one for its choices.</p>`
+    if (view === 'party') return locked + g.party.map((m) => this.monRow(m)).join('') + `<p class="hint">Party ${g.party.length} of ${PARTY_MAX}. Tap one for its choices.</p>`
     if (view === 'helpers') {
       const helpers = s.mons.filter((m) => { const r = g.roleOf(m.id); return r !== 'party' && r !== 'box' })
       const dc = s.daycare.ids.filter(Boolean).length
@@ -546,7 +579,7 @@ export class Hud {
     }
     if (view === 'eggs')
       return s.eggs.length
-        ? s.eggs.map((e, i) => `<div class="decor-row"><span class="shop-ico">${icon('lucky-egg')}</span><div class="mon-main"><p>Egg</p><span class="bar"><i style="width:${Math.round((e.progress / e.need) * 100)}%"></i></span><p class="hint">${i < EGG_MAX ? `${e.progress}/${e.need} min` : 'Waiting for room'}</p></div></div>`).join('') + `<p class="hint">${s.eggs.length}/${EGG_MAX} in the nest. They warm while you focus.</p>`
+        ? s.eggs.map((e, i) => `<div class="decor-row"><span class="shop-ico">${icon('lucky-egg')}</span><div class="mon-main"><p>Egg</p><span class="bar"><i style="width:${Math.round((e.progress / e.need) * 100)}%"></i></span><p class="hint">${i < EGG_MAX ? `${e.progress} of ${e.need} min` : 'Waiting for room'}</p></div></div>`).join('') + `<p class="hint">${s.eggs.length} of ${EGG_MAX} in the nest. They warm while you focus.</p>`
         : `<p class="hint">No eggs. They come from the Day Care, finds, streaks and trips.</p>`
     // the bag: everything you carry, as a grid
     const item = (id: string, name: string, n: number) => `<div class="bag-cell" title="${name}">${icon(id)}<span>${name}</span><b>×${n}</b></div>`
@@ -579,7 +612,7 @@ export class Hud {
     const role = g.roleOf(m.id)
     const ex = s.expedition
     const roleText =
-      role === 'daycare' ? 'At the Day Care' : role === 'expedition' && ex ? `Away, ${ex.progress}/${ex.need} min` : role.startsWith('job:') ? JOBS.find((j) => `job:${j.id}` === role)!.name : ''
+      role === 'daycare' ? 'At the Day Care' : role === 'expedition' && ex ? `Away, ${ex.progress} of ${ex.need} min` : role.startsWith('job:') ? JOBS.find((j) => `job:${j.id}` === role)!.name : ''
     const status = roleText
       ? roleText
       : m.heldItem
@@ -687,7 +720,8 @@ export class Hud {
     const hours = Math.floor(g.totalHours())
     const growth = here.id === 'home' ? GROWTH.map((x) => `<p class="hint"><i class="tick${hours >= x.hours ? ' on' : ''}"></i>${x.hours} h: ${x.text}</p>`).join('') : ''
     return `<p class="row-title">${here.name}</p>
-      <p class="hint">Pokédex ${dex.caught}/${dex.all.length} · ${hours} focused hours</p>
+      <p class="stat-line"><span>Pokédex</span><b>${dex.caught}</b><span>of ${dex.all.length}</span></p>
+      <p class="stat-line"><span>Focused</span><b>${hours}</b><span>hours</span></p>
       <div class="decor-row"><img class="shop-ico mini-face" src="${portraitUrl(gd.dex)}" alt="" /><div class="mon-main"><p>${g.name(gd.dex)} <span class="hint">Lv${gd.level}</span></p><p class="hint">${beaten ? 'Beaten. It joined you.' : `Guardian, ${gd.where}.`}</p></div><div class="row-actions row">${beaten ? '' : `<button class="px-btn small primary" data-act="challenge" ${g.inSession ? 'disabled' : ''}>Enter</button>`}</div></div>
       ${growth}
       <p class="row-title">Islands</p>${others}`
@@ -731,9 +765,70 @@ export class Hud {
     if (view === 'map') return this.islandsHtml()
     const wallet = `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${g.save.shells}</b></span><span title="Star Pieces">${icon('star-piece')}<b>×${g.save.starPieces}</b></span></p>${locked ? '<p class="note">Locked while focusing.</p>' : ''}`
     if (view === 'habitats') return `${wallet}${habitats}`
-    if (view === 'decor') return `${wallet.replace('</p>', `<span>${free}/${open.length} spots free</span></p>`)}<div class="decor-grid">${rows}</div>`
+    if (view === 'decor') return `${wallet.replace('</p>', `<span>${free} of ${open.length} spots free</span></p>`)}<div class="decor-grid">${rows}</div>`
     return `${wallet}<p class="row-title">Balls</p>${shop}
       <p class="row-title">Food</p>${g.save.bait ? `<p class="note">${FOODS.find((f) => f.id === g.save.bait)?.name} is out until the session ends.</p>` : ''}${food}`
+  }
+
+  // ---------- the journal ----------
+  private logFrom = 0 // entries after this were new when the journal opened
+  private logPage = 0
+  private lastLogKey = ''
+  /** What happened in these entries, as up to three big numbers. Only what actually happened shows. */
+  private logSummary(xs: LogEntry[]) {
+    const sum = (k: LogEntry['kind']) => xs.filter((x) => x.kind === k).reduce((a, x) => a + (x.n ?? 1), 0)
+    const count = (k: LogEntry['kind'], has = '') => xs.filter((x) => x.kind === k && x.text.includes(has)).length
+    const min = sum('focus')
+    const time = min >= 60 ? `${Math.floor(min / 60)}h${min % 60 ? String(min % 60).padStart(2, '0') : ''}` : `${min}m`
+    // most telling first; one row of three at most, the list below has the rest
+    const cells: [string, string | number][] = [
+      ['Focused', time],
+      ['Joined', count('catch')],
+      ['Evolved', count('evolve')],
+      ['Hatched', count('hatch', 'hatched')],
+      ['Levels', sum('level')],
+      ['Came by', count('visit')],
+      ['Found', count('find')],
+      ['Friends', count('friend')],
+    ]
+    return cells
+      .filter(([, v], i) => i === 0 || v)
+      .slice(0, 3)
+      .map(([label, v]) => `<div class="log-cell"><b>${v}</b><span>${label}</span></div>`)
+      .join('')
+  }
+  private logTab() {
+    const log = this.game.save.log
+    const day = (t: number) => new Date(t).toDateString()
+    const today = day(this.game.now())
+    const yest = day(this.game.now() - 864e5)
+    const fresh = log.filter((x) => x.t > this.logFrom)
+    const head = fresh.length ? 'Since you last looked' : 'Today'
+    const pool = fresh.length ? fresh : log.filter((x) => day(x.t) === today)
+    const summary = this.logSummary(pool)
+    const PER = 8
+    const newest = [...log].reverse()
+    const pages = Math.max(1, Math.ceil(newest.length / PER))
+    const page = Math.min(this.logPage, pages - 1)
+    const shown = newest.slice(page * PER, page * PER + PER)
+    let lastDay = ''
+    const rows = shown
+      .map((x) => {
+        const d = day(x.t)
+        const label = d === today ? 'Today' : d === yest ? 'Yesterday' : new Date(x.t).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+        const sep = d !== lastDay ? `<p class="row-title log-day">${label}</p>` : ''
+        lastDay = d
+        const time = new Date(x.t).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit', hour12: false })
+        const face = x.dex ? `<img class="log-face" src="${portraitUrl(x.dex)}" alt="" />` : `<span class="log-face none"></span>`
+        return `${sep}<div class="log-row${x.t > this.logFrom ? ' new' : ''}">${face}<span class="log-time">${time}</span><p>${esc(x.text)}</p></div>`
+      })
+      .join('')
+    const pager =
+      pages > 1
+        ? `<div class="log-pager"><button class="px-btn small" data-logpage="${page + 1}" ${page >= pages - 1 ? 'disabled' : ''}>Older</button><span>${page + 1} of ${pages}</span><button class="px-btn small" data-logpage="${page - 1}" ${page <= 0 ? 'disabled' : ''}>Newer</button></div>`
+        : ''
+    if (!log.length) return `<p class="note">Nothing yet. Start focusing and the island comes alive.</p>`
+    return `<p class="row-title log-day">${head}</p><div class="log-cells">${pool.length ? summary : '<p class="hint">A quiet day so far.</p>'}</div>${rows}${pager}`
   }
 
   private sendTo: string | null = null
@@ -821,6 +916,12 @@ export class Hud {
     const subAt = at('sub')
     if (subAt) {
       this.sub[this.tab] = subAt
+      return this.renderSheet()
+    }
+    const lp = at('logpage')
+    if (lp != null) {
+      this.logPage = Math.max(0, Number(lp))
+      this.lastView = ''
       return this.renderSheet()
     }
     const act = at('act')

@@ -1,10 +1,9 @@
 # Validation
 
-## The opening clouds (2026-11-11)
-- Every load (opening the app, after sailing, back from a visit or a dungeon) starts under two layers of pixel clouds that hold for 0.35 s and then part left and right over about 2 s. The HUD fades in as they clear.
-- Day frames: full cover at 0.05 to 0.6 s, an opening down the middle at 0.9 s, mostly clear at 1.2 s, gone by 1.6 s.
-- Night frames: the clouds are dimmed by the hour's light (multiplied, then cut back to one combined cloud mask), so they read as night clouds, not white glare.
-- Replay it with `__island.replayIntro()`.
+## The opening haze and the journal (2026-11-11)
+- **Opening.** Every load starts behind a pale dithered haze with three soft clouds a side. It holds 0.3 s, opens from the middle, and is clear by about 1.3 s; the clouds thin out as they leave. Frames checked at 0.1, 0.6, 0.9 and 1.2 s by day, and in real time at night, where the haze is dimmed by the hour's light (multiplied, then cut back to one mask). Replay with `__island.replayIntro()`.
+- **Journal.** Driven through the cheats (session, finish, passer-by, find, egg, hatch, expedition): every one wrote a line with the right portrait, level-ups merged per Pokémon, and the gold dot appeared on the strip button and cleared on opening. The summary tiles stay on one row with no overflow, including a 12h30 focus total. Cheats for weather, stones and waves bypass the events, so they do not log; the real events do.
+- **Readability.** The Island page shows "Pokédex 8 of 31" and "Focused 30 hours" with 16px numbers; all other fractions read "x of y".
 
 ## Stage 6, lighting, dungeons and the editor (2026-11-11)
 

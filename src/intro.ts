@@ -1,55 +1,45 @@
-// The opening: the island starts hidden under a bank of pixel clouds, which
-// hang for a moment and then part to the left and right to reveal it. It
-// plays on every load (opening the app, after sailing, back from a visit or
-// a dungeon). Clouds are drawn before the light pass, so at night they are
-// dim, not glowing. Timing follows Paul's motion notes: a short hold, then an
-// unhurried ease-out, no flashes.
+// The opening: the island starts behind a soft haze, which opens from the
+// middle and drifts off to the left and right, with a few pale clouds riding
+// its edges. It plays on every load (opening the app, after sailing, back from
+// a visit or a dungeon). It should read as weather, not as a show: the haze is
+// one pale colour dithered at its edge, the clouds are low-contrast with no
+// outline, and the whole thing is over in about two seconds. At night the
+// scene passes the hour's light in, so it dims with everything else.
 import { Pix, bayer, hash2, hex, rng } from './pixel'
 
-const HOLD = 0.35 // seconds fully covered
-const PART = 2.1 // seconds to clear
-export const INTRO_SECONDS = HOLD + PART + 0.3
+const HOLD = 0.3 // seconds fully covered
+const PART = 1.7 // seconds to clear
+export const INTRO_SECONDS = HOLD + PART + 0.2
+const FEATHER = 34 // px of dithered falloff at the haze's edge
 
 interface Cloud {
   img: HTMLCanvasElement
-  x: number
   y: number
-  dir: -1 | 1
-  delay: number
-  travel: number
-  back: boolean
+  side: -1 | 1
+  home: number // its centre's x while the view is covered
+  lag: number // a little behind the haze in time, so the edge breathes
 }
 
-/** One puffy cloud: overlapping round lobes, lit from the top left. */
-function paintCloud(w: number, h: number, seed: number, back = false) {
+/** One pale cloud: a few round lobes in two close tones, its rim dithered away instead of outlined. */
+function paintCloud(w: number, h: number, seed: number) {
   const p = new Pix(w, h)
   const r = rng(seed)
   const lobes: { x: number; y: number; r: number }[] = []
-  const n = 5 + Math.floor(r() * 3)
+  const n = 4 + Math.floor(r() * 2)
   for (let i = 0; i < n; i++) {
     const k = i / (n - 1)
-    lobes.push({ x: w * (0.14 + k * 0.72) + (r() - 0.5) * 6, y: h * (0.55 - Math.sin(k * Math.PI) * 0.22) + (r() - 0.5) * 4, r: h * (0.26 + Math.sin(k * Math.PI) * 0.2 + r() * 0.06) })
+    lobes.push({ x: w * (0.18 + k * 0.64) + (r() - 0.5) * 8, y: h * (0.58 - Math.sin(k * Math.PI) * 0.18), r: h * (0.3 + Math.sin(k * Math.PI) * 0.18 + r() * 0.05) })
   }
-  const hi = hex(back ? '#eef3f9' : '#ffffff')
-  const mid = hex(back ? '#dde6f1' : '#eef3fa')
-  const shade = hex(back ? '#c4d1e3' : '#d3deec')
-  const deep = hex(back ? '#a7b8d0' : '#b4c4da')
+  const top = hex('#ffffff')
+  const under = hex('#e9eff6')
   for (let y = 0; y < h; y++)
     for (let x = 0; x < w; x++) {
-      // inside if within any lobe; how far "up-left" decides the shade
       let best = Infinity
-      let lit = 0
-      for (const l of lobes) {
-        const d = Math.hypot(x - l.x, y - l.y) / l.r
-        if (d < best) {
-          best = d
-          lit = ((l.x - x) * 0.6 + (l.y - y)) / l.r
-        }
-      }
-      if (best > 1 || y > h * 0.82 + hash2(x, 0, seed) * 2) continue
-      const edge = best > 0.86
-      const v = lit + (bayer(x, y) - 0.5) * 0.25
-      p.set(x, y, edge && lit < 0 ? deep : v > 0.35 ? hi : v > -0.15 ? mid : y > h * 0.62 ? deep : shade)
+      for (const l of lobes) best = Math.min(best, Math.hypot(x - l.x, y - l.y) / l.r)
+      if (best > 1 || y > h * 0.86) continue
+      // the outer rim thins out in a dither instead of ending on a line
+      if (best > 0.7 && bayer(x, y) > (1 - best) / 0.3) continue
+      p.set(x, y, y > h * 0.6 + hash2(x, 0, seed) * 3 ? under : top)
     }
   return p.toCanvas()
 }
@@ -59,77 +49,90 @@ export class Intro {
   private clouds: Cloud[] = []
   private layer = document.createElement('canvas')
   private mask = document.createElement('canvas')
+  private haze: ImageData
+  private wob: number[] = []
+  private veil = hex('#f1f5fa')
   constructor(
     private W: number,
     private H: number,
   ) {
+    this.haze = new ImageData(W, H)
     const r = rng(29)
-    // two layers of uneven puffs: a greyer back layer that drifts slower, a bright front layer
-    for (const front of [false, true]) {
-      let y = -26 + r() * 8
-      while (y < H) {
-        let x = -50 - r() * 30
-        const rowH = front ? 34 + r() * 12 : 28 + r() * 10
-        while (x < W + 10) {
-          const w = Math.round((front ? 92 : 80) + r() * 60)
-          const h = Math.round(w * (0.42 + r() * 0.12))
-          const cy = y + (r() - 0.5) * 14
-          const centre = x + w / 2
-          const dir: -1 | 1 = centre < W / 2 ? -1 : 1
-          const fromMid = Math.abs(centre - W / 2) / (W / 2)
-          this.clouds.push({
-            img: paintCloud(w, h, Math.floor(r() * 1e6), !front),
-            x,
-            y: cy,
-            dir,
-            delay: fromMid * 0.22 + r() * 0.1 + (front ? 0 : 0.08),
-            travel: (W * 0.62 + w) * (front ? 1 : 0.85),
-            back: !front,
-          })
-          x += w * (0.48 + r() * 0.22)
-        }
-        y += rowH
+    // the haze edge wanders a little down the screen so it is not a straight wipe
+    for (let y = 0; y < H; y++) this.wob.push(Math.sin(y * 0.09 + 1) * 4 + Math.sin(y * 0.031 + 2) * 7)
+    // three pale clouds a side, spread down the screen
+    for (const side of [-1, 1] as const)
+      for (let i = 0; i < 3; i++) {
+        const w = Math.round(96 + r() * 40)
+        this.clouds.push({
+          img: paintCloud(w, Math.round(w * 0.46), Math.floor(r() * 1e6)),
+          y: Math.round((i + 0.2 + r() * 0.5) * (H / 3) - w * 0.25 + (side > 0 ? 18 : 0)),
+          side,
+          home: W / 2 + side * (18 + ((i * 0.37 + r() * 0.3) % 1) * (W / 2 - 40)),
+          lag: r() * 0.08,
+        })
       }
-    }
-    // back layer first, then by depth
-    this.clouds.sort((a, b) => Number(b.back) - Number(a.back) || a.y - b.y)
   }
   get done() {
     return this.t >= INTRO_SECONDS
   }
-  /** 0..1, how far the clouds have cleared (for fading the HUD in). */
+  /** 0..1, how far the view has cleared (for fading the HUD in). */
   get cleared() {
     return Math.max(0, Math.min(1, (this.t - HOLD) / PART))
   }
   update(dt: number) {
     this.t += dt
   }
-  /** Draw over everything; `tint` (the hour's light colour) dims the clouds at night. */
+  /** Ease-in-out: it starts unhurried, then drifts off and settles. */
+  private ease(lag = 0) {
+    const k = Math.max(0, Math.min(1, (this.t - HOLD - lag) / PART))
+    return k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2
+  }
+  /** Draw over everything; `tint` (the hour's light colour) dims it at night. */
   draw(g: CanvasRenderingContext2D, tint?: string) {
     if (this.done) return
+    const { W, H } = this
     const L = this.layer
-    L.width = this.W
-    L.height = this.H
+    L.width = W
+    L.height = H
     const lg = L.getContext('2d')!
-    const place = (c: Cloud) => {
-      const k = Math.max(0, Math.min(1, (this.t - HOLD - c.delay) / (PART - 0.35)))
-      // ease-in-out: they lean away first, then sweep out and slow
-      const e = k < 0.5 ? 4 * k * k * k : 1 - Math.pow(-2 * k + 2, 3) / 2
-      return { x: Math.round(c.x + c.dir * e * c.travel), y: Math.round(c.y - e * 5) }
+    const e = this.ease()
+    const cx = W / 2
+    // half-width of the opening; below zero the view is fully covered
+    const gap = -FEATHER + e * (W / 2 + FEATHER * 2 + 30)
+    const fade = 1 - Math.max(0, (e - 0.7) / 0.3) // the last of it thins out instead of sliding off
+    const d = this.haze.data
+    const [vr, vg, vb] = this.veil
+    for (let y = 0; y < H; y++) {
+      const edge = gap + this.wob[y] * Math.min(1, e * 3)
+      for (let x = 0; x < W; x++) {
+        const a = Math.max(0, Math.min(1, (Math.abs(x - cx) - edge) / FEATHER)) * fade
+        const i = (y * W + x) * 4
+        const on = a > 0 && bayer(x, y) < a
+        d[i] = vr
+        d[i + 1] = vg
+        d[i + 2] = vb
+        d[i + 3] = on ? 255 : 0
+      }
     }
+    lg.putImageData(this.haze, 0, 0)
+    // the clouds drift out to their side with the haze and thin out with it
+    lg.globalAlpha = fade
     for (const c of this.clouds) {
-      const p = place(c)
-      lg.drawImage(c.img, p.x, p.y)
+      const ec = this.ease(c.lag)
+      const x = c.home - c.img.width / 2 + c.side * ec * (W / 2 + c.img.width * 0.6)
+      lg.drawImage(c.img, Math.round(x), Math.round(c.y - ec * 4))
     }
+    lg.globalAlpha = 1
     if (tint && tint !== 'rgb(255, 255, 255)') {
-      // multiply by the hour's light, then cut back to the clouds' shape (one mask, one cut)
+      // multiply by the hour's light, then cut back to the haze's shape (one mask, one cut)
       const M = this.mask
-      M.width = this.W
-      M.height = this.H
+      M.width = W
+      M.height = H
       M.getContext('2d')!.drawImage(L, 0, 0)
       lg.globalCompositeOperation = 'multiply'
       lg.fillStyle = tint
-      lg.fillRect(0, 0, this.W, this.H)
+      lg.fillRect(0, 0, W, H)
       lg.globalCompositeOperation = 'destination-in'
       lg.drawImage(M, 0, 0)
       lg.globalCompositeOperation = 'source-over'

@@ -218,7 +218,21 @@ export interface Save {
   stash: Partial<Record<IslandId, IslandState>>
   guardians: IslandId[] // beaten
   eggQueue: number[] // gifted eggs waiting for room in the nest
+  log: LogEntry[] // the journal: what happened on the island, newest last
+  logSeen: number // when the journal was last opened
 }
+
+/** One line in the journal. `kind` feeds the summary at its top; `key` lets a newer line replace an older one (level-ups). */
+export type LogKind = 'focus' | 'visit' | 'catch' | 'hatch' | 'level' | 'evolve' | 'find' | 'friend' | 'other'
+export interface LogEntry {
+  t: number
+  text: string
+  kind: LogKind
+  dex?: number
+  n?: number
+  key?: string
+}
+export const LOG_MAX = 200
 
 export const PARTY_MAX = 3
 export const START_LEVEL = 5
@@ -302,6 +316,8 @@ export function emptySave(): Save {
     stash: {},
     guardians: [],
     eggQueue: [],
+    log: [],
+    logSeen: 0,
   }
 }
 
@@ -385,6 +401,20 @@ export class Game {
   }
   private emit(e: GameEvent) {
     for (const fn of this.listeners) fn(e)
+  }
+  /** Write a line in the journal. A line with the same key from the last few replaces the older one. */
+  note(kind: LogKind, text: string, o: { dex?: number; n?: number; key?: string } = {}) {
+    const log = this.save.log
+    if (o.key) {
+      const i = log.findIndex((x, j) => j >= log.length - 8 && x.key === o.key)
+      if (i >= 0) {
+        if (o.n != null) o = { ...o, n: o.n + (log[i].n ?? 0) }
+        log.splice(i, 1)
+      }
+    }
+    log.push({ t: this.now(), text, kind, ...o })
+    if (log.length > LOG_MAX) log.splice(0, log.length - LOG_MAX)
+    this.persist()
   }
   /** Pick up changes another window wrote. */
   reload() {
