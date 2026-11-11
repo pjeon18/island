@@ -32,7 +32,7 @@ export const SLOTS: { id: string; x: number; y: number; minHours?: number }[] = 
   { id: 'c', x: 182, y: 88 },
   { id: 'd', x: 176, y: 120 },
   { id: 'e', x: 100, y: 126 },
-  { id: 'f', x: 146, y: 127 },
+  { id: 'f', x: 157, y: 122 }, // moved right so the umbrella clears the dungeon doorway
   // the island grows: two more spots after 3 focused hours
   { id: 'g', x: 188, y: 76, minHours: 3 },
   { id: 'h', x: 58, y: 100, minHours: 3 },

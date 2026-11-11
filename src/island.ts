@@ -151,8 +151,8 @@ export function buildIsland(): IslandLayout {
   const tree = { x: 158, y: 74 }
   const bush = { x: 184, y: 104 }
   const grassPatch = { x: 76, y: 96, r: 15 }
-  const dockX = 117
-  const DW = 14
+  const dockX = 114
+  const DW = 20 // Paul asked for a bigger, wider pier (2026-11-11)
   let lip = 0
   for (let y = H - 1; y >= 0; y--)
     if (T(dockX, y) && T(dockX + DW - 1, y)) {
@@ -160,7 +160,7 @@ export function buildIsland(): IslandLayout {
       break
     }
   // steps cut into the cliff, then a pier on the water
-  const dock = { x: dockX, y0: lip - 2, y1: lip + 28, w: DW }
+  const dock = { x: dockX, y0: lip - 2, y1: lip + 34, w: DW }
   const lantern = { x: dockX + DW - 2, y: dock.y1 + 1 }
 
   const p = new Pix(W, H)
@@ -289,7 +289,7 @@ export function buildIsland(): IslandLayout {
     p.set(x, y1 + 1, PAL.woodDark)
     p.set(x, y1 + 2, PAL.woodGap)
   }
-  for (const px of [dockX + 1, dockX + w - 3]) {
+  for (const px of [dockX + 1, dockX + (w >> 1) - 1, dockX + w - 3]) {
     for (let y = y1 + 3; y <= y1 + 5; y++) {
       p.set(px, y, PAL.woodGap)
       p.set(px + 1, y, PAL.woodDark)

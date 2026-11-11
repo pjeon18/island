@@ -73,6 +73,7 @@ export interface HudHandlers {
   assign: (id: string, role: Role) => void
   expedition: (id: string, long: boolean) => void
   challenge: () => void
+  cheats?: () => void
   visit: (id: string) => void
   gift: (friendId: string, friendName: string, kind: 'mon' | 'egg' | 'item', ref: string) => void
   sail: (to: IslandId) => void
@@ -156,6 +157,7 @@ export class Hud {
       </div>
       <div class="hud-sheet" hidden></div>
       <div class="hud-catch px-panel" hidden></div>
+      <div class="hud-cheats px-panel" hidden></div>
 
       <div class="hud-starter" hidden></div>`
     host.append(this.el)
@@ -251,7 +253,7 @@ export class Hud {
       this.party.innerHTML = g.party
         .map((m) => {
           const pct = Math.round((m.exp / expToNext(m.level)) * 100)
-          return `<span class="chip"><img src="${portraitUrl(m.dex)}" alt="" /><span class="lv">Lv${m.level}</span><span class="bar"><i style="width:${pct}%"></i></span></span>`
+          return `<span class="chip"><img src="${portraitUrl(m.dex)}" alt="" /><span class="chip-info"><span class="chip-name">${esc(g.name(m))}</span><span class="chip-row"><span class="chip-lv">Lv${m.level}</span><span class="thin"><i style="width:${pct}%"></i></span></span></span></span>`
         })
         .join('')
       this.party.setAttribute('aria-label', `Your party: ${g.party.map((m) => `${g.name(m)}, level ${m.level}`).join('; ')}. Open your Pokémon.`)
@@ -335,6 +337,29 @@ export class Hud {
     this.catchEl.hidden = true
   }
 
+  // ---------- cheats (testing) ----------
+  /** Show or hide the Cheats window: every event, one button each. */
+  toggleCheats(groups: { title: string; items: [string, string][] }[], run: (id: string) => void) {
+    const el = this.el.querySelector<HTMLElement>('.hud-cheats')!
+    if (!el.hidden) {
+      el.hidden = true
+      return
+    }
+    this.closeSheet()
+    el.innerHTML = `<div class="sheet-head"><p class="sheet-title">Cheats</p><button class="close-x" data-c-close aria-label="Close"></button></div>
+      <div class="sheet-body">${groups.map((g) => `<p class="row-title">${g.title}</p><div class="row-actions">${g.items.map(([id, label]) => `<button class="px-btn small" data-cheat="${id}">${label}</button>`).join('')}</div>`).join('')}</div>`
+    el.onclick = (e) => {
+      const t = e.target as HTMLElement
+      if (t.closest('[data-c-close]')) {
+        el.hidden = true
+        return
+      }
+      const id = t.closest<HTMLElement>('[data-cheat]')?.dataset.cheat
+      if (id) run(id)
+    }
+    el.hidden = false
+  }
+
   // ---------- starter ----------
   showStarter(options: number[]) {
     const g = this.game
@@ -360,6 +385,7 @@ export class Hud {
     this.el.querySelectorAll<HTMLElement>('.strip-tab').forEach((b) => b.classList.toggle('on', !this.sheet.hidden && b.dataset.openTab === this.tab))
   }
   openSheet(tab: Tab) {
+    this.el.querySelector<HTMLElement>('.hud-cheats')!.hidden = true
     this.tab = tab
     this.note = ''
     this.sheet.hidden = false
@@ -672,6 +698,7 @@ export class Hud {
       }
       ${this.h.popOut ? `<p class="row-title">Window</p><button class="px-btn small" data-act="popout">Pop out</button>` : ''}
       ${this.h.quit ? `<p class="row-title">Window</p><button class="px-btn small" data-act="quit">Close</button>` : ''}
+      ${this.h.cheats ? `<p class="row-title">Testing</p><button class="px-btn small" data-act="cheats">Cheats</button>` : ''}
       <p class="row-title">Credits</p>
       <div class="credits-body">${this.credits()}</div>`
   }
@@ -688,6 +715,7 @@ export class Hud {
     if (act === 'idle') return this.h.enableIdle()
     if (act === 'quit') return this.h.quit?.()
     if (act === 'challenge') return this.h.challenge()
+    if (act === 'cheats') return this.h.cheats?.()
     if (act === 'popout') {
       this.closeSheet()
       return this.h.popOut?.()

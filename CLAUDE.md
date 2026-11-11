@@ -34,7 +34,7 @@ Read `docs/GAME_DESIGN.md` first: it is the game loop and core features from Pau
 - `?popout` shows the window-only view. `?float` previews the desktop-pet mode in a browser.
 - `npm run desktop` runs the Tauri app, and `npm run desktop:build` builds the .app and .dmg. Both need Rust.
 - `.env` (gitignored) holds Studdy's public Supabase URL, anon key and Turnstile site key. Without it, the online part switches off.
-- `?debug` adds demo controls below the window, including +5 focused hours, party to Lv 34, catch 70% of this dex, passer-by now, a find now, +5 of each ball, and the weather: add focused minutes, finish the session, a visitor, the lead ready to evolve, an ask or idle prompt, screen lock, activity, a sleep gap, the hour, and reset.
+- Cheats: press ` in the game (or More → Cheats) for a window of every event: focus, visitors, weather, time, growth, eggs and helpers, friends, items, progress (unlock Frost Isle, enter the dungeon, sail), step-away and reset. They are all defined in `CHEATS` and `cheat()` in main.ts. `?debug` shows the same list under the window, plus an hour slider. Older notes: ?debug also has passer-by now, a find now, +5 of each ball, and the weather: add focused minutes, finish the session, a visitor, the lead ready to evolve, an ask or idle prompt, screen lock, activity, a sleep gap, the hour, and reset.
 
 ## Map
 - `src/island.ts`: the island, painted pixel by pixel into a static base (`PAL`, `buildIsland`), plus the props: tree, bush and lantern.

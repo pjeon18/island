@@ -480,7 +480,7 @@ let guardianC: Creature | null = null
 async function placeGuardian() {
   // the gate dungeon's doorway, cut into the cliff to the right of the pier steps
   const d = scene.island.dock
-  scene.gate = { x: d.x + d.w + 9, y: d.y0 + 9 }
+  scene.gate = { x: d.x + d.w + 7, y: d.y0 + 9 }
 }
 /** The guardian waits at the bottom of the island's gate dungeon (stage 6). */
 function askBattle() {
@@ -1091,17 +1091,169 @@ async function popOut() {
 app.querySelector('[data-act="popout"]')?.addEventListener('click', popOut)
 
 // ---------- debug panel ----------
+/** Cheats for testing events: the ?debug panel and the in-game Cheats window (the ` key, or More → Cheats). */
+const CHEATS: { title: string; items: [string, string][] }[] = [
+  { title: 'Focus', items: [['session', 'Start a session'], ['m10', '+10 focused min'], ['m30', '+30 focused min'], ['m60', '+60 focused min'], ['finish', 'Finish the session'], ['end', 'End it early']] },
+  { title: 'Visitors', items: [['passer', 'A passer-by'], ['passer3', 'Three passers-by'], ['visit', 'Friendly visitor'], ['visit50', 'Visitor, 50-min odds']] },
+  { title: 'Moments', items: [['find', 'A find'], ['w-rain', 'Rain'], ['w-fog', 'Fog'], ['w-sun', 'Sun'], ['w-snow', 'Snow'], ['w-clear', 'Clear sky']] },
+  { title: 'Time', items: [['h-7', 'Morning'], ['h-13', 'Noon'], ['h-19', 'Dusk'], ['h-22', 'Night'], ['clock', 'My clock']] },
+  { title: 'Growth', items: [['evolve', 'Lead ready to evolve'], ['stone', 'A stone washes ashore'], ['bond', 'Lead: 10 h bond'], ['lv20', 'Party to Lv 20'], ['strong', 'Party to Lv 34']] },
+  { title: 'Eggs and helpers', items: [['egg', 'An egg'], ['daycare-egg', 'Day Care egg now'], ['hatch-now', 'Hatch eggs now'], ['jobs-now', 'Jobs pay out now'], ['expedition-back', 'Expedition returns']] },
+  { title: 'Friends', items: [['fakefriend', 'A friend studies too'], ['fakewave', 'A friend waves'], ['fakegift', 'Gifts arrive']] },
+  { title: 'Items', items: [['shells', '+300 shells'], ['stars', '+5 Star Pieces'], ['balls', '+5 of each ball'], ['berries', '+3 berries'], ['foods', '+3 of each food']] },
+  { title: 'Progress', items: [['hours', '+5 focused hours'], ['dexfill', 'Catch 70% of this dex'], ['unlock', 'Unlock Frost Isle'], ['guardian-reset', 'Un-beat this guardian'], ['dungeon', 'Enter the dungeon'], ['sail-frost', 'Sail to Frost Isle'], ['sail-home', 'Sail home']] },
+  { title: 'Step away', items: [['checkin', 'Ask "still studying?"'], ['idle', '10 idle minutes'], ['lock', 'Screen lock'], ['active', 'Activity'], ['gap', 'A 10-minute sleep']] },
+  { title: 'Danger', items: [['reset', 'Reset save']] },
+]
+function cheat(d: string) {
+  if (!game.hasStarter && d !== 'reset') return hud.toast('Pick a starter first.')
+  const s = () => game.save.session
+  const ensureSession = () => {
+    if (!s()) game.startSession()
+  }
+  if (d === 'session') ensureSession()
+  if (d === 'm10') game.grantMinutes(10)
+  if (d === 'm30') game.grantMinutes(30)
+  if (d === 'm60') game.grantMinutes(60)
+  if (d === 'm1') game.grantMinutes(1)
+  if (d === 'finish') {
+    ensureSession()
+    const ss = s()!
+    if (ss.length) game.grantMinutes(Math.ceil((ss.length - ss.credited) / 60))
+    else game.endSession(true)
+  }
+  if (d === 'end' && s()) game.endSession(false)
+  if (d === 'visit') runVisit()
+  if (d === 'visit50') runVisit(RARE_50)
+  if (d === 'passer') game.passerBy()
+  if (d === 'passer3') for (let i = 0; i < 3; i++) game.passerBy()
+  if (d === 'find') game.dig()
+  if (d.startsWith('w-')) {
+    const kind = d.slice(2) as Weather
+    game.save.weather = { kind, until: kind === 'clear' ? 0 : Date.now() + 20 * 60 * 1000 }
+    scene.weather = game.weather
+    hud.toast(WEATHER_TEXT[kind])
+  }
+  if (d.startsWith('h-')) hourOverride = Number(d.slice(2))
+  if (d === 'clock') hourOverride = null
+  if (d === 'berries') game.save.berries += 3
+  if (d === 'shells') game.save.shells += 300
+  if (d === 'stars') game.save.starPieces += 5
+  if (d === 'balls') for (const bb of BALLS) game.save.balls[bb.id] += 5
+  if (d === 'foods') for (const f of FOODS) game.save.foods[f.id] = (game.save.foods[f.id] ?? 0) + 3
+  if (d === 'stone') {
+    const useful = STONES.filter((st) => game.save.mons.some((m) => game.evolutionOptions(m).some((x) => x.item === st)))
+    const item = (useful.length ? useful : STONES)[Math.floor(Math.random() * (useful.length || STONES.length))]
+    game.save.bag[item] = (game.save.bag[item] ?? 0) + 1
+    hud.toast(`${aStone(item).replace(/^a/, 'A')} washed ashore.`)
+  }
+  if (d === 'bond' && game.party[0]) game.party[0].focusedMin = Math.max(game.party[0].focusedMin, 600)
+  if (d === 'lv20') for (const m of game.party) { m.level = 20; m.exp = 0 }
+  if (d === 'strong') for (const m of game.party) { m.level = Math.max(m.level, 34); m.noEvolve = true }
+  if (d === 'egg') game.addEgg(game.party[0]?.dex ?? 16, 'find')
+  if (d === 'daycare-egg') {
+    const parent = game.save.daycare.ids.map((id) => id && game.mon(id)).find(Boolean)
+    const base = parent ? game.species(parent.dex)?.line ?? parent.dex : 133
+    if (!game.addEgg(base, 'daycare')) hud.toast('The nest is full.')
+  }
+  if (d === 'hatch-now') {
+    if (!game.save.eggs.length) hud.toast('No eggs. Add one first.')
+    else {
+      for (const eg of game.save.eggs) eg.progress = eg.need - 1
+      game.grantMinutes(1)
+    }
+  }
+  if (d === 'jobs-now') {
+    if (!Object.keys(game.save.jobs).length) hud.toast('Nobody has a job yet.')
+    else {
+      for (const j of JOBS) game.save.jobProgress[j.id] = 999
+      game.grantMinutes(1)
+    }
+  }
+  if (d === 'expedition-back') {
+    const ex = game.save.expedition
+    if (!ex) hud.toast('Nobody is on an expedition.')
+    else {
+      ex.progress = ex.need - 1
+      game.grantMinutes(1)
+    }
+  }
+  if (d === 'fakefriend') {
+    game.together = game.save.session ? ['Mina'] : []
+    void syncVisitors([{ name: 'Mina', dex: 25 }])
+    hud.toast(game.together.length ? 'Studying with Mina. Shells are doubled.' : 'Mina is visiting.')
+  }
+  if (d === 'fakewave') hud.say({ dex: lead(), emotion: 'Happy', text: 'Mina waved.', auto: 4000 })
+  if (d === 'fakegift') {
+    for (const [kind, payload] of [['mon', { dex: 133, level: 12 }], ['egg', { dex: 393 }], ['item', { id: 'ultra-ball', n: 2 }]] as const) {
+      const m = game.receive(kind, payload)
+      hud.say({ dex: m?.dex ?? lead(), emotion: 'Happy', text: `Mina sent you ${kind === 'mon' ? game.name(133) : kind === 'egg' ? 'an egg' : '2 Ultra Balls'}!`, auto: 4000 })
+    }
+  }
+  const addHours = (h: number) => {
+    const k = '2000-01-01'
+    game.save.days[k] = (game.save.days[k] ?? 0) + h * 60
+  }
+  const fillDex = (isl: typeof game.save.island) => {
+    const dx = game.dexOf(isl)
+    for (const sp of dx.all.slice(0, Math.ceil(dx.all.length * 0.7))) if (!game.save.caught.includes(sp)) game.save.caught.push(sp)
+  }
+  if (d === 'hours') addHours(5)
+  if (d === 'dexfill') fillDex(game.save.island)
+  if (d === 'unlock' || d === 'sail-frost') {
+    if (game.totalHours() < 20) addHours(20 - game.totalHours())
+    fillDex('home')
+    if (!game.save.guardians.includes('home')) game.save.guardians.push('home')
+  }
+  if (d === 'guardian-reset') game.save.guardians = game.save.guardians.filter((g) => g !== game.save.island)
+  game.persist()
+  hud.refreshSheet()
+  if (d === 'evolve') {
+    const m = game.party[0]
+    const next = m && game.species(m.dex)?.evolvesTo.find((x) => x.level)
+    if (m && next?.level) {
+      m.noEvolve = false
+      m.level = next.level - 1
+      m.exp = m.level - 1
+      game.grantMinutes(1)
+    } else hud.toast('The lead does not evolve by level.')
+  }
+  if (d === 'checkin') {
+    ensureSession()
+    game.ask('checkin')
+  }
+  if (d === 'idle') {
+    ensureSession()
+    game.ask('idle')
+  }
+  if (d === 'lock') game.goAway('locked')
+  if (d === 'active') presence.active()
+  if (d === 'gap' && s()) {
+    s()!.lastBeat -= 10 * 60 * 1000
+    game.beat()
+  }
+  if (d === 'dungeon') location.href = `${import.meta.env.BASE_URL}dungeon.html?id=${game.islandDef.dungeon}&gate=${game.islandDef.id}`
+  if (d === 'sail-frost' && game.save.island !== 'frost') {
+    if (s()) game.endSession(false)
+    game.sail('frost')
+  }
+  if (d === 'sail-home' && game.save.island !== 'home') {
+    if (s()) game.endSession(false)
+    game.sail('home')
+  }
+  if (d === 'reset') {
+    game.reset()
+    location.reload()
+  }
+}
 function buildDebug() {
   const el = app.querySelector<HTMLElement>('.debug')
   if (!el) return
   const b = (id: string, label: string) => `<button class="btn" data-d="${id}">${label}</button>`
   el.innerHTML = `
-    <p class="debug-title">Demo controls</p>
-    <div class="debug-row">${b('m1', 'Add 1 focused minute')}${b('m10', 'Add 10 minutes')}${b('m60', 'Add 60 minutes')}${b('finish', 'Finish the session')}</div>
-    <div class="debug-row">${b('berries', 'Add 3 berries')}${b('shells', 'Add 300 shells')}${b('stone', 'A stone washes ashore')}${b('bond', 'Lead has 10 hours of bond')}${b('visit50', 'Visitor at 50-minute odds')}</div>
-    <div class="debug-row">${b('visit', 'Visitor now')}${b('evolve', 'Lead is ready to evolve')}${b('checkin', 'Ask now')}${b('idle', 'Simulate 10 idle minutes')}${b('lock', 'Simulate screen lock')}${b('active', 'Simulate activity')}${b('gap', 'Simulate a 10 minute sleep')}</div>
-    <div class="debug-row">${b('passer', 'Passer-by now')}${b('find', 'A find now')}${b('balls', '+5 of each ball')}${b('stars', '+5 Star Pieces')}${b('night', 'Night')}${b('egg', 'An egg')}${b('hatch', 'Eggs nearly ready')}</div><div class="debug-row">${b('m30', 'Add 30 minutes')}${b('hours', '+5 focused hours (days)')}${b('strong', 'Party to Lv 34')}${b('dexfill', 'Catch 70% of this dex')}${b('fakefriend', 'A friend studies too')}${b('fakegift', 'A gift arrives')}${b('w-rain', 'Rain')}${b('w-fog', 'Fog')}${b('w-sun', 'Sun')}${b('w-clear', 'Clear sky')}</div>
-    <div class="debug-row"><label class="time"><span>Hour</span><input type="range" min="0" max="24" step="0.1" value="${clockHour()}" /><output></output></label>${b('clock', 'Use my clock')}${b('reset', 'Reset save')}</div>`
+    <p class="debug-title">Demo controls (also in game: press \` or More → Cheats)</p>
+    ${CHEATS.map((g) => `<div class="debug-row"><span style="opacity:.6;min-width:110px">${g.title}</span>${g.items.map(([id, label]) => b(id, label)).join('')}</div>`).join('')}
+    <div class="debug-row"><label class="time"><span>Hour</span><input type="range" min="0" max="24" step="0.1" value="${clockHour()}" /><output></output></label></div>`
   const slider = el.querySelector<HTMLInputElement>('input')!
   const out = el.querySelector('output')!
   slider.addEventListener('input', () => {
@@ -1110,95 +1262,14 @@ function buildDebug() {
   })
   el.addEventListener('click', (e) => {
     const d = (e.target as HTMLElement).closest<HTMLElement>('[data-d]')?.dataset.d
-    if (!d || !game.hasStarter) return
-    const s = () => game.save.session
-    if (d === 'm1') game.grantMinutes(1)
-    if (d === 'm10') game.grantMinutes(10)
-    if (d === 'm60') game.grantMinutes(60)
-    if (d === 'finish') {
-      if (!s()) game.startSession()
-      const ss = s()!
-      if (ss.length) game.grantMinutes(Math.ceil((ss.length - ss.credited) / 60))
-      else game.endSession(true)
-    }
-    if (d === 'visit') runVisit()
-    if (d === 'visit50') runVisit(RARE_50)
-    if (d === 'berries') game.save.berries += 3
-    if (d === 'shells') game.save.shells += 300
-    if (d === 'stone') {
-      const useful = STONES.filter((st) => game.save.mons.some((m) => game.evolutionOptions(m).some((x) => x.item === st)))
-      const item = (useful.length ? useful : STONES)[Math.floor(Math.random() * (useful.length || STONES.length))]
-      game.save.bag[item] = (game.save.bag[item] ?? 0) + 1
-      hud.toast(`${aStone(item).replace(/^a/, 'A')} washed ashore.`)
-    }
-    if (d === 'passer') game.passerBy()
-    if (d === 'find') game.dig()
-    if (d === 'balls') for (const bb of BALLS) game.save.balls[bb.id] += 5
-    if (d === 'stars') game.save.starPieces += 5
-    if (d === 'night') hourOverride = 22
-    if (d === 'egg') game.addEgg(16, 'find')
-    if (d === 'hatch') for (const eg of game.save.eggs) eg.progress = eg.need - 1
-    if (d === 'm30') game.grantMinutes(30)
-    if (d === 'hours') {
-      const k = '2000-01-01'
-      game.save.days[k] = (game.save.days[k] ?? 0) + 300
-    }
-    if (d === 'fakefriend') {
-      game.together = game.save.session ? ['Mina'] : []
-      void syncVisitors([{ name: 'Mina', dex: 25 }])
-      hud.toast(game.together.length ? 'Studying with Mina. Shells are doubled.' : 'Mina is visiting.')
-    }
-    if (d === 'fakegift') {
-      for (const [kind, payload] of [['mon', { dex: 133, level: 12 }], ['egg', { dex: 393 }], ['item', { id: 'ultra-ball', n: 2 }]] as const) {
-        const m = game.receive(kind, payload)
-        hud.say({ dex: m?.dex ?? lead(), emotion: 'Happy', text: `Mina sent you ${kind === 'mon' ? game.name(133) : kind === 'egg' ? 'an egg' : '2 Ultra Balls'}!`, auto: 4000 })
-      }
-    }
-    if (d === 'strong') for (const m of game.party) { m.level = Math.max(m.level, 34); m.noEvolve = true }
-    if (d === 'dexfill') {
-      const dx = game.dexOf(game.save.island)
-      for (const sp of dx.all.slice(0, Math.ceil(dx.all.length * 0.7))) if (!game.save.caught.includes(sp)) game.save.caught.push(sp)
-    }
-    if (d.startsWith('w-')) {
-      const kind = d.slice(2) as Weather
-      game.save.weather = { kind, until: kind === 'clear' ? 0 : Date.now() + 20 * 60 * 1000 }
-      scene.weather = game.weather
-      hud.toast(WEATHER_TEXT[kind])
-    }
-    if (d === 'bond' && game.party[0]) game.party[0].focusedMin = Math.max(game.party[0].focusedMin, 600)
-    game.persist()
-    hud.refreshSheet()
-    if (d === 'evolve') {
-      const m = game.party[0]
-      const next = m && game.species(m.dex)?.evolvesTo.find((x) => x.level)
-      if (m && next?.level) {
-        m.noEvolve = false
-        m.level = next.level - 1
-        m.exp = m.level - 1
-        game.grantMinutes(1)
-      }
-    }
-    if (d === 'checkin') {
-      if (!s()) game.startSession()
-      game.ask('checkin')
-    }
-    if (d === 'idle') {
-      if (!s()) game.startSession()
-      game.ask('idle')
-    }
-    if (d === 'lock') game.goAway('locked')
-    if (d === 'active') presence.active()
-    if (d === 'gap' && s()) {
-      s()!.lastBeat -= 10 * 60 * 1000
-      game.beat()
-    }
-    if (d === 'clock') hourOverride = null
-    if (d === 'reset') {
-      game.reset()
-      location.reload()
-    }
+    if (d) cheat(d)
   })
 }
+// the in-game Cheats window
+window.addEventListener('keydown', (e) => {
+  if (e.key !== '`' || (e.target as HTMLElement | null)?.closest?.('input, textarea') || !hud) return
+  hud.toggleCheats(CHEATS, cheat)
+})
 
 // ---------- boot ----------
 async function boot() {
@@ -1324,6 +1395,7 @@ async function boot() {
         if (!ok) hud.toast('Idle detection is off.')
       },
       challenge: askBattle,
+      cheats: () => hud.toggleCheats(CHEATS, cheat),
       visit: (id) => void visitFriend(id),
       gift: (id, name, kind, ref) => void sendGift(id, name, kind, ref),
       sail: (to) => {
