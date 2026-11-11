@@ -349,3 +349,24 @@ html:has(.float), body:has(.float) { background: transparent; }
 .hud-party.many .chip { min-width: 0; padding-right: 4px; }
 .hud-party.many .chip-name { display: none; }
 .hud-party.many .thin { min-width: 14px; }
+
+/* ---------- compact: the small corner window (a 240-wide layout at 1x or 2x) ---------- */
+.hud.compact .hud-focus .segs { display: none; }
+.hud.compact .hud-focus { left: 4px; top: 4px; gap: 3px; }
+.hud.compact .hud-party { right: 4px; top: 4px; }
+.hud.compact .hud-party .chip:not(:first-child) { display: none; }
+.hud.compact .hud-party .chip-name { display: none; }
+.hud.compact .hud-strip { left: 4px; bottom: 4px; padding: 1px; gap: 1px; }
+.hud.compact .strip-tab { width: 21px; height: 21px; }
+.hud.compact .strip-pop { display: none; }
+.hud.compact .hud-sheet { left: 4px; right: 4px; top: 4px; bottom: 30px; width: auto; height: auto; }
+.hud.compact .hud-dialog, .hud.compact .hud-catch, .hud.compact .hud-summary { left: 4px; right: 4px; bottom: 30px; top: auto; max-width: none; width: auto; }
+.hud.compact .hud-dialog.task { top: 4px; bottom: auto; right: 4px; width: auto; }
+.hud.compact .hud-portrait-frame { display: none; }
+.hud.compact .hud-cheats { left: 4px; right: 4px; top: 4px; bottom: 4px; width: auto; height: auto; }
+.prologue-cards { flex-wrap: wrap; }
+
+/* the desktop pet is moved by a small grip at the top (dragging by the island would swallow taps) */
+.float-grip { position: absolute; left: 50%; top: 2px; width: 44px; height: 9px; transform: translateX(-50%); z-index: 20; cursor: grab; border-radius: 2px;
+  background: repeating-linear-gradient(90deg, rgba(232,238,248,.85) 0 2px, transparent 2px 4px); opacity: .35; transition: opacity .3s ease; }
+.window:hover .float-grip { opacity: .9; }

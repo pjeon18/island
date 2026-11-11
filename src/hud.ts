@@ -52,6 +52,19 @@ const SUBS: Partial<Record<Tab, [string, string][]>> = {
   island: [['map', 'Island'], ['habitats', 'Habitats'], ['decor', 'Decor'], ['shop', 'Shop']],
   more: [['focus', 'Focus'], ['settings', 'Settings'], ['credits', 'Credits']],
 }
+/**
+ * The HUD's whole-number scale for a canvas this wide. Small windows (the corner pop-out,
+ * the desktop pet) use 1x or 2x of a 240-wide layout, the size of a GBA screen, so pixels
+ * stay crisp; larger ones use 2x, and 3x above 1680 px.
+ */
+export const hudScale = (cw: number) => (cw < 600 ? Math.max(1, Math.floor(cw / 240)) : cw >= 1680 ? 3 : 2)
+// a small window with an arrow out of it, 15×15
+const POP_ICON = `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" shape-rendering="crispEdges">
+    <path fill="#e8eef8" d="M2 4h8v1H3v7h7V8h1v5H2z"/>
+    <path fill="#f8d060" d="M8 2h5v5h-1V4l-4 4-1-1 4-4H8z"/>
+  </svg>`,
+)}`
 const tabIcon = (src: string) => (src ? `<img class="ico" src="${src}" alt="" />` : `<span class="dots"><i></i><i></i><i></i></span>`)
 
 export interface DialogAction {
@@ -176,7 +189,7 @@ export class Hud {
     this.el.innerHTML = `
       <div class="hud-focus"></div>
       <button class="hud-party" aria-label="Your Pokémon"></button>
-      <nav class="hud-strip" aria-label="Menu">${TABS.map(([id, label, src]) => `<button class="strip-tab" data-open-tab="${id}" aria-label="${label}" title="${label}">${tabIcon(src)}</button>`).join('')}</nav>
+      <nav class="hud-strip" aria-label="Menu">${TABS.map(([id, label, src]) => `<button class="strip-tab" data-open-tab="${id}" aria-label="${label}" title="${label}">${tabIcon(src)}</button>`).join('')}${this.h.popOut ? `<button class="strip-tab strip-pop" data-popout aria-label="Pop out to a small window" title="Pop out">${tabIcon(POP_ICON)}</button>` : ''}</nav>
       <div class="hud-toast" aria-live="polite"></div>
       <div class="hud-dialog" hidden>
         <div class="hud-portrait-frame"><img class="hud-portrait" alt="" /></div>
@@ -199,6 +212,7 @@ export class Hud {
       if (!(e.target as HTMLElement).closest('button')) this.advance()
     })
     this.el.querySelector('.hud-strip')!.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('[data-popout]')) return this.h.popOut?.()
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-open-tab]')
       if (!b) return
       if (!this.sheet.hidden && this.tab === b.dataset.openTab) this.closeSheet()
@@ -237,11 +251,13 @@ export class Hud {
   fit(canvas: HTMLCanvasElement) {
     const cw = canvas.clientWidth
     const ch = canvas.clientHeight
-    const hs = cw >= 1680 ? 3 : cw >= 560 ? 2 : cw >= 400 ? 1.5 : Math.max(1, cw / 300)
+    const hs = hudScale(cw)
     this.el.style.width = `${cw / hs}px`
     this.el.style.height = `${ch / hs}px`
     this.el.style.transform = `scale(${hs})`
     this.el.classList.toggle('narrow', cw / hs < 480)
+    // a small window: one compact layout (clock, Start, the lead, the menu strip; menus fill the window)
+    this.el.classList.toggle('compact', cw / hs < 320)
   }
 
   /** The tutorial points at one control at a time: a selector, or null for none. */

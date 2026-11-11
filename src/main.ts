@@ -10,7 +10,7 @@ import { HABITAT_SPOTS } from './habitats'
 import { CatchAnim } from './catch'
 import { Intro } from './intro'
 import { Tour, blackScreen, liftBlack, runPrologue } from './tutorial'
-import { Hud, fmtMinutes } from './hud'
+import { Hud, fmtMinutes, hudScale } from './hud'
 import { H, W, seaCss, seaEdge, useIsland } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
 import { NEST, Scene, lightAt, nightness } from './scene'
@@ -40,7 +40,7 @@ const invoke = (window as unknown as { __TAURI_INTERNALS__?: { invoke: Invoke } 
 const app = document.getElementById('app')!
 // The whole page is the game: the island fills the screen over open sea.
 // Credits and the pop-out button live in the More menu inside the window.
-app.innerHTML = `<div class="pip-stage${floatMode ? ' float' : ''}${floatMode && !tauri ? ' float-preview' : ''}${popoutMode ? '' : ' page'}"><div class="window"><canvas class="stage"${tauri ? ' data-tauri-drag-region' : ''}></canvas></div></div>${debug && !popoutMode ? `<section class="debug"></section>` : ''}`
+app.innerHTML = `<div class="pip-stage${floatMode ? ' float' : ''}${floatMode && !tauri ? ' float-preview' : ''}${popoutMode ? '' : ' page'}"><div class="window"><canvas class="stage"></canvas>${tauri ? '<div class="float-grip" data-tauri-drag-region title="Drag to move"></div>' : ''}</div></div>${debug && !popoutMode ? `<section class="debug"></section>` : ''}`
 if (!floatMode) document.documentElement.style.setProperty('--sea-page', seaCss())
 
 const win = app.querySelector<HTMLElement>('.window')!
@@ -80,7 +80,7 @@ let tour: Tour | null = null
 function introSize(): [number, number] {
   if (floatMode) return [W, H]
   const s = canvas.clientWidth / W || 1
-  const stage = canvas.closest<HTMLElement>('.pip-stage') ?? document.body
+  const stage = canvas.closest<HTMLElement>('.pip-stage, .pip-body') ?? document.body
   const ow = W + 2 * Math.ceil(Math.max(0, stage.clientWidth / s - W) / 2 + 1)
   const oh = H + 2 * Math.ceil(Math.max(0, stage.clientHeight / s - H) / 2 + 1)
   return [ow, oh]
@@ -95,7 +95,7 @@ function drawEdge(rgb: number[] | null = edgeRgb) {
   if (!rgb) return
   edgeRgb = rgb
   if (floatMode || !canvas.clientWidth) return
-  const stage = canvas.closest<HTMLElement>('.pip-stage')
+  const stage = canvas.closest<HTMLElement>('.pip-stage, .pip-body')
   if (!stage) return
   const [ow, oh] = introSize()
   const s = canvas.clientWidth / W
@@ -143,7 +143,7 @@ function drawIntro() {
     if (introCanvas.isConnected) introCanvas.remove()
     return
   }
-  const stage = canvas.closest<HTMLElement>('.pip-stage')
+  const stage = canvas.closest<HTMLElement>('.pip-stage, .pip-body')
   if (!stage || !canvas.clientWidth) return
   // match the window; a rebuild keeps the clock, so a resize never restarts it
   const [sw, sh] = introSize()
@@ -639,10 +639,15 @@ function askBattle() {
     dex: g.dex,
     text: cleared ? `The way into the dungeon. ${game.name(g.dex)} is beaten, but you can go back in.` : `${game.name(g.dex)} Lv${g.level} is ${g.where}. Your party is ${partyLevels()}.`,
     actions: [
-      { label: 'Enter', primary: true, run: () => (location.href = `${import.meta.env.BASE_URL}dungeon.html?id=${isl.dungeon}&gate=${isl.id}`) },
+      { label: 'Enter', primary: true, run: () => enterDungeon(`${import.meta.env.BASE_URL}dungeon.html?id=${isl.dungeon}&gate=${isl.id}`) },
       { label: 'Not now', run: () => {} },
     ],
   })
+}
+/** Into a dungeon: in this tab normally, or a new full tab while the island is popped out (the small window stays). */
+function enterDungeon(url: string) {
+  if (host !== window || floatMode) window.open(url, '_blank')
+  else location.href = url
 }
 function sailAway(to: string) {
   // a slow fade to open sea, then the other island
@@ -769,7 +774,7 @@ async function bootVisit(v: cloud.FriendScene & { id: string }) {
   win.append(hudLayer)
   const fitVisit = () => {
     const cw = canvas.clientWidth
-    const hs = cw >= 1680 ? 3 : cw >= 560 ? 2 : cw >= 400 ? 1.5 : Math.max(1, cw / 300)
+    const hs = hudScale(cw)
     hudLayer.style.width = `${cw / hs}px`
     hudLayer.style.height = `${canvas.clientHeight / hs}px`
     hudLayer.style.transform = `scale(${hs})`
@@ -781,7 +786,7 @@ async function bootVisit(v: cloud.FriendScene & { id: string }) {
   })
   new ResizeObserver(fitVisit).observe(canvas)
   fitVisit()
-  window.requestAnimationFrame(raf)
+  startLoop()
 }
 
 // ---------- petting ----------
@@ -1217,9 +1222,16 @@ function frame(now: number) {
     }
   }
 }
-function raf(now: number) {
-  frame(now)
-  host.requestAnimationFrame(raf)
+// one render loop at a time: a pop-out or its return starts a new one and the old one stops
+let loopGen = 0
+function startLoop() {
+  const gen = ++loopGen
+  const tick = (now: number) => {
+    if (gen !== loopGen) return
+    frame(now)
+    host.requestAnimationFrame(tick)
+  }
+  host.requestAnimationFrame(tick)
 }
 setInterval(() => {
   const now = performance.now()
@@ -1229,7 +1241,19 @@ setInterval(() => {
 // the island is open in two windows (a plain pop-out beside the page), a Web
 // Lock lets only one of them run the clock; the other mirrors the save.
 let clockOwner = !('locks' in navigator)
-if ('locks' in navigator) navigator.locks.request('island-clock', () => ((clockOwner = true), new Promise<void>(() => {})))
+// The window you can see runs the focus clock: a popped-out window takes it from the tab
+// that opened it (a hidden tab can be frozen by the browser), and the tab gets it back
+// when the small window closes.
+function takeClock(steal: boolean) {
+  navigator.locks
+    .request('island-clock', { steal }, () => ((clockOwner = true), new Promise<void>(() => {})))
+    .catch(() => {
+      clockOwner = false
+      hud?.toast('The island is in its own window.')
+      takeClock(false)
+    })
+}
+if ('locks' in navigator) takeClock(popoutMode && !floatMode)
 setInterval(() => {
   if (clockOwner) game?.beat()
   if (game && scene.weather !== game.weather) scene.weather = game.weather
@@ -1238,9 +1262,9 @@ setInterval(() => {
 // the page around the canvas takes the open sea's colour as the light changes, so there is no seam
 if (!floatMode)
   setInterval(() => {
-    if (host !== window) return // (the clouds are on their own layer, so the canvas corner is always open sea)
+    // (the clouds are on their own layer, so the canvas corner is always open sea)
     const [r, gg, b] = g.getImageData(0, 0, 1, 1).data
-    document.documentElement.style.setProperty('--sea-page', `rgb(${r},${gg},${b})`)
+    for (const d of new Set([document, host.document])) d.documentElement.style.setProperty('--sea-page', `rgb(${r},${gg},${b})`)
     // the edge band takes the same light: the darkest shade, scaled like the sampled open sea
     const open = hexRgb(seaCss())
     const edge = seaEdge()
@@ -1265,14 +1289,20 @@ declare global {
 }
 function fitInto(w: Window) {
   const raw = Math.min(w.innerWidth / W, w.innerHeight / H)
-  const s = raw >= 2 ? Math.floor(raw) : Math.max(1, raw)
+  // whole-number scales keep the pixel art crisp; only a window smaller than 240×180 shrinks
+  const s = raw >= 1 ? Math.floor(raw) : raw
   canvas.style.width = `${W * s}px`
   canvas.style.height = `${H * s}px`
   hud?.fit(canvas)
   requestAnimationFrame(() => drawEdge())
 }
 function plainPopOut() {
-  window.open(`${location.pathname}?popout`, 'island', `width=${W * 2},height=${H * 2}`)
+  // bottom-right corner of the screen
+  const w = W * 2
+  const h = H * 2
+  const left = Math.max(0, (screen.availWidth ?? 1280) - w - 16)
+  const top = Math.max(0, (screen.availHeight ?? 800) - h - 48)
+  window.open(`${location.pathname}?popout`, 'island', `width=${w},height=${h},left=${left},top=${top}`)
   hud.toast('This browser cannot keep windows on top.')
 }
 async function popOut() {
@@ -1294,15 +1324,20 @@ async function popOut() {
   fitInto(pip)
   pip.addEventListener('resize', () => fitInto(pip))
   host = pip
-  host.requestAnimationFrame(raf)
+  startLoop()
+  // keys pressed in the small window reach the same handlers (dialogs, throwing, cheats)
+  pip.addEventListener('keydown', (e) => {
+    const copy = new KeyboardEvent('keydown', { key: e.key, code: e.code, shiftKey: e.shiftKey, ctrlKey: e.ctrlKey, metaKey: e.metaKey, altKey: e.altKey, cancelable: true })
+    window.dispatchEvent(copy)
+    if (copy.defaultPrevented) e.preventDefault()
+  })
   pip.addEventListener('pagehide', () => {
     marker.replaceWith(win)
     host = window
-    window.requestAnimationFrame(raf)
+    startLoop()
     fitInto(window)
   })
 }
-app.querySelector('[data-act="popout"]')?.addEventListener('click', popOut)
 
 // ---------- debug panel ----------
 /** Cheats for testing events: the ?debug panel and the in-game Cheats window (the ` key, or More → Cheats). */
@@ -1513,7 +1548,7 @@ function cheat(d: string) {
     s()!.lastBeat -= 10 * 60 * 1000
     game.beat()
   }
-  if (d === 'dungeon') location.href = `${import.meta.env.BASE_URL}dungeon.html?id=${game.islandDef.dungeon}&gate=${game.islandDef.id}`
+  if (d === 'dungeon') return enterDungeon(`${import.meta.env.BASE_URL}dungeon.html?id=${game.islandDef.dungeon}&gate=${game.islandDef.id}`)
   if (d === 'sail-frost' && game.save.island !== 'frost') {
     if (s()) game.endSession(false)
     game.sail('frost')
@@ -1801,7 +1836,7 @@ async function boot() {
   })
   syncSleep(true)
   buildDebug()
-  window.requestAnimationFrame(raf)
+  startLoop()
 }
 
 function creditsHtml() {

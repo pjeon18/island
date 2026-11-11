@@ -14,7 +14,7 @@
 import type { Creature } from './creature'
 import { GUIDE_DEX, GUIDE_GIFT, type Game, type GameEvent, type TutorialStep } from './game'
 import type { Dialog, Hud } from './hud'
-import { portraitUrl } from './hud'
+import { hudScale, portraitUrl } from './hud'
 import type { Scene } from './scene'
 import type { Species } from './sprites'
 
@@ -94,7 +94,7 @@ class TextBox {
     const cw = this.canvas.clientWidth
     const ch = this.canvas.clientHeight
     if (!cw) return
-    const hs = cw >= 1680 ? 3 : cw >= 560 ? 2 : cw >= 400 ? 1.5 : Math.max(1, cw / 300)
+    const hs = hudScale(cw)
     const cr = this.canvas.getBoundingClientRect()
     const rr = this.root.getBoundingClientRect()
     Object.assign(this.ui.style, {

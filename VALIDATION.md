@@ -1,5 +1,9 @@
 # Validation
 
+## The corner window (2026-11-11)
+- At 480×360 (`?popout`) the island and HUD are both at a clean 2x, the compact layout shows the clock, Start, the lead and the strip, and the Pokémon menu fills the window and scrolls. At 1440×900 the HUD stays at 2x, and the strip ends with the pop-out button.
+- Not checked: Document Picture-in-Picture itself (the embedded browser refuses it; test in real Chrome, including 10+ minutes with the opener tab in the background), the popup's clock handover, and the desktop app (needs Rust).
+
 ## Review fixes, residents and balance (2026-11-11)
 - The balance simulation (the real `game.ts` on a fake clock, 20 runs a schedule, 30 days) after the changes: home Pokédex at day 30 about 57 of 58 (was stuck at 53), one 2-hour Open session a day now gets 13.5 passers-by a day (was 3), shells banked by day 14 about 1,700 (was 3,000+) before the new Frost decorations and upgrades. 200 zero-minute Open sessions now give nothing (they took a starter to Lv63 before).
 - In the browser: an old save got its partner (Charmeleon) put on the current island; sailing home left only the partner there while the Frost residents showed "Lives on Frost Isle"; moving one to Home and sailing back restored each island's own residents. Six residents show as two columns of chips. Eevee's summary is one line. The shop shows Upgrades, and the Frost decorations appear once Frost Isle is open.
