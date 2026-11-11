@@ -9,6 +9,31 @@ import { BERRY_EXP, BOND_FOR_FRIENDSHIP, Evolution, Game, Mon, PARTY_MAX, aStone
 
 const BASE = import.meta.env.BASE_URL
 export const portraitUrl = (dex: number, emo = 'Normal') => `${BASE}sprites/${String(dex).padStart(4, '0')}/${emo}.png`
+/** Item icons from PokéAPI's sprite set (public/items). */
+export const itemUrl = (id: string) => `${BASE}items/${id}.png`
+const icon = (id: string, cls = 'ico') => `<img class="${cls}" src="${itemUrl(id)}" alt="" />`
+
+// There is no Pokédex item icon, so this one is drawn here: a red handheld dex, 15×15.
+const DEX_ICON = `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" shape-rendering="crispEdges">
+    <path fill="#5a1418" d="M3 1h9v1h1v12H2V2h1z"/>
+    <path fill="#e03838" d="M3 2h9v11H3z"/>
+    <path fill="#f87070" d="M3 2h9v1H3z"/>
+    <path fill="#5a1418" d="M4 4h7v5H4z"/>
+    <path fill="#a8e0f8" d="M5 5h5v3H5z"/>
+    <path fill="#f8f8f8" d="M5 5h2v1H5z"/>
+    <path fill="#5a1418" d="M4 10h2v2H4z"/><path fill="#f8d838" d="M8 10h3v1H8z"/>
+    <path fill="#38a8f8" d="M2 3h1v2H2z"/>
+  </svg>`,
+)}`
+const TABS: [Tab, string, string][] = [
+  ['mons', 'Pokémon', itemUrl('poke-ball')],
+  ['dex', 'Pokédex', DEX_ICON],
+  ['island', 'Island', itemUrl('town-map')],
+  ['friends', 'Friends', itemUrl('pal-pad')],
+  ['more', 'More', ''],
+]
+const tabIcon = (src: string) => (src ? `<img class="ico" src="${src}" alt="" />` : `<span class="dots"><i></i><i></i><i></i></span>`)
 
 export interface DialogAction {
   label: string
@@ -101,10 +126,11 @@ export class Hud {
     this.el.innerHTML = `
       <div class="hud-focus"></div>
       <button class="hud-party" aria-label="Your Pokémon"></button>
+      <nav class="hud-strip" aria-label="Menu">${TABS.map(([id, label, src]) => `<button class="strip-tab" data-open-tab="${id}" aria-label="${label}" title="${label}">${tabIcon(src)}</button>`).join('')}</nav>
       <div class="hud-toast" aria-live="polite"></div>
       <div class="hud-dialog" hidden>
-        <img class="hud-portrait" alt="" />
-        <div class="hud-dialog-body"><p class="hud-text"></p><div class="hud-actions"></div></div>
+        <div class="hud-portrait-frame"><img class="hud-portrait" alt="" /></div>
+        <div class="hud-dialog-body"><p class="hud-text"></p><div class="hud-actions"></div><i class="hud-next" aria-hidden="true"></i></div>
       </div>
       <div class="hud-sheet" hidden></div>
       <div class="hud-starter" hidden></div>`
@@ -117,6 +143,10 @@ export class Hud {
     this.starter = this.el.querySelector('.hud-starter')!
 
     this.party.addEventListener('click', () => this.openSheet('mons'))
+    this.el.querySelector('.hud-strip')!.addEventListener('click', (e) => {
+      const b = (e.target as HTMLElement).closest<HTMLElement>('[data-open-tab]')
+      if (b) this.openSheet(b.dataset.openTab as Tab)
+    })
     this.focus.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-f]')
       if (!b) return
@@ -177,7 +207,7 @@ export class Hud {
       this.party.innerHTML = g.party
         .map((m) => {
           const pct = Math.round((m.exp / expToNext(m.level)) * 100)
-          return `<span class="chip"><img src="${portraitUrl(m.dex)}" alt="" /><span class="lv">Lv ${m.level}</span><span class="bar"><i style="width:${pct}%"></i></span></span>`
+          return `<span class="chip"><img src="${portraitUrl(m.dex)}" alt="" /><span class="lv">Lv${m.level}</span><span class="bar"><i style="width:${pct}%"></i></span></span>`
         })
         .join('')
       this.party.setAttribute('aria-label', `Your party: ${g.party.map((m) => `${g.name(m)}, level ${m.level}`).join('; ')}. Open your Pokémon.`)
@@ -227,6 +257,7 @@ export class Hud {
       })
       acts.append(b)
     }
+    this.dialogEl.classList.toggle('has-actions', !!d.actions?.length)
     this.dialogEl.hidden = false
     requestAnimationFrame(() => this.dialogEl.classList.add('show'))
     d.onShow?.()
@@ -284,7 +315,8 @@ export class Hud {
   }
 
   private renderSheet() {
-    const tab = (id: Tab, label: string) => `<button class="tab${this.tab === id ? ' on' : ''}" data-tab="${id}">${label}</button>`
+    const tab = ([id, label, src]: [Tab, string, string]) => `<button class="tab${this.tab === id ? ' on' : ''}" data-tab="${id}" aria-label="${label}" title="${label}">${tabIcon(src)}</button>`
+    const title = TABS.find(([id]) => id === this.tab)![1]
     const body =
       this.tab === 'mons'
         ? this.monsTab()
@@ -298,7 +330,8 @@ export class Hud {
     const scroll = this.sheet.querySelector('.sheet-body')?.scrollTop ?? 0
     this.sheet.innerHTML = `
       <div class="px-panel sheet-panel">
-        <div class="sheet-head">${tab('mons', 'Pokémon')}${tab('dex', 'Pokédex')}${tab('island', 'Island')}${tab('friends', 'Friends')}${tab('more', 'More')}<button class="px-btn small close" data-act="close" aria-label="Close">Close</button></div>
+        <div class="sheet-head">${TABS.map(tab).join('')}<button class="close-x" data-act="close" aria-label="Close"></button></div>
+        <p class="sheet-title">${title}</p>
         <div class="sheet-body">${this.note ? `<p class="note flash">${esc(this.note)}</p>` : ''}${body}</div>
       </div>`
     const sb = this.sheet.querySelector('.sheet-body')
@@ -310,7 +343,7 @@ export class Hud {
     const g = this.game
     const s = g.save
     const stones = Object.entries(s.bag).filter(([, n]) => n > 0)
-    const inv = `<p class="inv"><span>Berries <b>${s.berries}</b></span><span>Shells <b>${s.shells}</b></span>${stones.map(([k, n]) => `<span>${stoneName(k)} <b>${n}</b></span>`).join('')}</p>`
+    const inv = `<p class="inv"><span title="Oran Berries">${icon('oran-berry')}<b>×${s.berries}</b></span><span title="Shells">${icon('shoal-shell')}<b>×${s.shells}</b></span>${stones.map(([k, n]) => `<span title="${stoneName(k)}">${icon(k)}<b>×${n}</b></span>`).join('')}</p>`
     const locked = g.inSession ? `<p class="note">Locked while focusing.</p>` : ''
     const order = [...g.party, ...s.mons.filter((m) => !s.party.includes(m.id))]
     return inv + locked + order.map((m) => this.monRow(m)).join('') + `<p class="note">Party ${g.party.length}/${PARTY_MAX}</p>`
@@ -322,7 +355,7 @@ export class Hud {
     const lv = opts.filter((e) => e.level).map((e) => `at level ${e.level} into ${g.name(e.dex)}`)
     const st = opts.filter((e) => e.item).map((e) => `with ${aStone(e.item!)} into ${g.name(e.dex)}`)
     const fr = opts.filter((e) => e.friendship).map((e) => `by friendship ${e.time ? `during the ${e.time} ` : ''}into ${g.name(e.dex)}`)
-    const bond = fr.length ? ` Bond ${fmtMinutes(Math.min(m.focusedMin, BOND_FOR_FRIENDSHIP))} of ${fmtMinutes(BOND_FOR_FRIENDSHIP)}.` : ''
+    const bond = fr.length ? ` ${icon('soothe-bell', 'ico-s')}Bond ${fmtMinutes(Math.min(m.focusedMin, BOND_FOR_FRIENDSHIP))} of ${fmtMinutes(BOND_FOR_FRIENDSHIP)}.` : ''
     return `Evolves ${list([...lv, ...st, ...fr])}.${bond}`
   }
   private monRow(m: Mon) {
@@ -332,7 +365,7 @@ export class Hud {
     const open = this.openMon === m.id
     const pct = Math.round((m.exp / expToNext(m.level)) * 100)
     const status = m.heldItem
-      ? `Holding ${aStone(m.heldItem)}.`
+      ? `${icon(m.heldItem, 'ico-s')} Holding ${aStone(m.heldItem)}.`
       : m.noEvolve
         ? 'Ready to evolve.'
         : `${fmtMinutes(m.focusedMin)} together`
@@ -346,13 +379,13 @@ export class Hud {
         : btn(`data-party="${m.id}:1"`, 'Add to party', locked || s.party.length >= PARTY_MAX)
       const stoneRow =
         this.stonePick === m.id
-          ? `<div class="row-actions">${usable.map((e) => btn(`data-give="${m.id}:${e.item}"`, `${stoneName(e.item!)} → ${g.name(e.dex)}`)).join('')}${btn('data-stonecancel="1"', 'Cancel')}</div>`
+          ? `<div class="row-actions">${usable.map((e) => btn(`data-give="${m.id}:${e.item}"`, `${icon(e.item!, 'ico-s')}${g.name(e.dex)}`)).join('')}${btn('data-stonecancel="1"', 'Cancel')}</div>`
           : ''
       detail = `
         <div class="mon-detail">
           <p class="hint">${this.evoText(m)}</p>
           <div class="row-actions">
-            ${btn(`data-feed="${m.id}"`, `Feed +${BERRY_EXP} EXP`, locked || s.berries <= 0, true)}
+            ${btn(`data-feed="${m.id}"`, `${icon('oran-berry', 'ico-s')}Feed +${BERRY_EXP} EXP`, locked || s.berries <= 0, true)}
             ${usable.length && !m.heldItem ? btn(`data-stones="${m.id}"`, 'Give a stone', locked) : ''}
             ${m.heldItem ? btn(`data-take="${m.id}"`, 'Take stone', locked) : ''}
             ${m.noEvolve ? btn(`data-allow="${m.id}"`, 'Let it evolve') : ''}
@@ -419,13 +452,13 @@ export class Hud {
     const rows = CATALOG.map((item) => {
       const owned = d.owned.includes(item.id)
       const act = !owned
-        ? `<button class="px-btn small${g.save.shells >= item.price ? ' primary' : ''}" data-buy="${item.id}" ${g.save.shells < item.price || locked ? 'disabled' : ''}>Buy for ${item.price}</button>`
+        ? `<button class="px-btn small${g.save.shells >= item.price ? ' primary' : ''}" data-buy="${item.id}" ${g.save.shells < item.price || locked ? 'disabled' : ''}>${icon('shoal-shell', 'ico-s')}${item.price}</button>`
         : placed.has(item.id)
           ? `<button class="px-btn small" data-move="${item.id}" ${locked ? 'disabled' : ''}>Move</button><button class="px-btn small" data-store="${item.id}" ${locked ? 'disabled' : ''}>Put away</button>`
           : `<button class="px-btn small primary" data-place="${item.id}" ${!free || locked ? 'disabled' : ''}>Place</button>`
       return `<div class="decor-row"><div class="mon-main"><p><strong>${item.name}</strong> <span class="hint">${owned ? (placed.has(item.id) ? 'On the island' : 'Put away') : `${item.price} shells`}</span></p><p class="hint">${item.blurb}</p></div><div class="row-actions">${act}</div></div>`
     }).join('')
-    return `<p class="inv"><span>Shells <b>${g.save.shells}</b></span><span>${free} of ${SLOTS.length} spots free</span></p>
+    return `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${g.save.shells}</b></span><span>${free}/${SLOTS.length} spots free</span></p>
       ${locked ? '<p class="note">Locked while focusing.</p>' : ''}${rows}`
   }
 

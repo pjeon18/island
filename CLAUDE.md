@@ -69,7 +69,8 @@ Read `docs/PLAN.md` first. It holds the approved plan and the decision log. Paul
   - Dev handle: `window.__island` (`game`, `hud`, `scene`, `step(sec)`, `setHour`, `shot(name)`, `runVisit`).
 
 ## Rules
-- UI follows PokéMAPs (`../wheremon/src/styles/tokens.css`): white chrome, M PLUS Rounded 1c, 2.5px ink outlines with a hard 4px lip, IBM Plex Mono for small print. Not the Studdy look (Paul, 2026-11-11).
+- The page around the island follows PokéMAPs (`../wheremon/src/styles/tokens.css`): white chrome, M PLUS Rounded 1c, 2.5px ink outlines with a hard 4px lip, IBM Plex Mono for small print. Not the Studdy look (Paul, 2026-11-11).
+- The UI inside the window is FireRed/LeafGreen GBA style (Paul picked it after seeing PokéDesk, manolloz.itch.io/pokedesk): white windows with a two-tone blue border drawn in CSS (never ripped frames), Pixelify Sans (OFL) with a light drop shadow, gold primary buttons, a navy tab strip of real PokéAPI item icons in `public/items` (Poké Ball, Town Map, Pal Pad, Oran Berry, Shoal Shell, Soothe Bell, stones; the Pokédex icon is a hand-drawn SVG in hud.ts). Icons are 10 island px so they are 1:1 at the 720px canvas.
 - Copy is as short as it can be: no explainer paragraphs, no rules section, one line per message.
 - Ambient motion stays calm: feathered light, slow drift, no flashes.
 - Snappy springs are only for direct presses.

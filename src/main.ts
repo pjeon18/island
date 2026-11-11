@@ -41,7 +41,7 @@ app.innerHTML = popoutMode
   </main>
   ${debug ? `<section class="debug card"></section>` : ''}
   <footer class="foot card">
-    <p>Free fan project, not affiliated with Nintendo, Creatures or GAME FREAK. Pokémon © its owners. Island sprites: <a href="https://sprites.pmdcollab.org" target="_blank" rel="noreferrer">PMD Sprite Repository</a> (<a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noreferrer">CC BY-NC 4.0</a>). Page sprites: Pokémon Showdown. Data: PokéAPI.</p>
+    <p>Free fan project, not affiliated with Nintendo, Creatures or GAME FREAK. Pokémon © its owners. Island sprites: <a href="https://sprites.pmdcollab.org" target="_blank" rel="noreferrer">PMD Sprite Repository</a> (<a href="https://creativecommons.org/licenses/by-nc/4.0/" target="_blank" rel="noreferrer">CC BY-NC 4.0</a>). Page sprites: Pokémon Showdown. Data and item icons: PokéAPI.</p>
   </footer>`
 
 const win = app.querySelector<HTMLElement>('.window')!
