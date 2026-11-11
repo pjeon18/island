@@ -12,6 +12,7 @@ const CLIFF = 7
 
 export const PAL = {
   deep: hex('#3f86bf'),
+  abyss: hex('#2b659e'), // the open sea past the island's water: darker, so it reads as out of reach
   sea: hex('#4c98cd'),
   seaRipple: hex('#58a3d4'),
   shallow: hex('#67b6da'),
@@ -78,7 +79,7 @@ export const TUFT = { out: '#24602c', dark: '#3b8735', mid: '#4fa13f', light: '#
 export function useIsland(id: string) {
   if (id !== 'frost') return
   const F: Partial<Record<keyof typeof PAL, string>> = {
-    deep: '#2a6fae', sea: '#3580c2', seaRipple: '#438dca', shallow: '#68b4dc', shallow2: '#a6daf0', foam: '#f4fbff',
+    deep: '#2a6fae', abyss: '#1c5088', sea: '#3580c2', seaRipple: '#438dca', shallow: '#68b4dc', shallow2: '#a6daf0', foam: '#f4fbff',
     sandLight: '#eef3f8', sand: '#dbe4ee', sandDark: '#bfcbd9', cliffTop: '#b9c7d6', earth: '#8a9bb0', earthDark: '#6a7b92', earthWet: '#4b5a71',
     grassLight: '#f7fbfe', grass: '#e6eff7', grassDark: '#cbdcea', grassDeep: '#aac3d9',
     leaf: '#2d6a5a', leafMid: '#3d816f', leafLight: '#e8f2f7', leafDeep: '#1d4a3f', trunk: '#6e4e38', trunkDark: '#4c3424',
@@ -88,7 +89,7 @@ export function useIsland(id: string) {
 }
 
 /** The open-sea colour, for the page behind the canvas. */
-export const seaCss = () => `rgb(${PAL.deep.join(',')})`
+export const seaCss = () => `rgb(${PAL.abyss.join(',')})`
 
 // ---------- shape ----------
 const LOBES: [number, number, number, number][] = [
@@ -170,11 +171,15 @@ export function buildIsland(): IslandLayout {
     for (let x = 0; x < W; x++) {
       if (footprint[y * W + x]) continue
       const d = seaDist[y * W + x]
-      // open sea deepens toward the window's edges, never in blotches
-      const r = Math.hypot((x - 120) / 132, (y - 92) / 104)
-      let c: RGB = r + (bayer(x, y) - 0.5) * 0.06 > 0.98 ? PAL.deep : PAL.sea
+      // the island's water deepens in a soft ring, then gives way to the darker open sea,
+      // which meets the window's edge in exactly the page's colour (no visible frame)
+      const r = Math.hypot((x - 120) / 128, (y - 90) / 92)
+      const edge = Math.min(x, W - 1 - x, y, H - 1 - y)
+      const dith = bayer(x, y) - 0.5
+      let c: RGB = r + dith * 0.1 > 0.84 ? PAL.deep : PAL.sea
+      if (r + dith * 0.12 > 0.98 || edge + dith * 8 < 6) c = PAL.abyss
       // faint static ripples
-      if (hash2(x >> 2, y, 17) < 0.035 && (x & 3) !== 3 && d > 8) c = PAL.seaRipple
+      if (hash2(x >> 2, y, 17) < 0.035 && (x & 3) !== 3 && d > 8 && c !== PAL.abyss) c = PAL.seaRipple
       if (d < 12) c = d + bayer(x, y) * 3 < 9 ? (d < 4 + bayer(x + 1, y) * 2 ? PAL.shallow2 : PAL.shallow) : c
       p.set(x, y, c)
     }
@@ -443,24 +448,36 @@ export function paintBush(): { img: HTMLCanvasElement; ax: number; ay: number } 
   return { img: p.toCanvas(), ax: 10, ay: 14 }
 }
 
-/** The dock lantern post; the flame is drawn live so it can glow at night. */
+/** The dock lantern on its post: a peaked iron cap, amber glass, a collar and an iron post.
+ *  The glass is a warm mid-tone by day (it read as a blank square when it was pale); the flame
+ *  is drawn live so it can glow at night. */
 export function paintLantern(): { img: HTMLCanvasElement; ax: number; ay: number; flame: { x: number; y: number } } {
-  const p = new Pix(7, 18)
-  for (let y = 6; y < 18; y++) {
-    p.set(3, y, PAL.woodDark)
-    p.set(2, y, y > 15 ? PAL.woodGap : PAL.wood)
-  }
-  // lamp housing
-  const iron = hex('#4a3a33')
-  for (let x = 1; x <= 5; x++) {
-    p.set(x, 0, iron)
-    p.set(x, 5, iron)
-  }
-  for (let y = 1; y <= 4; y++) {
+  const p = new Pix(7, 21)
+  const iron = hex('#3e3029')
+  const ironHi = hex('#6a5548')
+  const glass = hex('#d6a24e')
+  const glassHi = hex('#f3d48c')
+  // cap
+  p.set(3, 0, iron)
+  for (let x = 2; x <= 4; x++) p.set(x, 1, iron)
+  for (let x = 1; x <= 5; x++) p.set(x, 2, iron)
+  p.set(2, 1, ironHi)
+  // frame and glass
+  for (let y = 3; y <= 6; y++) {
     p.set(1, y, iron)
     p.set(5, y, iron)
-    for (let x = 2; x <= 4; x++) p.set(x, y, hex('#f7e3a8'))
+    for (let x = 2; x <= 4; x++) p.set(x, y, glass)
   }
-  p.set(3, 2, hex('#fff6d6'))
-  return { img: p.toCanvas(), ax: 3, ay: 17, flame: { x: 3, y: 2 } }
+  p.set(2, 3, glassHi)
+  p.set(2, 4, glassHi)
+  // base and collar
+  for (let x = 1; x <= 5; x++) p.set(x, 7, iron)
+  for (let x = 2; x <= 4; x++) p.set(x, 8, iron)
+  // an iron post, so it stands out against the pier's planks
+  for (let y = 9; y < 21; y++) {
+    p.set(3, y, iron)
+    p.set(2, y, y < 19 ? ironHi : iron)
+  }
+  for (let x = 1; x <= 4; x++) p.set(x, 20, iron)
+  return { img: p.toCanvas(), ax: 3, ay: 20, flame: { x: 3, y: 4 } }
 }
