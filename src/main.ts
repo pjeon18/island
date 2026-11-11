@@ -9,7 +9,7 @@ import { BALLS, Ball, FOODS, Find, Game, GameEvent, dayKey, HABITATS, Haul, ISLA
 import { HABITAT_SPOTS } from './habitats'
 import { CatchAnim } from './catch'
 import { Intro } from './intro'
-import { STARTER_CHOICES, Tour, blackScreen, liftBlack, runPrologue } from './tutorial'
+import { Tour, blackScreen, liftBlack, runPrologue } from './tutorial'
 import { Hud, fmtMinutes } from './hud'
 import { H, W, seaCss, seaEdge, useIsland } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
@@ -1717,7 +1717,6 @@ async function boot() {
   if (!game.hasStarter) {
     // the prologue: the answer to "which Pokémon did you start with?" is your starter
     void (async () => {
-      void Promise.all(STARTER_CHOICES.map(ensure))
       const screen = black ?? blackScreen(app.querySelector<HTMLElement>('.pip-stage')!)
       const dex = await runPrologue(screen, canvas, (d) => game.name(d))
       startIntro(1)

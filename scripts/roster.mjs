@@ -11,6 +11,16 @@ export const LINES = [
   { dex: 1, rarity: 'starter' },
   { dex: 4, rarity: 'starter' },
   { dex: 7, rarity: 'starter' },
+  // the other regions' starters can be picked in the prologue but never pass by (islands: []),
+  // so no island's Pokédex or visitor odds change (Paul asked for more starter options, 2026-11-11)
+  { dex: 152, rarity: 'starter', islands: [] }, // Chikorita
+  { dex: 155, rarity: 'starter', islands: [] }, // Cyndaquil
+  { dex: 158, rarity: 'starter', islands: [] }, // Totodile
+  { dex: 252, rarity: 'starter', islands: [] }, // Treecko
+  { dex: 255, rarity: 'starter', islands: [] }, // Torchic
+  { dex: 258, rarity: 'starter', islands: [] }, // Mudkip
+  { dex: 387, rarity: 'starter', islands: [] }, // Turtwig
+  { dex: 390, rarity: 'starter', islands: [] }, // Chimchar
   // common visitors
   { dex: 16, rarity: 'common', time: 'morning' }, // Pidgey
   { dex: 10, rarity: 'common' }, // Caterpie

@@ -703,6 +703,129 @@
    ],
    "guardian": "home"
   },
+  "152": {
+   "name": "Chikorita",
+   "types": [
+    "grass"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 153,
+     "level": 16
+    }
+   ],
+   "stage": 1,
+   "line": 152,
+   "islands": [],
+   "rarity": "starter"
+  },
+  "153": {
+   "name": "Bayleef",
+   "types": [
+    "grass"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 154,
+     "level": 32
+    }
+   ],
+   "stage": 2,
+   "line": 152,
+   "islands": []
+  },
+  "154": {
+   "name": "Meganium",
+   "types": [
+    "grass"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 152,
+   "islands": []
+  },
+  "155": {
+   "name": "Cyndaquil",
+   "types": [
+    "fire"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 156,
+     "level": 14
+    }
+   ],
+   "stage": 1,
+   "line": 155,
+   "islands": [],
+   "rarity": "starter"
+  },
+  "156": {
+   "name": "Quilava",
+   "types": [
+    "fire"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 157,
+     "level": 36
+    }
+   ],
+   "stage": 2,
+   "line": 155,
+   "islands": []
+  },
+  "157": {
+   "name": "Typhlosion",
+   "types": [
+    "fire"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 155,
+   "islands": []
+  },
+  "158": {
+   "name": "Totodile",
+   "types": [
+    "water"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 159,
+     "level": 18
+    }
+   ],
+   "stage": 1,
+   "line": 158,
+   "islands": [],
+   "rarity": "starter"
+  },
+  "159": {
+   "name": "Croconaw",
+   "types": [
+    "water"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 160,
+     "level": 30
+    }
+   ],
+   "stage": 2,
+   "line": 158,
+   "islands": []
+  },
+  "160": {
+   "name": "Feraligatr",
+   "types": [
+    "water"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 158,
+   "islands": []
+  },
   "163": {
    "name": "Hoothoot",
    "types": [
@@ -998,6 +1121,133 @@
    ],
    "rarity": "uncommon"
   },
+  "252": {
+   "name": "Treecko",
+   "types": [
+    "grass"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 253,
+     "level": 16
+    }
+   ],
+   "stage": 1,
+   "line": 252,
+   "islands": [],
+   "rarity": "starter"
+  },
+  "253": {
+   "name": "Grovyle",
+   "types": [
+    "grass"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 254,
+     "level": 36
+    }
+   ],
+   "stage": 2,
+   "line": 252,
+   "islands": []
+  },
+  "254": {
+   "name": "Sceptile",
+   "types": [
+    "grass"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 252,
+   "islands": []
+  },
+  "255": {
+   "name": "Torchic",
+   "types": [
+    "fire"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 256,
+     "level": 16
+    }
+   ],
+   "stage": 1,
+   "line": 255,
+   "islands": [],
+   "rarity": "starter"
+  },
+  "256": {
+   "name": "Combusken",
+   "types": [
+    "fire",
+    "fighting"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 257,
+     "level": 36
+    }
+   ],
+   "stage": 2,
+   "line": 255,
+   "islands": []
+  },
+  "257": {
+   "name": "Blaziken",
+   "types": [
+    "fire",
+    "fighting"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 255,
+   "islands": []
+  },
+  "258": {
+   "name": "Mudkip",
+   "types": [
+    "water"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 259,
+     "level": 16
+    }
+   ],
+   "stage": 1,
+   "line": 258,
+   "islands": [],
+   "rarity": "starter"
+  },
+  "259": {
+   "name": "Marshtomp",
+   "types": [
+    "water",
+    "ground"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 260,
+     "level": 36
+    }
+   ],
+   "stage": 2,
+   "line": 258,
+   "islands": []
+  },
+  "260": {
+   "name": "Swampert",
+   "types": [
+    "water",
+    "ground"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 258,
+   "islands": []
+  },
   "361": {
    "name": "Snorunt",
    "types": [
@@ -1078,6 +1328,91 @@
    "islands": [
     "frost"
    ]
+  },
+  "387": {
+   "name": "Turtwig",
+   "types": [
+    "grass"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 388,
+     "level": 18
+    }
+   ],
+   "stage": 1,
+   "line": 387,
+   "islands": [],
+   "rarity": "starter"
+  },
+  "388": {
+   "name": "Grotle",
+   "types": [
+    "grass"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 389,
+     "level": 32
+    }
+   ],
+   "stage": 2,
+   "line": 387,
+   "islands": []
+  },
+  "389": {
+   "name": "Torterra",
+   "types": [
+    "grass",
+    "ground"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 387,
+   "islands": []
+  },
+  "390": {
+   "name": "Chimchar",
+   "types": [
+    "fire"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 391,
+     "level": 14
+    }
+   ],
+   "stage": 1,
+   "line": 390,
+   "islands": [],
+   "rarity": "starter"
+  },
+  "391": {
+   "name": "Monferno",
+   "types": [
+    "fire",
+    "fighting"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 392,
+     "level": 36
+    }
+   ],
+   "stage": 2,
+   "line": 390,
+   "islands": []
+  },
+  "392": {
+   "name": "Infernape",
+   "types": [
+    "fire",
+    "fighting"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 390,
+   "islands": []
   },
   "393": {
    "name": "Piplup",

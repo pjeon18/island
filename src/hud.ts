@@ -687,9 +687,13 @@ export class Hud {
   // Pokédex: every species on the island, and how to get the ones you lack
   private dexTab() {
     const g = this.game
-    const all = Object.keys(g.roster).map(Number).sort((a, b) => a - b)
     const seen = new Set(g.save.seen)
     const caught = new Set(g.save.caught)
+    // the other regions' starters never pass by; they show only once you have one
+    const all = Object.keys(g.roster)
+      .map(Number)
+      .filter((d) => (g.roster[d].islands?.length ?? 1) > 0 || seen.has(d) || caught.has(d))
+      .sort((a, b) => a - b)
     const cells = all
       .map((d) => {
         const cls = caught.has(d) ? 'caught' : seen.has(d) ? 'seen' : 'unseen'

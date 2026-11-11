@@ -18,7 +18,15 @@ import { portraitUrl } from './hud'
 import type { Scene } from './scene'
 import type { Species } from './sprites'
 
-export const STARTER_CHOICES = [1, 4, 7, 25]
+/** The prologue's starters, one tab per region (Pikachu and Eevee as partners). */
+export const STARTER_REGIONS: [string, number[]][] = [
+  ['Kanto', [1, 4, 7]],
+  ['Johto', [152, 155, 158]],
+  ['Hoenn', [252, 255, 258]],
+  ['Sinnoh', [387, 390, 393]],
+  ['Partners', [25, 133]],
+]
+export const STARTER_CHOICES = STARTER_REGIONS.flatMap(([, d]) => d)
 
 export interface TutorialCtx {
   game: Game
@@ -48,7 +56,7 @@ export function blackScreen(stage: HTMLElement) {
   return el
 }
 
-type Choice = { label: string; html?: string; value: string }
+type Choice = { label: string; html?: string; value: string; group?: string }
 
 class TextBox {
   private ui: HTMLElement
@@ -59,6 +67,7 @@ class TextBox {
   private timer = 0
   private resolve: ((v: string) => void) | null = null
   private choices: Choice[] | null = null
+  private group = ''
   constructor(
     private root: HTMLElement,
     private canvas: HTMLCanvasElement,
@@ -113,21 +122,44 @@ class TextBox {
     this.menu.innerHTML = ''
     r?.(v)
   }
-  private showMenu() {
+  private showMenu(force = false) {
     this.ui.classList.toggle('typing', this.shown < this.full.length)
-    if (!this.choices || this.menu.childElementCount) return
+    if (!this.choices || (this.menu.childElementCount && !force)) return
     const cards = this.choices.some((c) => c.html)
     this.menu.className = `prologue-menu${cards ? ' cards' : ' px-panel'}`
+    this.menu.innerHTML = ''
     // sit just above the text box, however many lines it has
     const box = this.ui.querySelector<HTMLElement>('.prologue-box')!
     this.menu.style.bottom = `${box.offsetHeight + 20}px`
+    // grouped choices (the starters) get a tab per group, showing one group at a time
+    const groups = [...new Set(this.choices.map((c) => c.group).filter(Boolean))] as string[]
+    if (groups.length) {
+      if (!groups.includes(this.group)) this.group = groups[0]
+      const tabs = document.createElement('div')
+      tabs.className = 'segs prologue-regions'
+      for (const gname of groups) {
+        const t = document.createElement('button')
+        t.className = `seg${gname === this.group ? ' on' : ''}`
+        t.textContent = gname
+        t.addEventListener('click', () => {
+          this.group = gname
+          this.showMenu(true)
+        })
+        tabs.append(t)
+      }
+      this.menu.append(tabs)
+    }
+    const row = document.createElement('div')
+    row.className = cards ? 'prologue-cards' : 'prologue-list'
     for (const c of this.choices) {
+      if (groups.length && c.group !== this.group) continue
       const b = document.createElement('button')
       b.className = cards ? 'prologue-card px-panel' : 'prologue-choice'
       b.innerHTML = c.html ?? c.label
       b.addEventListener('click', () => this.finish(c.value))
-      this.menu.append(b)
+      row.append(b)
     }
+    this.menu.append(row)
   }
   /** Type a line out; resolves on the next tap, or with the chosen value. */
   say(line: string, choices?: Choice[]) {
@@ -170,7 +202,7 @@ export async function runPrologue(black: HTMLElement, canvas: HTMLCanvasElement,
   await box.say(t === 'time' ? `${now}? Then there is still plenty of day left.` : "That's all right. I lose track of time too.")
   const pick = await box.say(
     'One more thing. Remind me, which Pokémon did you start your journey with?',
-    STARTER_CHOICES.map((d) => ({ label: name(d), value: String(d), html: `<img src="${portraitUrl(d)}" alt="" /><span>${name(d)}</span>` })),
+    STARTER_REGIONS.flatMap(([region, dexes]) => dexes.map((d) => ({ label: name(d), value: String(d), group: region, html: `<img src="${portraitUrl(d)}" alt="" /><span>${name(d)}</span>` }))),
   )
   const dex = Number(pick)
   await box.say(`Of course, ${name(dex)}! You two have been together since day one.`)

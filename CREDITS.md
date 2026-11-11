@@ -51,6 +51,15 @@ This is a free, non-commercial fan project with no affiliation.
 - **Jolteon** (#135): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), dmDash; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), "motherhenna(Helen)" (<@!543717476421074945>), Morei (https://bsky.app/profile/murpia57.bsky.social), Vynnyal (<https://vynnyal.tumblr.com/>), baronessfaron, ShyStarryRain
 - **Flareon** (#136): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Ginnie, JFain; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), LegendaryPhoenix, baronessfaron, Vynnyal (<https://vynnyal.tumblr.com/>), ShyStarryRain
 - **Snorlax** (#143): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), NOLASMOR, Emboarger
+- **Chikorita** (#152): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), baronessfaron
+- **Bayleef** (#153): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), C_Pariah (<@322382592202637322>)
+- **Meganium** (#154): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), 0palite (https://zeropalart.tumblr.com/)
+- **Cyndaquil** (#155): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/)
+- **Quilava** (#156): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), JFain; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), C_Pariah (<@322382592202637322>)
+- **Typhlosion** (#157): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), 0palite (https://zeropalart.tumblr.com/)
+- **Totodile** (#158): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/)
+- **Croconaw** (#159): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), C_Pariah (<@322382592202637322>)
+- **Feraligatr** (#160): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Noo (https://artfight.net/~NooNoo_Skidoo)
 - **Hoothoot** (#163): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain
 - **Noctowl** (#164): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), G〜 (https://bsky.app/profile/justtr4sh.pmd.social), Magu (@magu_boi)
 - **Crobat** (#169): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), <ElGian> (<gfcobross@gmail.com>), Emmuffin (https://twitter.com/Ernmuffin)
@@ -70,11 +79,26 @@ This is a free, non-commercial fan project with no affiliation.
 - **Piloswine** (#221): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin)
 - **Delibird** (#225): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), G〜 (https://bsky.app/profile/justtr4sh.pmd.social), FlowerSnek (https://twitter.com/EthanLac13); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), C_Pariah (<@322382592202637322>)
 - **Smoochum** (#238): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), baronessfaron; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Gust (https://twitter.com/Estelaris__)
+- **Treecko** (#252): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/)
+- **Grovyle** (#253): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Deeshura (https://bsky.app/profile/deeshura.bsky.social), JFain; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Davilos (https://www.deviantart.com/nddavilos), baronessfaron
+- **Sceptile** (#254): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), 0palite (https://zeropalart.tumblr.com/), baronessfaron
+- **Torchic** (#255): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/)
+- **Combusken** (#256): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, Blanky (https://www.tumblr.com/theblankest123)
+- **Blaziken** (#257): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Noo (https://artfight.net/~NooNoo_Skidoo)
+- **Mudkip** (#258): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/)
+- **Marshtomp** (#259): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), C_Pariah (<@322382592202637322>)
+- **Swampert** (#260): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin)
 - **Snorunt** (#361): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), JFain; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Caitemis (https://caitemis-art.tumblr.com/)
 - **Glalie** (#362): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain
 - **Spheal** (#363): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), JFain; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin)
 - **Sealeo** (#364): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin)
 - **Walrein** (#365): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/)
+- **Turtwig** (#387): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/)
+- **Grotle** (#388): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Caitemis (https://caitemis-art.tumblr.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Emboarger
+- **Torterra** (#389): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain
+- **Chimchar** (#390): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin)
+- **Monferno** (#391): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), baronessfaron, Emmuffin (https://twitter.com/Ernmuffin)
+- **Infernape** (#392): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Caitemis (https://caitemis-art.tumblr.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin)
 - **Piplup** (#393): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/)
 - **Prinplup** (#394): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Emboarger, Emmuffin (https://twitter.com/Ernmuffin)
 - **Empoleon** (#395): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), 0palite (https://zeropalart.tumblr.com/)
@@ -88,8 +112,3 @@ This is a free, non-commercial fan project with no affiliation.
 - **Abomasnow** (#460): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), SingingMudkip
 - **Leafeon** (#470): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), baronessfaron; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), baronessfaron
 - **Glaceon** (#471): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, baronessfaron; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, PhillipsYoung (https://twitter.com/PhilliYoung196)
-
-
-## Cries
-
-Pokémon cries (`public/cries/`) come from Pokémon Showdown's cry library (play.pokemonshowdown.com/audio/cries), copied from PokéMAPs where it already had them. Pokémon is © Nintendo, Creatures Inc. and GAME FREAK inc.
