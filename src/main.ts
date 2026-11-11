@@ -8,6 +8,7 @@ import { SLOTS, decorDef } from './decor'
 import { BALLS, Ball, FOODS, Find, Game, GameEvent, HABITATS, Haul, ISLANDS, JOBS, Mon, RARE_50, Role, Roster, STONES, Weather, Wild, aStone, loadSave, stoneName } from './game'
 import { HABITAT_SPOTS } from './habitats'
 import { CatchAnim } from './catch'
+import { Intro } from './intro'
 import { Hud, fmtMinutes } from './hud'
 import { H, W, seaCss, useIsland } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
@@ -56,6 +57,8 @@ let hud: Hud
 useIsland(visitData ? visitData.scene.island : (loadSave().island ?? 'home'))
 const scene = new Scene()
 scene.overlay = (gg) => catching?.draw(gg)
+// every load opens under a bank of clouds that part to reveal the island
+scene.intro = new Intro(W, H)
 scene.float = floatMode
 const species = new Map<number, Species>()
 const loading = new Map<number, Promise<Species>>()
@@ -1041,6 +1044,16 @@ function frame(now: number) {
     scene.render(g, dt)
   }
   hud?.update()
+  // the menus fade in as the clouds clear
+  const intro = scene.intro
+  const layer = hud?.el ?? win.querySelector<HTMLElement>('.hud')
+  if (intro && layer) {
+    layer.style.opacity = String(Math.max(0, (intro.cleared - 0.45) / 0.55))
+    if (intro.done) {
+      layer.style.opacity = ''
+      scene.intro = undefined
+    }
+  }
 }
 function raf(now: number) {
   frame(now)
@@ -1562,6 +1575,7 @@ window.__island = {
     return guardianC
   },
   placeGuardian: () => placeGuardian(),
+  replayIntro: () => (scene.intro = new Intro(W, H)),
   scene,
   /** Advance the island by `sec` seconds of simulation (not the focus clock). */
   step: (sec: number) => {

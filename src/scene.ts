@@ -8,6 +8,7 @@ import type { Species } from './sprites'
 import type { FindKind, Habitat, Weather } from './game'
 import { HABITAT_SPOTS, HabitatArt, baitArt, habitatArt, paintGate } from './habitats'
 import { FLAT, Light, applyLighting, normalMapFor } from './lighting'
+import type { Intro } from './intro'
 import { drawFrame, frameAt } from './sprites'
 
 // Finds: tiny pixel items a party Pokémon dug up, drawn from these rows.
@@ -133,6 +134,8 @@ export class Scene {
   private gateArt = paintGate()
   /** Eggs in the nest (0..1 warmth each); the nest shows when there are eggs or a Day Care pair. */
   nest = { show: false, eggs: [] as number[] }
+  /** The opening clouds (intro.ts), while they are parting. */
+  intro?: Intro
   /** Little hearts that float up when you pet a Pokémon. */
   hearts: { x: number; y: number; t: number }[] = []
   /** Pokémon that give off light at night (fire types), by dex4; set by main.ts from the roster. */
@@ -306,6 +309,7 @@ export class Scene {
 
   update(dt: number) {
     this.time += dt
+    this.intro?.update(dt)
     // weather rolls in and out slowly (about 4 s), never switches
     if (this.weather !== this.shown) {
       this.wk = Math.max(0, this.wk - dt / 4)
@@ -547,6 +551,8 @@ export class Scene {
         g.fillRect(x + 3, y + 6, 1, 1)
       }
     this.overlay?.(g)
+    // the opening clouds cover everything, dimmed by the hour's light
+    this.intro?.draw(g, lightAt(this.hour))
   }
 
   /** The normals buffer for this frame, starting from the island's own (flat top, cliff faces turned south). */

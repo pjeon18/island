@@ -1,5 +1,11 @@
 # Validation
 
+## The opening clouds (2026-11-11)
+- Every load (opening the app, after sailing, back from a visit or a dungeon) starts under two layers of pixel clouds that hold for 0.35 s and then part left and right over about 2 s. The HUD fades in as they clear.
+- Day frames: full cover at 0.05 to 0.6 s, an opening down the middle at 0.9 s, mostly clear at 1.2 s, gone by 1.6 s.
+- Night frames: the clouds are dimmed by the hour's light (multiplied, then cut back to one combined cloud mask), so they read as night clouds, not white glare.
+- Replay it with `__island.replayIntro()`.
+
 ## Stage 6, lighting, dungeons and the editor (2026-11-11)
 
 - **Night lighting:**
