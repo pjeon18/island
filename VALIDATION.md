@@ -1,5 +1,13 @@
 # Validation
 
+## The new-player opening and Wooper's tour (2026-11-11)
+- **Prologue.** A fresh save starts on the black screen with no island or clouds showing. The time question shows the real clock ("It's 14:40.") and "No idea."; both replies continue. The four starters sit on one row at a 720 px window, with no name overflowing. Choosing Charmander, Squirtle or Pikachu made it the only party member; the black faded into the held clouds, which then parted.
+- **Tour, full path.** Wooper walked out of the tall grass and spoke. "I'll help" sent in a Pidgey, and the "Tap it" instruction sat top left, clear of the island. The throw caught it, and the game's "Gotcha!" line finished before Wooper went on. The gift gave exactly 100 shells and 3 Star Pieces, the Pond's price. The pulse moved map button → Habitats → Pond, and the pond was built. The focus widget appeared at the 'focus' step, the pulse moved to Start focusing and then the Journal, and Wooper joined as the third party member: one Wooper on the island, adopted rather than duplicated. The Journal recorded the passer-by, the catch, the pond and Wooper.
+- **Resume.** Reloads at 'catch' (with the Pidgey waiting) and at 'build' each resumed at that step's first line.
+- **Skip.** "Skip the tour" ended it at once with the gift and Wooper in the party; Enter and Space advanced both the black screen and Wooper's lines.
+- **Existing saves** (no tutorial field) load as 'done' with no prologue.
+- Not checked: the desktop pet (float mode) on a brand-new save, and phones.
+
 ## The opening haze and the journal (2026-11-11)
 - **Opening.** Every load starts behind a pale dithered haze with three soft clouds a side. It holds 0.3 s, opens from the middle, and is clear by about 1.3 s; the clouds thin out as they leave. Frames checked at 0.1, 0.6, 0.9 and 1.2 s by day, and in real time at night, where the haze is dimmed by the hour's light (multiplied, then cut back to one mask). Replay with `__island.replayIntro()`.
 - **Journal.** Driven through the cheats (session, finish, passer-by, find, egg, hatch, expedition): every one wrote a line with the right portrait, level-ups merged per Pokémon, and the gold dot appeared on the strip button and cleared on opening. The summary tiles stay on one row with no overflow, including a 12h30 focus total. Cheats for weather, stones and waves bypass the events, so they do not log; the real events do.

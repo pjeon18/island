@@ -66,6 +66,12 @@ export interface Dialog {
   actions?: DialogAction[]
   auto?: number
   onShow?: () => void
+  /** Stay until clicked (or Space/Enter), instead of closing on a timer. */
+  wait?: boolean
+  /** Runs once when this line closes, however it closes. */
+  onDone?: () => void
+  /** An instruction to act elsewhere: shown at the top left, out of the way, and hidden while a menu or the catch screen is open. */
+  task?: boolean
 }
 
 export interface HudHandlers {
@@ -73,7 +79,6 @@ export interface HudHandlers {
   end: () => void
   back: () => void
   stillHere: () => void
-  chooseStarter: (dex: number) => void
   setLength: (sec: number | null) => void
   toggleParty: (id: string, on: boolean) => void
   allowEvolution: (id: string) => void
@@ -148,7 +153,6 @@ export class Hud {
   private dialogEl: HTMLElement
   private toastEl: HTMLElement
   private sheet: HTMLElement
-  private starter: HTMLElement
   private queue: Dialog[] = []
   private current: Dialog | null = null
   private autoTimer = 0
@@ -180,17 +184,18 @@ export class Hud {
       <div class="hud-catch px-panel" hidden></div>
       <div class="hud-cheats px-panel" hidden></div>
       <div class="hud-summary px-panel" hidden></div>
-
-      <div class="hud-starter" hidden></div>`
+`
     host.append(this.el)
     this.focus = this.el.querySelector('.hud-focus')!
     this.party = this.el.querySelector('.hud-party')!
     this.dialogEl = this.el.querySelector('.hud-dialog')!
     this.toastEl = this.el.querySelector('.hud-toast')!
     this.sheet = this.el.querySelector('.hud-sheet')!
-    this.starter = this.el.querySelector('.hud-starter')!
 
     this.party.addEventListener('click', () => this.openSheet('mons'))
+    this.dialogEl.addEventListener('click', (e) => {
+      if (!(e.target as HTMLElement).closest('button')) this.advance()
+    })
     this.el.querySelector('.hud-strip')!.addEventListener('click', (e) => {
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-open-tab]')
       if (!b) return
@@ -237,9 +242,26 @@ export class Hud {
     this.el.classList.toggle('narrow', cw / hs < 480)
   }
 
+  /** The tutorial points at one control at a time: a selector, or null for none. */
+  guide: (() => string | null) | null = null
+  private guided: Element | null = null
+  private markGuide() {
+    const sel = this.guide?.() ?? null
+    const el = sel ? this.el.querySelector(sel) : null
+    if (el === this.guided) return
+    this.guided?.classList.remove('guide-pulse')
+    el?.classList.add('guide-pulse')
+    this.guided = el
+  }
+  /** Which menu and sub-tab are open (the tutorial reads this to point at the next step). */
+  get openView() {
+    return this.sheet.hidden ? null : { tab: this.tab as string, sub: this.subOf(this.tab) }
+  }
+
   // ---------- per-frame state ----------
   update() {
     const g = this.game
+    this.markGuide()
     const last = g.save.log[g.save.log.length - 1]?.t ?? 0
     const lk = `${last}:${g.save.logSeen}:${this.sheet.hidden}:${this.tab}`
     if (lk !== this.lastLogKey) {
@@ -254,7 +276,7 @@ export class Hud {
     }
     const s = g.save.session
     const breakLeft = !s && g.save.breakUntil ? (g.save.breakUntil - g.now()) / 1000 : 0
-    const key = !g.hasStarter ? 'none' : !s ? `idle:${g.save.settings.length}:${breakLeft > 0}` : `${s.state}:${g.together.join(',')}`
+    const key = !g.hasStarter || ['prologue', 'meet', 'catch', 'build'].includes(g.save.tutorial) ? 'none' : !s ? `idle:${g.save.settings.length}:${breakLeft > 0}` : `${s.state}:${g.together.join(',')}`
     if (key !== this.lastFocusKey) {
       this.lastFocusKey = key
       const len = g.save.settings.length
@@ -303,10 +325,22 @@ export class Hud {
   }
   dismiss() {
     window.clearTimeout(this.autoTimer)
+    const done = this.current?.onDone
     this.current = null
     this.dialogEl.classList.remove('show')
     this.dialogEl.hidden = true
     this.next()
+    done?.()
+  }
+  /** Close this line if it is the one showing (or drop it from the queue). */
+  close(d: Dialog) {
+    if (this.current === d) this.dismiss()
+    else this.queue = this.queue.filter((x) => x !== d)
+  }
+  /** Advance a waiting line (a click on the text box, or Space/Enter). */
+  advance() {
+    const d = this.current
+    if (d?.wait && !d.actions?.length) this.dismiss()
   }
   get busy() {
     return !!this.current
@@ -342,7 +376,9 @@ export class Hud {
     this.dialogEl.hidden = false
     requestAnimationFrame(() => this.dialogEl.classList.add('show'))
     d.onShow?.()
-    if (!d.actions?.length) this.autoTimer = window.setTimeout(() => this.current === d && this.dismiss(), d.auto ?? 4200)
+    this.dialogEl.classList.toggle('waits', !!d.wait)
+    this.dialogEl.classList.toggle('task', !!d.task)
+    if (!d.actions?.length && !d.wait) this.autoTimer = window.setTimeout(() => this.current === d && this.dismiss(), d.auto ?? 4200)
   }
   clearQueue(filter: (d: Dialog) => boolean) {
     this.queue = this.queue.filter((d) => !filter(d))
@@ -458,26 +494,6 @@ export class Hud {
     }
     draw()
     el.hidden = false
-  }
-
-  // ---------- starter ----------
-  showStarter(options: number[]) {
-    const g = this.game
-    this.starter.hidden = false
-    this.starter.innerHTML = `
-      <div class="px-panel starter-panel">
-        <p class="starter-title">Pick a partner.</p>
-        
-        <div class="starter-row">
-          ${options.map((d) => `<button class="starter-pick" data-dex="${d}"><img src="${portraitUrl(d)}" alt="" /><span>${g.name(d)}</span></button>`).join('')}
-        </div>
-      </div>`
-    this.starter.querySelectorAll<HTMLButtonElement>('.starter-pick').forEach((b) =>
-      b.addEventListener('click', () => {
-        this.starter.hidden = true
-        this.h.chooseStarter(Number(b.dataset.dex))
-      }),
-    )
   }
 
   // ---------- the sheet ----------

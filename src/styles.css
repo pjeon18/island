@@ -265,18 +265,6 @@ body { -webkit-font-smoothing: none; }
 .visit-banner { position: absolute; left: 6px; top: 6px; padding: 8px 10px 10px; display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
 .visit-banner p { margin: 0; }
 
-/* starter */
-.hud-starter { position: absolute; inset: 0; display: grid; place-items: center; background: rgba(16, 24, 44, .35); z-index: 4; }
-.starter-panel { padding: 12px 14px 14px; text-align: center; }
-.starter-title { margin: 0 0 12px; }
-.starter-row { display: flex; justify-content: center; gap: 8px; }
-.starter-pick {
-  appearance: none; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 6px 8px; cursor: pointer; font: 8px/1 var(--px);
-  background: var(--fr-tint); border: 2px solid var(--fr-edge); box-shadow: 0 2px 0 var(--fr-edge); transition: transform .3s cubic-bezier(.3,1.6,.5,1), border-color .15s;
-}
-.starter-pick:hover { transform: translateY(-2px); border-color: var(--fr-gold-edge); background: #fff4d0; }
-.starter-pick:active { transform: translateY(1px); box-shadow: none; transition-duration: .05s; }
-.starter-pick img { width: 80px; height: 80px; }
 
 /* desktop-pet mode (Tauri): nothing but the island on a transparent window */
 html:has(.float), body:has(.float) { background: transparent; }
@@ -318,3 +306,31 @@ html:has(.float), body:has(.float) { background: transparent; }
 
 /* the opening clouds cover the whole window, not just the island's picture */
 .intro-layer { position: absolute; z-index: 40; pointer-events: none; image-rendering: pixelated; }
+
+/* a line that waits for a click */
+.hud-dialog.waits { cursor: pointer; }
+/* the tutorial's pointer: a slow gold pulse on the one control to press next */
+.guide-pulse { position: relative; z-index: 6; animation: guidepulse 1.6s ease-in-out infinite; }
+@keyframes guidepulse { 0%, 100% { box-shadow: 0 0 0 2px var(--fr-gold), 0 0 0 4px rgba(248, 208, 96, .25); } 50% { box-shadow: 0 0 0 2px var(--fr-gold), 0 0 0 6px rgba(248, 208, 96, .5); } }
+
+/* the prologue: a black screen with one FireRed text box (tutorial.ts) */
+.prologue { position: absolute; inset: 0; z-index: 45; background: #000; transition: opacity .9s ease; }
+.prologue.lift { opacity: 0; pointer-events: none; }
+.prologue-box { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(400px, calc(100% - 16px)); min-height: 56px; padding: 10px 14px 14px; cursor: pointer; }
+.prologue-text { margin: 0; line-height: 1.9; }
+.prologue-box .hud-next { right: 10px; bottom: 7px; }
+.prologue-ui.typing .hud-next, .prologue-ui.asks .hud-next { display: none; }
+.prologue-menu { position: absolute; bottom: 82px; right: max(8px, calc(50% - 200px)); display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; }
+.prologue-menu:empty { display: none; }
+.prologue-choice { appearance: none; position: relative; padding: 4px 4px 4px 14px; border: 0; background: none; text-align: left; cursor: pointer; }
+.prologue-choice:hover::before, .prologue-choice:focus-visible::before { content: ''; position: absolute; left: 2px; top: 50%; transform: translateY(-50%); border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 5px solid var(--fr-ink); }
+.prologue-menu.cards { right: auto; left: 50%; transform: translateX(-50%); flex-direction: row; flex-wrap: wrap; justify-content: center; gap: 2px; padding: 0; width: max-content; max-width: calc(100% - 16px); }
+.prologue-card { appearance: none; display: flex; flex-direction: column; align-items: center; gap: 4px; width: 84px; padding: 6px 2px 7px; cursor: pointer; transition: transform .15s; }
+.prologue-card:hover { transform: translateY(-2px); background: #fff4d0; }
+.prologue-card:active { transform: translateY(1px); }
+.prologue-card img { width: 40px; height: 40px; border: 2px solid var(--fr-edge-2); background: var(--fr-tint); }
+
+/* an instruction to act elsewhere sits top left, clear of the island and the party */
+.hud-dialog.task { top: 6px; bottom: auto; left: 6px; right: auto; margin: 0; width: calc(100% - 172px); max-width: 420px; }
+.hud.narrow .hud-dialog.task { top: 6px; bottom: auto; left: 6px; right: auto; width: calc(100% - 96px); }
+.hud:has(.hud-sheet:not([hidden])) .hud-dialog.task, .hud:has(.hud-catch:not([hidden])) .hud-dialog.task { display: none; }

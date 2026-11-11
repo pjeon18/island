@@ -66,6 +66,7 @@ export interface Wild {
   dex: number
   level: number
   tries: number // failed throws make the next one a little likelier
+  guide?: boolean // the tutorial's first catch: it always works
 }
 export type Ball = 'poke-ball' | 'great-ball' | 'ultra-ball'
 export type FindKind = 'shells' | 'berry' | 'poke-ball' | 'star-piece'
@@ -220,7 +221,14 @@ export interface Save {
   eggQueue: number[] // gifted eggs waiting for room in the nest
   log: LogEntry[] // the journal: what happened on the island, newest last
   logSeen: number // when the journal was last opened
+  tutorial: TutorialStep // where a new player is in the opening (tutorial.ts)
 }
+
+/** The opening, in order. Saves from before the tutorial existed load as 'done'. */
+export type TutorialStep = 'prologue' | 'meet' | 'catch' | 'build' | 'focus' | 'done'
+export const GUIDE_DEX = 194 // Wooper, who lives on the island alone at the start
+export const GUIDE_CATCH = 16 // Pidgey, the first catch
+export const GUIDE_GIFT = { shells: 100, starPieces: 2 }
 
 /** One line in the journal. `kind` feeds the summary at its top; `key` lets a newer line replace an older one (level-ups). */
 export type LogKind = 'focus' | 'visit' | 'catch' | 'hatch' | 'level' | 'evolve' | 'find' | 'friend' | 'other'
@@ -318,6 +326,7 @@ export function emptySave(): Save {
     eggQueue: [],
     log: [],
     logSeen: 0,
+    tutorial: 'prologue',
   }
 }
 
@@ -328,6 +337,7 @@ export function loadSave(): Save {
       const s = JSON.parse(raw) as Save
       if (s && s.v === 1 && Array.isArray(s.mons)) {
         const m = { ...emptySave(), ...s }
+        if (!s.tutorial) m.tutorial = s.mons.length ? 'done' : 'prologue'
         // T1 saves have no caught list: everything owned counts
         for (const mon of m.mons) if (!m.caught.includes(mon.dex)) m.caught.push(mon.dex)
         return m
@@ -1111,6 +1121,29 @@ export class Game {
     this.emit({ type: 'passer', wild: w })
     return w
   }
+  // ---------- the tutorial ----------
+  setTutorial(step: TutorialStep) {
+    this.save.tutorial = step
+    this.persist()
+  }
+  /** The tutorial's Pidgey: it comes by outside a session, past the daily cap, and is always caught. */
+  guideWild() {
+    const have = this.save.wild.find((w) => w.guide)
+    if (have) return have
+    const w: Wild = { id: Math.random().toString(36).slice(2, 10), dex: GUIDE_CATCH, level: 4, tries: 0, guide: true }
+    this.save.wild.push(w)
+    this.persist()
+    this.emit({ type: 'passer', wild: w })
+    return w
+  }
+  /** Wooper's savings, handed over once, in the same write as the step change so a reload cannot pay twice. */
+  guideGift(next: TutorialStep) {
+    this.save.shells += GUIDE_GIFT.shells
+    this.save.starPieces += GUIDE_GIFT.starPieces
+    this.save.tutorial = next
+    this.persist()
+  }
+
   /** A party Pokémon digs something up. */
   dig(rand = Math.random, by?: string) {
     if (this.save.finds.length >= 6) return null
@@ -1154,6 +1187,7 @@ export class Game {
   }
   /** The odds before the throw, for colouring the ring. */
   catchChance(w: Wild, ball: Ball, quality = 0.5) {
+    if (w.guide) return 1
     const sp = this.species(w.dex)
     const base = CATCH_BASE[sp?.rarity ?? 'common'] + w.tries * 0.08
     const mult = BALLS.find((b) => b.id === ball)?.mult ?? 1

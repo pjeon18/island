@@ -9,13 +9,13 @@ import { BALLS, Ball, FOODS, Find, Game, GameEvent, HABITATS, Haul, ISLANDS, JOB
 import { HABITAT_SPOTS } from './habitats'
 import { CatchAnim } from './catch'
 import { Intro } from './intro'
+import { STARTER_CHOICES, Tour, blackScreen, liftBlack, runPrologue } from './tutorial'
 import { Hud, fmtMinutes } from './hud'
 import { H, W, seaCss, useIsland } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
 import { NEST, Scene, lightAt, nightness } from './scene'
 import { Manifest, Species, loadManifest, loadSpecies } from './sprites'
 
-const STARTERS = [1, 4, 7]
 const params = new URLSearchParams(location.search)
 // Inside the Tauri desktop app the island floats on the desktop: no page, no
 // sea, a transparent window you drag by the island itself.
@@ -65,11 +65,17 @@ const introCanvas = document.createElement('canvas')
 introCanvas.className = 'intro-layer'
 const introCtx = introCanvas.getContext('2d')!
 let introKey = ''
-function startIntro() {
+/** `hold` > 0 starts the clouds hidden behind the prologue's black screen for that long. */
+function startIntro(hold = 0) {
   introKey = ''
   scene.intro = new Intro(W, H) // resized to the window on its first frame
+  scene.intro.t = -hold
 }
-startIntro()
+// a new player starts on the prologue's black screen (tutorial.ts); everyone else under the clouds
+const newPlayer = !visitData && !floatMode && (loadSave().tutorial ?? 'prologue') === 'prologue'
+const black = newPlayer ? blackScreen(app.querySelector<HTMLElement>('.pip-stage')!) : null
+if (!newPlayer) startIntro()
+let tour: Tour | null = null
 /** The layer's size in island pixels: the window, rounded so the island's pixels line up. */
 function introSize(): [number, number] {
   if (floatMode) return [W, H]
@@ -145,7 +151,6 @@ function runTimers() {
 }
 
 // ---------- party on the island ----------
-let candidates: Creature[] = [] // the three starters wandering before you choose
 let adopt: { dex: number; c: Creature } | null = null
 const evolving = new Set<string>()
 
@@ -175,12 +180,6 @@ async function syncParty(initial = false) {
     if (adopt && adopt.dex === m.dex) {
       adopt.c.monId = m.id
       adopt = null
-      continue
-    }
-    const cand = candidates.find((c) => c.sp.dex === dex4(m.dex))
-    if (cand) {
-      cand.monId = m.id
-      candidates = candidates.filter((c) => c !== cand)
       continue
     }
     const sp = await ensure(m.dex)
@@ -540,6 +539,10 @@ canvas.addEventListener('mousemove', (e) => {
   canvas.style.cursor = over ? 'pointer' : ''
 })
 window.addEventListener('keydown', (e) => {
+  if (!catching && hud?.busy && (e.code === 'Space' || e.code === 'Enter') && !(e.target as HTMLElement | null)?.closest?.('input, textarea, button')) {
+    e.preventDefault()
+    hud.advance()
+  }
   if (!catching) return
   if (e.code === 'Space' || e.code === 'Enter') {
     e.preventDefault()
@@ -887,6 +890,7 @@ function saveDecor() {
 
 // ---------- game events ----------
 function onGame(e: GameEvent) {
+  tour?.onEvent(e)
   switch (e.type) {
     case 'sessionStart':
       hud.toast('Session started.')
@@ -1125,6 +1129,7 @@ function frame(now: number) {
   }
   hud?.update()
   drawIntro()
+  tour?.update()
   // the menus fade in as the clouds clear
   const intro = scene.intro
   const layer = hud?.el ?? win.querySelector<HTMLElement>('.hud')
@@ -1231,7 +1236,7 @@ const CHEATS: { title: string; items: [string, string][] }[] = [
   { title: 'Items', items: [['shells', '+300 shells'], ['stars', '+5 Star Pieces'], ['balls', '+5 of each ball'], ['berries', '+3 berries'], ['foods', '+3 of each food']] },
   { title: 'Progress', items: [['hours', '+5 focused hours'], ['dexfill', 'Catch 70% of this dex'], ['unlock', 'Unlock Frost Isle'], ['guardian-reset', 'Un-beat this guardian'], ['dungeon', 'Enter the dungeon'], ['sail-frost', 'Sail to Frost Isle'], ['sail-home', 'Sail home']] },
   { title: 'Away', items: [['checkin', 'Ask "still studying?"'], ['idle', '10 idle minutes'], ['lock', 'Screen lock'], ['active', 'Activity'], ['gap', 'A 10-minute sleep']] },
-  { title: 'Reset', items: [['reset', 'Reset save']] },
+  { title: 'Reset', items: [['tour', 'Replay the island tour'], ['reset', 'Reset save (replays the opening)']] },
 ]
 function cheat(d: string) {
   if (!game.hasStarter && d !== 'reset') return hud.toast('Pick a starter first.')
@@ -1369,6 +1374,10 @@ function cheat(d: string) {
     if (s()) game.endSession(false)
     game.sail('home')
   }
+  if (d === 'tour') {
+    game.setTutorial('meet')
+    location.reload()
+  }
   if (d === 'reset') {
     game.reset()
     location.reload()
@@ -1433,22 +1442,6 @@ async function boot() {
       },
       back: () => game.comeBack(),
       stillHere: () => game.answerStillHere(),
-      chooseStarter: (dex) => {
-        const name = game.name(dex)
-        game.chooseStarter(dex)
-        // the other two head back into the tall grass
-        const gp = scene.island.grassPatch
-        candidates.forEach((c, i) => {
-          if (c.monId) return
-          after(0.6 + i * 0.5, () => {
-            c.walkTo(gp.x + 1, gp.y - 4)
-            c.enter('leave', 99)
-          })
-        })
-        candidates = []
-        after(2.4, () => scene.rustleGrass(1.4))
-        hud.say({ dex, emotion: 'Happy', text: `${name} will study with you.` })
-      },
       setLength: (sec) => {
         game.save.settings.length = sec
         game.persist()
@@ -1577,16 +1570,32 @@ async function boot() {
     window.addEventListener('resize', () => host === window && fitInto(window))
   }
 
+  tour = new Tour({
+    game,
+    hud,
+    scene,
+    canvas,
+    ensure,
+    after,
+    adopt: (dex, c) => (adopt = { dex, c }),
+    startIntro,
+    introDone: () => !scene.intro,
+    catching: () => !!catching,
+  })
   if (!game.hasStarter) {
-    const sps = await Promise.all(STARTERS.map(ensure))
-    const spots: [number, number][] = [
-      [112, 82],
-      [138, 100],
-      [100, 108],
-    ]
-    candidates = sps.map((sp, i) => scene.add(sp, spots[i][0], spots[i][1]))
-    hud.showStarter(STARTERS)
+    // the prologue: the answer to "which Pokémon did you start with?" is your starter
+    void (async () => {
+      void Promise.all(STARTER_CHOICES.map(ensure))
+      const screen = black ?? blackScreen(app.querySelector<HTMLElement>('.pip-stage')!)
+      const dex = await runPrologue(screen, canvas, (d) => game.name(d))
+      startIntro(1)
+      game.chooseStarter(dex)
+      game.setTutorial('meet')
+      liftBlack(screen)
+    })()
   } else {
+    black?.remove()
+    if (game.save.tutorial === 'prologue') game.setTutorial('meet')
     await syncParty(true)
   }
   // the desktop app reads system idle time natively (no permission prompt)
