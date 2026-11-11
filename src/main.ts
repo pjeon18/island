@@ -4,8 +4,8 @@
 import './styles.css'
 import { Creature } from './creature'
 import * as cloud from './cloud'
-import { SLOTS, decorDef } from './decor'
-import { BALLS, Ball, FOODS, Find, Game, GameEvent, HABITATS, Haul, ISLANDS, JOBS, Mon, RARE_50, Role, Roster, STONES, Weather, Wild, aStone, loadSave, stoneName } from './game'
+import { CATALOG, SLOTS, decorDef } from './decor'
+import { BALLS, Ball, FOODS, Find, Game, GameEvent, dayKey, HABITATS, Haul, ISLANDS, JOBS, Mon, RARE_50, Role, Roster, STONES, Weather, Wild, aStone, loadSave, stoneName } from './game'
 import { HABITAT_SPOTS } from './habitats'
 import { CatchAnim } from './catch'
 import { Intro } from './intro'
@@ -1291,6 +1291,7 @@ app.querySelector('[data-act="popout"]')?.addEventListener('click', popOut)
 // ---------- debug panel ----------
 /** Cheats for testing events: the ?debug panel and the in-game Cheats window (the ` key, or More → Cheats). */
 const CHEATS: { title: string; items: [string, string][] }[] = [
+  { title: 'Start', items: [['fresh', 'Play from the beginning'], ['endgame', 'Almost-finished island'], ['tour', 'Replay the island tour'], ['restore', 'Restore my save']] },
   { title: 'Focus', items: [['session', 'Start a session'], ['m10', '+10 focused min'], ['m30', '+30 focused min'], ['m60', '+60 focused min'], ['finish', 'Finish the session'], ['end', 'End it early']] },
   { title: 'Visitors', items: [['passer', 'A passer-by'], ['passer3', 'Three passers-by'], ['visit', 'Friendly visitor'], ['visit50', 'Visitor, 50-min odds']] },
   { title: 'Moments', items: [['find', 'A find'], ['w-rain', 'Rain'], ['w-fog', 'Fog'], ['w-sun', 'Sun'], ['w-snow', 'Snow'], ['w-clear', 'Clear sky']] },
@@ -1301,9 +1302,75 @@ const CHEATS: { title: string; items: [string, string][] }[] = [
   { title: 'Items', items: [['shells', '+300 shells'], ['stars', '+5 Star Pieces'], ['balls', '+5 of each ball'], ['berries', '+3 berries'], ['foods', '+3 of each food']] },
   { title: 'Progress', items: [['hours', '+5 focused hours'], ['dexfill', 'Catch 70% of this dex'], ['unlock', 'Unlock Frost Isle'], ['guardian-reset', 'Un-beat this guardian'], ['dungeon', 'Enter the dungeon'], ['sail-frost', 'Sail to Frost Isle'], ['sail-home', 'Sail home']] },
   { title: 'Away', items: [['checkin', 'Ask "still studying?"'], ['idle', '10 idle minutes'], ['lock', 'Screen lock'], ['active', 'Activity'], ['gap', 'A 10-minute sleep']] },
-  { title: 'Reset', items: [['tour', 'Replay the island tour'], ['reset', 'Reset save (replays the opening)']] },
+  { title: 'Reset', items: [['reset', 'Reset save (no backup)']] },
 ]
+// ---------- test presets ----------
+// The first preset you run keeps a copy of your real save; "Restore my save" puts it back.
+const SAVE_KEY = 'island-save-v1'
+const BACKUP_KEY = 'island-save-before-presets'
+function backupSave() {
+  try {
+    const cur = localStorage.getItem(SAVE_KEY)
+    if (cur && !localStorage.getItem(BACKUP_KEY)) localStorage.setItem(BACKUP_KEY, cur)
+  } catch {}
+}
+function restoreSave() {
+  const b = localStorage.getItem(BACKUP_KEY)
+  if (!b) return hud.toast('No saved copy to restore.')
+  localStorage.setItem(SAVE_KEY, b)
+  localStorage.removeItem(BACKUP_KEY)
+  location.reload()
+}
+/** A lived-in island near the end of the game: home finished and its guardian beaten, Frost Isle open but not cleared. */
+function buildEndgame() {
+  const g = game
+  g.reset()
+  const s = g.save
+  s.tutorial = 'done'
+  for (const [dex, lv] of [[6, 38], [18, 36], [134, 35]]) g.addMon(dex, lv)
+  // most of the home Pokédex and half of Frost Isle's, in the box
+  const box = (isl: 'home' | 'frost', share: number) => {
+    const all = g.dexOf(isl).all
+    for (const dex of all.slice(0, Math.ceil(all.length * share))) if (!s.caught.includes(dex)) g.addMon(dex, 12 + ((dex * 7) % 22))
+  }
+  box('home', 0.9)
+  box('frost', 0.5)
+  // the home guardian is beaten and joined
+  s.guardians = ['home']
+  const gd = ISLANDS.find((i) => i.id === 'home')!.guardian
+  if (!s.mons.some((m) => m.dex === gd.dex)) g.addMon(gd.dex, gd.level - 5)
+  // 42 focused hours, with a six-day streak up to today
+  s.days['2000-01-01'] = 36 * 60
+  for (let i = 0; i < 6; i++) s.days[dayKey(Date.now() - i * 864e5)] = 60
+  s.habitats = ['pond', 'rocks', 'grass', 'cave']
+  s.decor.owned = CATALOG.map((c) => c.id)
+  const pick = ['flowers', 'bench', 'campfire', 'umbrella', 'lantern', 'windmill', 'sign', 'mushrooms']
+  SLOTS.forEach((sl, i) => (s.decor.slots[sl.id] = pick[i] ?? null))
+  s.shells = 450
+  s.starPieces = 5
+  s.berries = 6
+  s.balls = { 'poke-ball': 12, 'great-ball': 6, 'ultra-ball': 3 }
+  for (const f of FOODS) s.foods[f.id] = 2
+  // two in the Day Care, helpers on jobs, an egg in the nest
+  const boxed = s.mons.filter((m) => g.roleOf(m.id) === 'box')
+  const of = (t: string) => boxed.find((m) => g.species(m.dex)?.types?.includes(t) && g.roleOf(m.id) === 'box')
+  for (const [m, role] of [[boxed[0], 'daycare'], [boxed[1], 'daycare'], [of('water'), 'job:bush'], [of('ground') ?? of('rock'), 'job:dig'], [of('fire'), 'job:campfire']] as const)
+    if (m) g.assign(m.id, role as Role)
+  g.addEgg(25, 'find')
+  s.log = []
+  for (const [kind, text] of [['focus', 'Focused for 50 minutes. Two berries ripened.'], ['visit', 'A wild Eevee came by.'], ['catch', 'Caught Eevee.'], ['level', 'Charizard reached level 38.']] as const) g.note(kind, text)
+  s.logSeen = 0
+  g.persist()
+}
+
 function cheat(d: string) {
+  if (d === 'fresh' || d === 'endgame') {
+    backupSave()
+    if (d === 'fresh') game.reset()
+    else buildEndgame()
+    return location.reload()
+  }
+  if (d === 'restore') return restoreSave()
   if (!game.hasStarter && d !== 'reset') return hud.toast('Pick a starter first.')
   const s = () => game.save.session
   const ensureSession = () => {

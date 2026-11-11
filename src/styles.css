@@ -338,3 +338,5 @@ html:has(.float), body:has(.float) { background: transparent; }
 /* the darkest water: a dithered band at the window's edges, above the island, below the menus */
 .sea-edge { position: absolute; z-index: 5; pointer-events: none; image-rendering: pixelated; }
 .hud { z-index: 10; }
+/* the cheats window opens above everything, the prologue's black screen included, so a test save can always be restored */
+.hud:has(.hud-cheats:not([hidden])) { z-index: 50; }
