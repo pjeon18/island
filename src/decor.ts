@@ -9,6 +9,7 @@ export interface DecorDef {
   name: string
   price: number // shells = focused minutes
   blurb: string
+  frost?: boolean // sold once Frost Isle is open
 }
 
 // Price bands follow Studdy's ECONOMY.md, re-anchored on shells:
@@ -23,6 +24,10 @@ export const CATALOG: DecorDef[] = [
   { id: 'lantern', name: 'Stone lantern', price: 220, blurb: 'It glows softly after dark.' },
   { id: 'campfire', name: 'Campfire', price: 300, blurb: 'It burns low and warm after dark.' },
   { id: 'windmill', name: 'Little windmill', price: 400, blurb: 'Its sails turn slowly in the sea breeze.' },
+  // Frost Isle pieces: late-game places for shells to go (review 2026-11-11)
+  { id: 'snowman', name: 'Snowman', price: 300, blurb: 'A snowman with a stick scarf.', frost: true },
+  { id: 'icecarving', name: 'Ice carving', price: 500, blurb: 'A clear ice carving that catches the light.', frost: true },
+  { id: 'aurora', name: 'Aurora lamp', price: 800, blurb: 'At night it glows green, then violet.', frost: true },
 ]
 
 /** Ground points on the grassy top where a decoration can stand. */
@@ -258,7 +263,86 @@ function windmill(): DecorArt {
   }
 }
 
-const PAINTERS: Record<string, () => DecorArt> = { flowers, stones, mushrooms, sign, bench, umbrella, lantern, campfire, windmill }
+function snowman(): DecorArt {
+  const p = new Pix(14, 20)
+  const snow = hex('#f4f8fc')
+  const shade = hex('#cfdced')
+  const disc = (cx: number, cy: number, r: number) => {
+    for (let y = cy - r; y <= cy + r; y++)
+      for (let x = cx - r; x <= cx + r; x++) {
+        const d = ((x - cx) ** 2 + (y - cy) ** 2) / (r * r)
+        if (d <= 1) p.set(x, y, x - cx + (y - cy) > r * 0.45 ? shade : snow)
+      }
+  }
+  disc(7, 14, 5)
+  disc(7, 6, 4)
+  p.set(5, 5, hex('#2e3440'))
+  p.set(8, 5, hex('#2e3440'))
+  p.set(7, 7, hex('#e8803a'))
+  p.set(8, 7, hex('#c86424'))
+  for (let x = 3; x < 12; x++) p.set(x, 10, hex('#c84848'))
+  p.set(10, 11, hex('#c84848'))
+  p.set(10, 12, hex('#a83838'))
+  p.set(7, 13, hex('#2e3440'))
+  p.set(7, 15, hex('#2e3440'))
+  outline(p, hex('#8aa0bb'))
+  return { img: p.toCanvas(), ax: 7, ay: 19, r: 6 }
+}
+function icecarving(): DecorArt {
+  const p = new Pix(14, 22)
+  const ice = hex('#bfe4f6')
+  const deep = hex('#86c2e4')
+  const shine = hex('#f2fbff')
+  // a plinth, then a tall faceted shape
+  for (let x = 2; x < 12; x++) for (let y = 18; y < 21; y++) p.set(x, y, y === 18 ? hex('#a9b4c2') : hex('#7d8898'))
+  for (let y = 2; y < 18; y++) {
+    const half = Math.round(1 + Math.sin((y / 17) * Math.PI) * 4)
+    for (let x = 7 - half; x <= 6 + half; x++) p.set(x, y, x < 7 ? ice : deep)
+  }
+  for (let y = 4; y < 14; y += 3) p.set(5, y, shine)
+  outline(p, hex('#4f7ea6'))
+  return {
+    img: p.toCanvas(),
+    ax: 7,
+    ay: 20,
+    r: 6,
+    live: (g, x, y, t) => {
+      // a glint that slides up the carving now and then
+      const k = (t % 6) / 6
+      if (k > 0.25) return
+      g.fillStyle = '#ffffff'
+      g.fillRect(x - 3 + Math.round(k * 8), y - 6 - Math.round(k * 40), 1, 2)
+    },
+  }
+}
+function aurora(): DecorArt {
+  const p = new Pix(10, 24)
+  for (let y = 8; y < 23; y++) for (let x = 4; x < 6; x++) p.set(x, y, x === 4 ? hex('#5a6878') : hex('#3c4858'))
+  for (let x = 2; x < 8; x++) p.set(x, 23, hex('#3c4858'))
+  for (let y = 1; y < 8; y++) for (let x = 2; x < 8; x++) p.set(x, y, hex('#2e3a4a'))
+  for (let y = 2; y < 7; y++) for (let x = 3; x < 7; x++) p.set(x, y, hex('#9fd8c4'))
+  outline(p, hex('#28303c'))
+  return {
+    img: p.toCanvas(),
+    ax: 5,
+    ay: 23,
+    r: 5,
+    glow: { x: 0, y: -19, r: 26, rgb: '150, 230, 200' },
+    live: (g, x, y, t, night) => {
+      if (night <= 0.02) return
+      // the light drifts slowly between green and violet
+      const k = (Math.sin((t * Math.PI * 2) / 12) + 1) / 2
+      const r = Math.round(150 + k * 60)
+      const gg = Math.round(230 - k * 90)
+      g.globalAlpha = night
+      g.fillStyle = `rgb(${r}, ${gg}, 220)`
+      g.fillRect(x - 2, y - 21, 4, 5)
+      g.globalAlpha = 1
+    },
+  }
+}
+
+const PAINTERS: Record<string, () => DecorArt> = { flowers, stones, mushrooms, sign, bench, umbrella, lantern, campfire, windmill, snowman, icecarving, aurora }
 const cache = new Map<string, DecorArt>()
 export function decorArt(id: string) {
   let a = cache.get(id)

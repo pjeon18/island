@@ -5,7 +5,7 @@ import './styles.css'
 import { Creature } from './creature'
 import * as cloud from './cloud'
 import { CATALOG, SLOTS, decorDef } from './decor'
-import { BALLS, Ball, FOODS, Find, Game, GameEvent, dayKey, HABITATS, Haul, ISLANDS, JOBS, Mon, RARE_50, Role, Roster, STONES, Weather, Wild, aStone, loadSave, stoneName } from './game'
+import { BALLS, BERRY_EXP, Ball, FOODS, Find, Game, GameEvent, dayKey, HABITATS, Haul, ISLANDS, JOBS, Mon, RARE_50, Role, Roster, STONES, Weather, Wild, aStone, loadSave, stoneName } from './game'
 import { HABITAT_SPOTS } from './habitats'
 import { CatchAnim } from './catch'
 import { Intro } from './intro'
@@ -207,13 +207,13 @@ let adopt: { dex: number; c: Creature } | null = null
 const evolving = new Set<string>()
 
 let spawnNext: { x: number; y: number } | null = null // a hatchling appears at the nest
-const ISLAND_CAP = 12
+const ISLAND_CAP = 14 // 6 residents, helpers, up to 4 waiting and friends' visitors (the island is drawn bigger now)
 async function syncParty(initial = false) {
   // at most ISLAND_CAP Pokémon on the island: the party first, then helpers in the room left
   // after waiting wild ones and friends' visitors (the rest keep working off-island)
   const others = game.save.wild.length + scene.creatures.filter((c) => c.visitor && c.state !== 'leave').length
   const room = Math.max(0, ISLAND_CAP - game.party.length - others)
-  const want = [...game.party, ...game.helpers.slice(0, room)]
+  const want = [...game.party, ...game.helpersHere.slice(0, room)]
   const ids = new Set(want.map((m) => m.id))
   // members who left the party walk off down the dock
   for (const c of scene.creatures) {
@@ -289,7 +289,7 @@ function syncNest() {
 }
 const haulText = (h: Haul) => {
   const parts = [`${h.shells} shells`]
-  const names: Record<string, string> = { berry: 'Oran Berry', 'poke-ball': 'Poké Ball', 'great-ball': 'Great Ball', 'ultra-ball': 'Ultra Ball', 'star-piece': 'Star Piece' }
+  const names: Record<string, string> = { stone: 'evolution stone', berry: 'Oran Berry', 'poke-ball': 'Poké Ball', 'great-ball': 'Great Ball', 'ultra-ball': 'Ultra Ball', 'star-piece': 'Star Piece' }
   for (const it of h.items) {
     const name = it.kind === 'food' ? FOODS.find((f) => f.id === it.id)!.name : names[it.kind]
     parts.push(it.n > 1 ? `${it.n} ${name}s` : `${/^[AEIOU]/.test(name) ? 'an' : 'a'} ${name}`)
@@ -344,7 +344,8 @@ async function runVisit(rareMult = 1) {
             primary: true,
             run: () => {
               adopt = { dex, c: v }
-              const m = game.addMon(dex, level)
+              const { mon: m, star } = game.befriend(dex, level)
+              if (star) after(4, () => hud.toast('A new species. You found a Star Piece!'))
               const inParty = game.save.party.includes(m.id)
               v.hold(false)
               if (!inParty) {
@@ -475,12 +476,14 @@ const FIND_TEXT: Record<Find['kind'], (n: number) => string> = {
   berry: () => 'An Oran Berry',
   'poke-ball': () => 'A Poké Ball',
   'star-piece': () => 'A Star Piece',
+  stone: () => 'An evolution stone',
 }
 const WEATHER_TEXT: Record<Weather, string> = { clear: 'The sky cleared.', rain: 'It started to rain.', fog: 'Fog rolled in.', sun: 'The sun came out.', snow: 'It started to snow.' }
 
 let catching: CatchAnim | null = null
 let catchBall: Ball = 'poke-ball'
 let lastCaught: Mon | undefined
+let lastFled = false
 function openCatch(c: Creature) {
   const w = game.save.wild.find((x) => x.id === c.wildId)
   if (!w || catching || evo) return
@@ -520,6 +523,7 @@ function throwNow() {
   if (!res) return cancelCatch()
   lastCaught = res.mon
   if (res.caught) c.wildId = undefined
+  lastFled = !!res.fled
   hud.hideCatch()
   catching.throw({ caught: res.caught, shakes: res.shakes })
 }
@@ -536,6 +540,14 @@ function finishCatch(c: Creature, w: Wild, caught: boolean) {
   const name = game.name(w.dex)
   if (!caught) {
     c.hold(false)
+    if (lastFled) {
+      lastFled = false
+      c.wildId = undefined
+      wildLeaves(c)
+      game.note('other', `${name} ran away.`, { dex: w.dex })
+      hud.say({ dex: w.dex, text: `Oh no! ${name} broke free and ran away.`, auto: 4000 })
+      return
+    }
     hud.say({ dex: w.dex, text: `Oh no! ${name} broke free!`, auto: 3500 })
     return
   }
@@ -560,7 +572,7 @@ canvas.addEventListener('click', (e) => {
   if (f) {
     const got = game.collectFind(f.id)
     syncFinds()
-    if (got) hud.toast(FIND_TEXT[got.kind](got.n))
+    if (got) hud.toast(got.kind === 'stone' && got.item ? `${aStone(got.item).replace(/^a/, 'A')}!` : FIND_TEXT[got.kind](got.n))
     hud.refreshSheet()
     return
   }
@@ -915,7 +927,7 @@ function queueEvolution(mon: Mon, to: number) {
 function publishParty() {
   if (!game) return
   cloud.publish(
-    game.party.map((m) => ({ dex: m.dex, level: m.level })),
+    game.party.slice(0, 3).map((m) => ({ dex: m.dex, level: m.level })), // the server takes 3
     game.save.caught.length,
   )
 }
@@ -961,7 +973,7 @@ function onGame(e: GameEvent) {
       void cloud.sessionBegin()
       break
     case 'sessionEnd':
-      hud.clearQueue((d) => d.text.includes('still studying'))
+      hud.clearQueue((d) => d.tag === 'checkin')
       void cloud.sessionEnd()
       game.note('focus', `Focused for ${fmtMinutes(e.minutes)}.${e.complete ? ` ${e.berries === 2 ? 'Two berries' : 'A berry'} ripened.` : ''}`, { n: e.minutes, dex: lead() })
       if (e.capped)
@@ -1010,7 +1022,7 @@ function onGame(e: GameEvent) {
       break
     case 'caught':
       game.note('catch', `Caught ${game.name(e.mon)}.${e.newSpecies ? ' New to the Pokédex.' : ''}`, { dex: e.mon.dex })
-      if (e.newSpecies) after(4.2, () => hud.toast('New species. A Star Piece!'))
+      if (e.star) after(4.2, () => hud.toast('A new species. You found a Star Piece!'))
       break
     case 'egg':
       syncNest()
@@ -1084,7 +1096,7 @@ function onGame(e: GameEvent) {
       hud.toast(
         e.levels
           ? `${game.name(e.mon)} grew to level ${e.mon.level}.`
-          : `${game.name(e.mon)} gained ${10} EXP.`,
+          : `${game.name(e.mon)} gained ${BERRY_EXP} EXP.`,
       )
       {
         const c = scene.byMon(e.mon.id)
@@ -1102,6 +1114,10 @@ function onGame(e: GameEvent) {
       if (c && !c.asleep && !evolving.has(e.mon.id) && c.state !== 'still') c.walkTo(c.x, c.y, 'hop')
       break
     }
+    case 'boxEvolved':
+      game.note('evolve', `${e.from} evolved into ${game.name(e.mon)} in the box.`, { dex: e.mon.dex })
+      hud.toast(`${e.from} evolved into ${game.name(e.mon)} in the box.`)
+      break
     case 'evolveReady':
       queueEvolution(e.mon, e.to)
       break
@@ -1115,17 +1131,15 @@ function onGame(e: GameEvent) {
     case 'ask':
       hud.say({
         dex: lead(),
-        text:
-          e.reason === 'idle'
-            ? 'Still studying?'
-            : 'Still studying?',
-        actions: [{ label: 'I am still here', primary: true, run: () => game.answerStillHere() }],
+        text: 'Still studying?',
+        tag: 'checkin',
+        actions: [{ label: "I'm here", primary: true, run: () => game.answerStillHere() }],
       })
       break
     case 'away': {
       void cloud.sessionEnd()
-      if (hud.busy && hud.currentText.includes('still studying')) hud.dismiss()
-      hud.clearQueue((d) => d.text.includes('still studying'))
+      if (hud.busy && hud.currentTag === 'checkin') hud.dismiss()
+      hud.clearQueue((d) => d.tag === 'checkin')
       syncSleep()
       const why =
         e.reason === 'gap'
@@ -1138,7 +1152,7 @@ function onGame(e: GameEvent) {
     }
     case 'back':
       void cloud.sessionBegin()
-      if (hud.busy && hud.currentText.includes('still studying')) hud.dismiss()
+      if (hud.busy && hud.currentTag === 'checkin') hud.dismiss()
       hud.toast('Welcome back.')
       syncSleep()
       break
@@ -1564,10 +1578,12 @@ async function boot() {
       end: () => {
         const s = game.save.session
         if (!s) return
+        // a paused session ends as it is; an Open one counts as complete only after 25 minutes (game.ts)
+        if (s.state !== 'running') return game.endSession(false)
         if (!s.length) return game.endSession(true)
         hud.say({
           dex: lead(),
-          text: 'End now? Visitors only come after a full session.',
+          text: 'End now? You keep your minutes. The berry only ripens after a full session.',
           actions: [
             { label: 'End session', run: () => game.endSession(false) },
             { label: 'Keep going', primary: true, run: () => {} },
@@ -1716,6 +1732,15 @@ async function boot() {
     introDone: () => !scene.intro,
     catching: () => !!catching,
   })
+  // back after a long time away: a session left paused (or running in a closed tab) ends as it was,
+  // keeping its minutes, so the break is free to catch whoever is waiting
+  {
+    const st = game.save.session
+    if (st && game.now() - st.lastBeat > 30 * 60 * 1000) {
+      game.endSession(!st.length)
+      after(2.5, () => hud.say({ dex: lead(), text: 'Welcome back. Your last session ended while you were away, and its minutes are kept.', auto: 6500 }))
+    }
+  }
   if (!game.hasStarter) {
     // the prologue: the answer to "which Pokémon did you start with?" is your starter
     void (async () => {

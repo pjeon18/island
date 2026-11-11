@@ -14,7 +14,7 @@ Read `docs/GAME_DESIGN.md` first: it is the game loop and core features from Pau
   - It covers the starter pick, focus sessions, EXP and levels, real-level evolution, visitors and befriending, the box, step-away detection, the `?debug` panel, and the in-window HUD.
   - See VALIDATION.md for what was checked and what still needs real Chrome.
 - **The loop pass, T2 and T3 are built** (2026-11-11). `docs/LOOP.md` is the pricing law:
-  - Every focused minute gives 1 EXP to each party Pokémon and 1 shell.
+  - Every focused minute gives 2 EXP to each resident (the island's party) and 1 shell (`EXP_PER_MIN`; Paul, 2026-11-11).
   - Each finished session brings a visitor and ripens berries. A 50-minute session makes rare visitors 2.5 times as likely.
   - Streak days wash stones ashore, and 10 hours of bond unlock friendship evolutions.
   - Every choice happens in the 5-minute break after a session.
@@ -47,7 +47,7 @@ Read `docs/GAME_DESIGN.md` first: it is the game loop and core features from Pau
 - `src/game.ts`: the rules and the save (`island-save-v1`).
   - Sessions credit real wall time per beat, capped at 90 s. A gap over 5 minutes means away.
   - Without the idle detector, "Still studying?" comes at 1 and 2 hours (`CHECKIN_EVERY`), with 10 minutes to answer (`ANSWER_WINDOW`); the wait counts when you answer, and an unanswered one pauses the clock. Every session ends itself at 3 hours, counted as complete (`MAX_SESSION`; Paul, 2026-11-11, after Studdy sessions left running piled up 30 hours). A sleeping or locked computer pauses it: a gap over 5 minutes on wake (`AWAY_GAP`), or the lock screen with idle detection. With the idle detector, an unanswered idle question takes back 10 minutes, and EXP never de-levels.
-  - Level L costs L EXP. Visitors are drawn by weighted rarity.
+  - Level L costs L + L²/25 EXP (`expToNext`): about 10 hours to Lv36, early levels fast so new residents catch up. Visitors are drawn by weighted rarity.
 - `src/presence.ts`: the Idle Detection API wrapper (active or idle, locked or unlocked only).
 - `src/cloud.ts`: the online half (T2).
   - Accounts are shared with Studdy through email magic links behind Turnstile; there is never an anonymous sign-in.
@@ -64,6 +64,12 @@ Read `docs/GAME_DESIGN.md` first: it is the game loop and core features from Pau
   - `src/editor/main.ts` is the whiteboard editor (`editor.html`). `src/dungeon/play.ts` is the real-time dungeon (`dungeon.html?id=…&gate=…` or `?map=play`).
   - Official maps live in `public/dungeons/` (`index.json` lists them). The dev route `/__dungeon` in `vite.config.ts` writes them.
   - The island's doorway is `scene.gate`. Each island names its dungeon in `ISLANDS[].dungeon`.
+- The 2026-11-11 review (`docs/REVIEW.md`, with Paul's decisions in section 8) changed:
+  - Each island has its own residents (`save.party` for the island you are on, `save.parties` for the others; `PARTY_MAX` 6). Only residents and working helpers earn EXP. Your starter is the partner (`save.partner`): it lives on every island and can't leave the party. Adding a Pokémon to the party moves it off any other island; the box shows "Lives on Frost Isle". Helpers show only on the island they were assigned on (`Mon.home`, `helpersHere`). The friends server still gets the first 3.
+  - Fixes: an Open session counts as complete only after 25 minutes (`OPEN_COMPLETE`) and pays no end berry; the check-in is found by `Dialog.tag` 'checkin'; a paused session offers Resume and End session; a session left over 30 minutes ends on load, keeping its minutes; 4 can wait (`WILD_MAX`), and a newcomer replaces the most common one waiting if it is at least as rare; passers-by no longer use the friendly visitor's daily cap; a Pokémon in the box evolves there (`boxEvolved`).
+  - Balance: a stone on streak day 3 and every 7th day after (`isStoneDay`), 2% of finds, 10% of long expeditions, preferring uncaught evolutions (`pickStone`); a Star Piece for every third new species (`newSpeciesStar`, also for visitors via `befriend`), finds 4%; long expeditions 40 + level shells, short 10 + level/2, campfire 3 shells every 6 to 10 minutes; Great Ball 15, Ultra 30, and rare Pokémon and starters run off after 3 break-frees (`FLEE_AFTER`); night species come by day at a fifth of their odds near the stone lantern; Snorlax Lv30 (Pier Hollow Lv22-25), Lapras Lv48 (Glacier Grotto Lv41-44). Wooper's gift is 3 Star Pieces.
+  - New sinks: Frost decorations (Snowman 300, Ice carving 500, Aurora lamp 800, `frost: true`, sold once Frost Isle is open) and island upgrades bought with Star Pieces (`UPGRADES`: Bigger nest 5, Warm sand 6, Longer pier 8).
+  - Eevee-style lines with more than two evolutions show one line ("Evolves with an evolution stone or by friendship.").
 - Crowding and petting: at most `ISLAND_CAP` (12) Pokémon on the island (party first, then helpers in the room left after waiting wild ones, at most 3, and friends' visitors). `Scene.separate` pushes apart any two closer than about one body. Tapping your own Pokémon calls `petMon`: a hop, a heart (`scene.hearts`), its cry (`public/cries`, `node scripts/pull-cries.mjs`, mute in More), and `hud.showSummary` (types, EXP, role, bond, held item, evolution, with Pet, Feed and More).
 - The new-player opening (`src/tutorial.ts`, Paul 2026-11-11), saved as `save.tutorial` ('prologue' → 'meet' → 'catch' → 'build' → 'focus' → 'done'; saves from before it load as 'done'):
   - Prologue: a black screen (`blackScreen`, up before anything loads) with one FireRed text box. A voice that just woke up asks the time (the answer button shows the real clock; a nod to the professor who asks you to set the clock), then "which Pokémon did you start your journey with?" (14 starters in region tabs, `STARTER_REGIONS`: Kanto, Johto, Hoenn, Sinnoh, and Pikachu and Eevee as Partners; the Johto, Hoenn and Turtwig/Chimchar lines are in `scripts/roster.mjs` with `islands: []`, so they never pass by and stay out of every island's Pokédex until you own one). The answer is the starter. The clouds start hidden behind the black (`startIntro(1)`) and the black fades off them.

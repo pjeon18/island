@@ -5,7 +5,7 @@
 // the sheet, and the sheet's choices only unlock between sessions.
 import type { CloudState, Friend, FriendRequest, Me } from './cloud'
 import { CATALOG, SLOTS, decorDef } from './decor'
-import { BALLS, BERRY_EXP, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, EGG_MAX, Evolution, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
+import { BALLS, BERRY_EXP, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
 
 const BASE = import.meta.env.BASE_URL
 export const portraitUrl = (dex: number, emo = 'Normal') => `${BASE}sprites/${String(dex).padStart(4, '0')}/${emo}.png`
@@ -72,6 +72,8 @@ export interface Dialog {
   onDone?: () => void
   /** An instruction to act elsewhere: shown at the top left, out of the way, and hidden while a menu or the catch screen is open. */
   task?: boolean
+  /** A label to find this line again (the check-in is 'checkin'). */
+  tag?: string
 }
 
 export interface HudHandlers {
@@ -297,7 +299,7 @@ export class Hud {
                 ? `<div class="clock"><span class="clock-t"></span><span class="clock-l">Waiting for you</span></div>
                    <button class="px-btn primary small" data-f="still">I'm here</button>`
                 : `<div class="clock away"><span class="clock-t"></span><span class="clock-l">Paused</span></div>
-                   <button class="px-btn primary small" data-f="back">I am back</button>`
+                   <div class="row-actions"><button class="px-btn primary small" data-f="back">Resume</button><button class="px-btn small" data-f="end">End session</button></div>`
       if (!this.sheet.hidden) this.renderSheet()
     }
     const t = this.focus.querySelector('.clock-t')
@@ -307,6 +309,7 @@ export class Hud {
     const pk = g.party.map((m) => `${m.id}:${m.dex}:${m.level}:${m.exp}`).join('|')
     if (pk !== this.lastPartyKey) {
       this.lastPartyKey = pk
+      this.party.classList.toggle('many', g.party.length > 3)
       this.party.innerHTML = g.party
         .map((m) => {
           const pct = Math.round((m.exp / expToNext(m.level)) * 100)
@@ -344,6 +347,9 @@ export class Hud {
   }
   get busy() {
     return !!this.current
+  }
+  get currentTag() {
+    return this.current?.tag
   }
   get currentText() {
     return this.current?.text ?? ''
@@ -595,7 +601,7 @@ export class Hud {
     }
     if (view === 'eggs')
       return s.eggs.length
-        ? s.eggs.map((e, i) => `<div class="decor-row"><span class="shop-ico">${icon('lucky-egg')}</span><div class="mon-main"><p>Egg</p><span class="bar"><i style="width:${Math.round((e.progress / e.need) * 100)}%"></i></span><p class="hint">${i < EGG_MAX ? `${e.progress} of ${e.need} min` : 'Waiting for room'}</p></div></div>`).join('') + `<p class="hint">${s.eggs.length} of ${EGG_MAX} in the nest. They warm while you focus.</p>`
+        ? s.eggs.map((e, i) => `<div class="decor-row"><span class="shop-ico">${icon('lucky-egg')}</span><div class="mon-main"><p>Egg</p><span class="bar"><i style="width:${Math.round((e.progress / e.need) * 100)}%"></i></span><p class="hint">${i < g.eggMax ? `${Math.floor(e.progress)} of ${e.need} min` : 'Waiting for room'}</p></div></div>`).join('') + `<p class="hint">${s.eggs.length} of ${g.eggMax} in the nest. They warm while you focus.</p>`
         : `<p class="hint">No eggs. They come from the Day Care, finds, streaks and trips.</p>`
     // the bag: everything you carry, as a grid
     const item = (id: string, name: string, n: number) => `<div class="bag-cell" title="${name}">${icon(id)}<span>${name}</span><b>×${n}</b></div>`
@@ -613,6 +619,12 @@ export class Hud {
     const g = this.game
     const opts = g.evolutionOptions(m)
     if (!opts.length) return 'Final form.'
+    const bondLine = (on: boolean) => (on ? ` ${icon('soothe-bell', 'ico-s')}Bond ${fmtMinutes(Math.min(m.focusedMin, BOND_FOR_FRIENDSHIP))} of ${fmtMinutes(BOND_FOR_FRIENDSHIP)}.` : '')
+    // many branches (Eevee): one short line instead of every form (Paul, 2026-11-11)
+    if (opts.length > 2) {
+      const ways = [opts.some((e) => e.item) ? 'with an evolution stone' : '', opts.some((e) => e.friendship) ? 'by friendship' : '', opts.some((e) => e.level) ? 'by leveling up' : ''].filter(Boolean)
+      return `Evolves ${list(ways)}.${bondLine(opts.some((e) => e.friendship))}`
+    }
     const lv = opts.filter((e) => e.level).map((e) => `at level ${e.level} into ${g.name(e.dex)}`)
     const st = opts.filter((e) => e.item).map((e) => `with ${aStone(e.item!)} into ${g.name(e.dex)}`)
     const fr = opts.filter((e) => e.friendship).map((e) => `by friendship ${e.time ? `during the ${e.time} ` : ''}into ${g.name(e.dex)}`)
@@ -627,25 +639,28 @@ export class Hud {
     const pct = Math.round((m.exp / expToNext(m.level)) * 100)
     const role = g.roleOf(m.id)
     const ex = s.expedition
+    const lives = g.livesOn(m.id)
     const roleText =
-      role === 'daycare' ? 'At the Day Care' : role === 'expedition' && ex ? `Away, ${ex.progress} of ${ex.need} min` : role.startsWith('job:') ? JOBS.find((j) => `job:${j.id}` === role)!.name : ''
+      lives && role === 'box'
+        ? `Lives on ${ISLANDS.find((i) => i.id === lives)!.name}`
+        : role === 'daycare' ? 'At the Day Care' : role === 'expedition' && ex ? `Away, ${ex.progress} of ${ex.need} min` : role.startsWith('job:') ? JOBS.find((j) => `job:${j.id}` === role)!.name : ''
     const status = roleText
       ? roleText
       : m.heldItem
       ? `${icon(m.heldItem, 'ico-s')} Holding ${aStone(m.heldItem)}.`
       : m.noEvolve
         ? 'Ready to evolve.'
-        : `${fmtMinutes(m.focusedMin)} together`
+        : `${g.isPartner(m.id) ? 'Your partner. ' : ''}${fmtMinutes(m.focusedMin)} together`
     let detail = ''
     if (open) {
       const locked = g.inSession
       const usable = g.evolutionOptions(m).filter((e: Evolution) => e.item && (s.bag[e.item] ?? 0) > 0)
       const btn = (attrs: string, label: string, dis = false, primary = false) => `<button class="px-btn small${primary ? ' primary' : ''}" ${attrs} ${dis ? 'disabled' : ''}>${label}</button>`
-      const away = role === 'expedition'
+      const away = role === 'expedition' || g.isPartner(m.id) // your partner always stays with you
       const roleBtns = away
         ? ''
         : [
-            role !== 'party' ? btn(`data-role="${m.id}|party"`, 'Party', locked || s.party.length >= PARTY_MAX) : '',
+            role !== 'party' ? btn(`data-role="${m.id}|party"`, lives ? 'Move here' : 'Party', locked || s.party.length >= PARTY_MAX) : '',
             role !== 'box' ? btn(`data-role="${m.id}|box"`, 'Box', locked || (role === 'party' && s.party.length <= 1)) : '',
             role !== 'daycare' ? btn(`data-role="${m.id}|daycare"`, 'Day Care', locked || !s.daycare.ids.includes(null) || (role === 'party' && s.party.length <= 1)) : '',
             ...JOBS.filter((j) => g.canDoJob(m, j.id) && role !== `job:${j.id}`).map((j) => btn(`data-role="${m.id}|job:${j.id}"`, j.name, locked || !!s.jobs[j.id] || (role === 'party' && s.party.length <= 1))),
@@ -754,7 +769,7 @@ export class Hud {
     const open = SLOTS.filter((s) => g.hoursOk(s.minHours))
     const free = open.filter((s) => !d.slots[s.id]).length
     const locked = g.inSession
-    const rows = CATALOG.map((item) => {
+    const rows = CATALOG.filter((item) => !item.frost || g.frostOpen).map((item) => {
       const owned = d.owned.includes(item.id)
       const act = !owned
         ? `<button class="px-btn small${g.save.shells >= item.price ? ' primary' : ''}" data-buy="${item.id}" ${g.save.shells < item.price || locked ? 'disabled' : ''}>${icon('shoal-shell', 'ico-s')}${item.price}</button>`
@@ -785,8 +800,14 @@ export class Hud {
     const wallet = `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${g.save.shells}</b></span><span title="Star Pieces">${icon('star-piece')}<b>×${g.save.starPieces}</b></span></p>${locked ? '<p class="note">Locked while focusing.</p>' : ''}`
     if (view === 'habitats') return `${wallet}${habitats}`
     if (view === 'decor') return `${wallet.replace('</p>', `<span>${free} of ${open.length} spots free</span></p>`)}<div class="decor-grid">${rows}</div>`
+    const upgrades = UPGRADES.map((u) => {
+      const have = g.save.upgrades.includes(u.id)
+      const act = have ? `<span class="hint">Built</span>` : `<button class="px-btn small${g.save.starPieces >= u.stars ? ' primary' : ''}" data-upgrade="${u.id}" ${g.save.starPieces < u.stars || locked ? 'disabled' : ''}>${star}${u.stars}</button>`
+      return `<div class="decor-row tight"><div class="mon-main"><p>${u.name}</p><p class="hint">${u.text}</p></div><div class="row-actions row">${act}</div></div>`
+    }).join('')
     return `${wallet}<p class="row-title">Balls</p>${shop}
-      <p class="row-title">Food</p>${g.save.bait ? `<p class="note">${FOODS.find((f) => f.id === g.save.bait)?.name} is out until the session ends.</p>` : ''}${food}`
+      <p class="row-title">Food</p>${g.save.bait ? `<p class="note">${FOODS.find((f) => f.id === g.save.bait)?.name} is out until the session ends.</p>` : ''}${food}
+      <p class="row-title">Upgrades</p>${upgrades}`
   }
 
   // ---------- the journal ----------
@@ -935,6 +956,11 @@ export class Hud {
     const subAt = at('sub')
     if (subAt) {
       this.sub[this.tab] = subAt
+      return this.renderSheet()
+    }
+    const up = at('upgrade')
+    if (up) {
+      if (!this.game.buyUpgrade(up)) this.note = 'Not enough Star Pieces.'
       return this.renderSheet()
     }
     const lp = at('logpage')

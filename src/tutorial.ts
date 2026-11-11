@@ -322,7 +322,7 @@ export class Tour {
     await this.until(() => !this.x.catching())
     await this.until(() => !this.x.hud.busy)
     await this.line(`You caught ${name}! It will live here with us now.`, { emotion: 'Happy' })
-    await this.line("Every new kind of Pokémon you catch earns you a Star Piece. You use them to build habitats.")
+    await this.line("New kinds of Pokémon earn you Star Pieces now and then. You use them to build habitats.")
     await this.line("I've been saving these. Take them.")
     this.x.hud.toast(`You got ${GUIDE_GIFT.shells} shells and ${GUIDE_GIFT.starPieces} Star Pieces.`)
     return this.buildStep()

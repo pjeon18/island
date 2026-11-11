@@ -343,3 +343,9 @@ html:has(.float), body:has(.float) { background: transparent; }
 .hud { z-index: 10; }
 /* the cheats window opens above everything, the prologue's black screen included, so a test save can always be restored */
 .hud:has(.hud-cheats:not([hidden])) { z-index: 50; }
+
+/* more than three residents: two columns of compact chips (face, level, EXP) */
+.hud-party.many { display: grid; grid-template-columns: repeat(2, auto); }
+.hud-party.many .chip { min-width: 0; padding-right: 4px; }
+.hud-party.many .chip-name { display: none; }
+.hud-party.many .thin { min-width: 14px; }

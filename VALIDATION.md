@@ -1,5 +1,10 @@
 # Validation
 
+## Review fixes, residents and balance (2026-11-11)
+- The balance simulation (the real `game.ts` on a fake clock, 20 runs a schedule, 30 days) after the changes: home Pokédex at day 30 about 57 of 58 (was stuck at 53), one 2-hour Open session a day now gets 13.5 passers-by a day (was 3), shells banked by day 14 about 1,700 (was 3,000+) before the new Frost decorations and upgrades. 200 zero-minute Open sessions now give nothing (they took a starter to Lv63 before).
+- In the browser: an old save got its partner (Charmeleon) put on the current island; sailing home left only the partner there while the Frost residents showed "Lives on Frost Isle"; moving one to Home and sailing back restored each island's own residents. Six residents show as two columns of chips. Eevee's summary is one line. The shop shows Upgrades, and the Frost decorations appear once Frost Isle is open.
+- Not checked by hand: a rare Pokémon running off after 3 break-frees, the stone find art, the boxed evolution toast, and the 30-minute abandoned-session ending.
+
 ## Check-ins and the 3-hour cap (2026-11-11)
 - Driven with a fake clock in the browser. In an Open session, "Still studying?" came at 60 and 120 minutes; answering 3 minutes later credited those 3 minutes. The session ended itself at 180 minutes as complete (`capped`), with Wooper's line about taking a real break.
 - An unanswered check-in paused the clock after 10 minutes, with no time taken back.

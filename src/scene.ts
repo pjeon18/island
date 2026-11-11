@@ -18,6 +18,7 @@ const FIND_ART: Record<FindKind, { rows: string[]; pal: Record<string, string> }
   berry: { rows: ['..g..', '.aba.', 'abbba', '.aaa.'], pal: { g: '#48a848', a: '#2858b8', b: '#5898f0' } },
   'poke-ball': { rows: ['.ara.', 'arrra', 'kkwkk', 'awwwa', '.aaa.'], pal: { a: '#383838', r: '#e83838', k: '#282828', w: '#f8f8f8' } },
   'star-piece': { rows: ['..o..', '.oyo.', 'oywyo', '.oyo.', '..o..'], pal: { o: '#c07818', y: '#f8d040', w: '#fff8c8' } },
+  stone: { rows: ['.aaa.', 'abbca', 'abbba', 'acbba', '.aaa.'], pal: { a: '#3c5a48', b: '#6fa88a', c: '#d8f8e8' } },
 }
 function paintFind(kind: FindKind) {
   const { rows, pal } = FIND_ART[kind]

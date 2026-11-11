@@ -20,7 +20,7 @@ One focused minute is the unit. Every reward is priced in focused minutes, so a 
 
 | You do | You get | How it feels |
 |---|---|---|
-| Focus for a minute | 1 EXP for each party Pokémon and 1 shell | Steady and visible: EXP bars fill, levels arrive on a known schedule. |
+| Focus for a minute | 2 EXP for each resident on the island and 1 shell (level L costs L + L²/25; Paul, 2026-11-11) | Steady and visible: EXP bars fill, levels arrive on a known schedule. |
 | Finish a 25-minute session | One visitor at normal odds, and one berry ripens on the bush | A small surprise at a natural stopping point. |
 | Finish a 50-minute session | One visitor with rare odds raised 2.5 times, and two berries | Deep work buys better odds instead of more draws, so the reward per minute stays fair. |
 | Focus in an open session | One visitor at normal odds every 30 focused minutes | It works for people who don't use timers. |

@@ -39,6 +39,7 @@ export interface Mon {
   metAt: number
   noEvolve?: boolean // you stopped its evolution; it waits until you allow it
   heldItem?: string // a stone given in a break; it evolves during the next session
+  home?: IslandId // for a helper: the island it works on (shown there only)
 }
 
 export type SessionState = 'running' | 'asking' | 'away'
@@ -69,13 +70,14 @@ export interface Wild {
   guide?: boolean // the tutorial's first catch: it always works
 }
 export type Ball = 'poke-ball' | 'great-ball' | 'ultra-ball'
-export type FindKind = 'shells' | 'berry' | 'poke-ball' | 'star-piece'
+export type FindKind = 'shells' | 'berry' | 'poke-ball' | 'star-piece' | 'stone'
 /** Something a party Pokémon dug up, lying on the island until you pick it up. */
 export interface Find {
   id: string
   by?: string // the helper that dug it up, if any
   kind: FindKind
   n: number
+  item?: string // which stone, for a stone
   x?: number
   y?: number
 }
@@ -91,8 +93,8 @@ export const ISLANDS: {
   dungeon: string // the gate dungeon (public/dungeons/<id>.json); the guardian is its boss
   unlock?: { from: IslandId; share: number; hours: number }
 }[] = [
-  { id: 'home', name: 'Home Island', guardian: { dex: 143, level: 26, where: 'asleep at the bottom of Pier Hollow' }, dungeon: 'pier-hollow' },
-  { id: 'frost', name: 'Frost Isle', guardian: { dex: 131, level: 40, where: 'resting at the bottom of Glacier Grotto' }, dungeon: 'glacier-grotto', unlock: { from: 'home', share: 0.7, hours: 20 } },
+  { id: 'home', name: 'Home Island', guardian: { dex: 143, level: 30, where: 'asleep at the bottom of Pier Hollow' }, dungeon: 'pier-hollow' },
+  { id: 'frost', name: 'Frost Isle', guardian: { dex: 131, level: 48, where: 'resting at the bottom of Glacier Grotto' }, dungeon: 'glacier-grotto', unlock: { from: 'home', share: 0.7, hours: 20 } },
 ]
 /** The island grows with your total focused hours. */
 export const GROWTH: { hours: number; text: string }[] = [
@@ -121,7 +123,7 @@ export const JOBS: { id: JobId; name: string; types: string[]; every: number; fl
   { id: 'bush', name: 'Berry bush', types: ['water'], every: 30, floor: 12, does: 'An extra Oran Berry' },
   { id: 'dig', name: 'Digging', types: ['ground', 'rock'], every: 24, floor: 10, does: 'An extra find' },
   { id: 'lookout', name: 'Lookout', types: ['flying'], every: 40, floor: 18, does: 'An extra passer-by' },
-  { id: 'campfire', name: 'Campfire', types: ['fire'], every: 10, floor: 4, needsDecor: 'campfire', does: '5 extra shells' },
+  { id: 'campfire', name: 'Campfire', types: ['fire'], every: 10, floor: 6, needsDecor: 'campfire', does: '3 extra shells' },
 ]
 export const jobEvery = (job: (typeof JOBS)[number], level: number) => Math.max(job.floor, Math.round(job.every - level / 2))
 export const EGG_MAX = 3
@@ -139,7 +141,7 @@ export interface Expedition {
 }
 export interface Haul {
   shells: number
-  items: { kind: 'berry' | Ball | 'star-piece' | 'food'; id?: string; n: number }[]
+  items: { kind: 'berry' | Ball | 'star-piece' | 'food' | 'stone'; id?: string; n: number }[]
   egg?: Egg
 }
 
@@ -171,6 +173,9 @@ export const DECOR_LOVES: Record<string, number[]> = {
   lantern: [163, 92],
   campfire: [4],
   windmill: [16, 396, 187],
+  snowman: [361, 225],
+  icecarving: [363, 215],
+  aurora: [238, 459],
 }
 export const isNightHour = (h: number) => h >= 19 || h < 5
 /** What is drawing Pokémon right now; built by Game.lure(). */
@@ -222,13 +227,23 @@ export interface Save {
   log: LogEntry[] // the journal: what happened on the island, newest last
   logSeen: number // when the journal was last opened
   tutorial: TutorialStep // where a new player is in the opening (tutorial.ts)
+  partner?: string // your starter: it lives on every island
+  parties: Partial<Record<IslandId, string[]>> // other islands' residents while you are away from them
+  upgrades: string[] // island upgrades bought with Star Pieces (UPGRADES)
 }
+
+/** Island upgrades: the long-term place for Star Pieces to go (review 2026-11-11). */
+export const UPGRADES: { id: string; name: string; text: string; stars: number }[] = [
+  { id: 'nest', name: 'Bigger nest', text: 'Room for a fourth egg.', stars: 5 },
+  { id: 'warmsand', name: 'Warm sand', text: 'Eggs hatch a quarter faster.', stars: 6 },
+  { id: 'longpier', name: 'Longer pier', text: 'A fifth Pokémon can wait for your break.', stars: 8 },
+]
 
 /** The opening, in order. Saves from before the tutorial existed load as 'done'. */
 export type TutorialStep = 'prologue' | 'meet' | 'catch' | 'build' | 'focus' | 'done'
 export const GUIDE_DEX = 194 // Wooper, who lives on the island alone at the start
 export const GUIDE_CATCH = 16 // Pidgey, the first catch
-export const GUIDE_GIFT = { shells: 100, starPieces: 2 }
+export const GUIDE_GIFT = { shells: 100, starPieces: 3 } // exactly the Pond
 
 /** One line in the journal. `kind` feeds the summary at its top; `key` lets a newer line replace an older one (level-ups). */
 export type LogKind = 'focus' | 'visit' | 'catch' | 'hatch' | 'level' | 'evolve' | 'find' | 'friend' | 'other'
@@ -242,7 +257,9 @@ export interface LogEntry {
 }
 export const LOG_MAX = 200
 
-export const PARTY_MAX = 3
+// Each island has its own residents, up to 6 (Paul, 2026-11-11): only they (and helpers at work)
+// gain EXP. Your starter is your partner and lives on every island.
+export const PARTY_MAX = 6
 export const START_LEVEL = 5
 export const MAX_GAP = 90 // seconds: a beat is worth at most this much wall time
 export const AWAY_GAP = 5 * 60 // a gap this long means you were gone
@@ -252,33 +269,39 @@ export const AWAY_GAP = 5 * 60 // a gap this long means you were gone
 export const CHECKIN_EVERY = 60 * 60 // without idle detection
 export const ANSWER_WINDOW = 10 * 60
 export const MAX_SESSION = 3 * 60 * 60
+export const OPEN_COMPLETE = 25 * 60 // an Open session must reach this to count as complete
+export const FLEE_AFTER = 3 // break-frees before a rare Pokémon or starter runs off
 export const IDLE_THRESHOLD = 10 * 60 // idle detector threshold
 export const OPEN_VISIT_EVERY = 30 * 60
-export const BERRY_EXP = 10
+export const EXP_PER_MIN = 2 // (Paul, 2026-11-11) with a steeper level cost, below
+export const BERRY_EXP = 20 // a berry is still worth ten focused minutes
 export const BERRIES_MAX = 9 // the bush holds this many
 export const BOND_FOR_FRIENDSHIP = 10 * 60 // focused minutes together
 export const VISITS_PER_DAY = 12
 export const BREAK_SECONDS = 5 * 60
-export const STREAK_STONES = [3, 7, 14, 30]
+// a stone on streak day 3, then every 7th day with no end (review 2026-11-11: the old 3/7/14/30
+// paid four ever and rewarded breaking the streak)
+export const isStoneDay = (n: number) => n === 3 || (n >= 7 && n % 7 === 0)
 export const RARE_50 = 3.3 // rare-weight multiplier for a finished 50-minute session
 export const STONES = ['thunder-stone', 'water-stone', 'fire-stone', 'leaf-stone', 'ice-stone', 'sun-stone']
 // catching (docs/GAME_DESIGN.md, stage 1)
 export const PASSER_EVERY = 12 * 60 // a passer-by every 12 focused minutes
-export const WILD_MAX = 3 // at most this many wait on the island at once (Paul: fewer, less crowded)
+export const WILD_MAX = 4 // at most this many wait on the island at once (review 2026-11-11: 3 lost a 50-minute session's fourth)
 export const PASSERS_PER_DAY = 24
 export const FIND_EVERY = 9 * 60
 export const WEATHER_EVERY = 15 * 60
 export const FRIENDLY_VISIT_CHANCE = 0.25 // the old visitor, now a minor extra after a full session
 export const BALLS: { id: Ball; name: string; price: number; mult: number }[] = [
   { id: 'poke-ball', name: 'Poké Ball', price: 8, mult: 1 },
-  { id: 'great-ball', name: 'Great Ball', price: 25, mult: 1.5 },
-  { id: 'ultra-ball', name: 'Ultra Ball', price: 60, mult: 2 },
+  { id: 'great-ball', name: 'Great Ball', price: 15, mult: 1.5 },
+  { id: 'ultra-ball', name: 'Ultra Ball', price: 30, mult: 2 },
 ]
 const CATCH_BASE: Record<Rarity, number> = { common: 0.7, uncommon: 0.5, rare: 0.35, starter: 0.3 }
 
 const KEY = 'island-save-v1'
 
-export const expToNext = (level: number) => level
+/** EXP to go from `level` to the next: L + L²/25. About 10 hours to Lv36 at 2 EXP a minute; early levels come fast. */
+export const expToNext = (level: number) => level + Math.round((level * level) / 25)
 export const stoneName = (item: string) => item.split('-').map((w) => w[0].toUpperCase() + w.slice(1)).join(' ')
 /** "a Water Stone", "an Ice Stone" */
 export const aStone = (item: string) => `${/^[aeiou]/i.test(item) ? 'an' : 'a'} ${stoneName(item)}`
@@ -331,6 +354,8 @@ export function emptySave(): Save {
     log: [],
     logSeen: 0,
     tutorial: 'prologue',
+    parties: {},
+    upgrades: [],
   }
 }
 
@@ -342,6 +367,11 @@ export function loadSave(): Save {
       if (s && s.v === 1 && Array.isArray(s.mons)) {
         const m = { ...emptySave(), ...s }
         if (!s.tutorial) m.tutorial = s.mons.length ? 'done' : 'prologue'
+        if (!m.partner && m.mons.length) m.partner = m.mons[0].id
+        // your partner lives on every island: put it on this one if it is free
+        const pid = m.partner
+        const busy = !!pid && (m.daycare.ids.includes(pid) || Object.values(m.jobs).includes(pid) || m.expedition?.id === pid)
+        if (pid && !busy && !m.party.includes(pid) && m.party.length < PARTY_MAX) m.party.unshift(pid)
         // T1 saves have no caught list: everything owned counts
         for (const mon of m.mons) if (!m.caught.includes(mon.dex)) m.caught.push(mon.dex)
         return m
@@ -354,6 +384,7 @@ export function loadSave(): Save {
 export type GameEvent =
   | { type: 'levelUp'; mon: Mon }
   | { type: 'evolveReady'; mon: Mon; to: number }
+  | { type: 'boxEvolved'; mon: Mon; from: string }
   | { type: 'sessionStart' }
   | { type: 'sessionEnd'; minutes: number; complete: boolean; berries: number; capped?: boolean }
   | { type: 'visit'; rareMult: number }
@@ -370,7 +401,7 @@ export type GameEvent =
   | { type: 'wildLeave'; ids: string[] }
   | { type: 'find'; find: Find }
   | { type: 'weather'; kind: Weather }
-  | { type: 'caught'; wild: Wild; mon: Mon; newSpecies: boolean }
+  | { type: 'caught'; wild: Wild; mon: Mon; newSpecies: boolean; star?: boolean }
   | { type: 'habitat'; id: Habitat }
   | { type: 'bait'; food: string | null }
   | { type: 'egg'; egg: Egg }
@@ -478,7 +509,36 @@ export class Game {
 
   chooseStarter(dex: number) {
     if (this.hasStarter) return
-    this.addMon(dex, START_LEVEL)
+    this.save.partner = this.addMon(dex, START_LEVEL).id
+    this.persist()
+  }
+  get eggMax() {
+    return EGG_MAX + (this.save.upgrades.includes('nest') ? 1 : 0)
+  }
+  get wildMax() {
+    return WILD_MAX + (this.save.upgrades.includes('longpier') ? 1 : 0)
+  }
+  buyUpgrade(id: string) {
+    const u = UPGRADES.find((x) => x.id === id)
+    if (!u || this.save.session || this.save.upgrades.includes(id) || this.save.starPieces < u.stars) return false
+    this.save.starPieces -= u.stars
+    this.save.upgrades.push(id)
+    this.persist()
+    return true
+  }
+  /** Frost Isle is open (or has been visited), so its decorations are for sale. */
+  get frostOpen() {
+    return this.save.island === 'frost' || !!this.save.stash.frost || this.canSail('frost')
+  }
+  /** Your starter: it lives on every island and never leaves the party. */
+  isPartner(id: string) {
+    return this.save.partner === id
+  }
+  /** Which other island a resting Pokémon lives on, if any. */
+  livesOn(id: string): IslandId | null {
+    if (this.isPartner(id)) return null
+    for (const [isl, ids] of Object.entries(this.save.parties)) if (isl !== this.save.island && ids?.includes(id)) return isl as IslandId
+    return null
   }
 
   /** Where a Pokémon is: in the party, a helper (Day Care, a job, an expedition), or resting in the box. */
@@ -489,6 +549,10 @@ export class Game {
     if (s.expedition?.id === id) return 'expedition'
     for (const j of JOBS) if (s.jobs[j.id] === id) return `job:${j.id}`
     return 'box'
+  }
+  /** Helpers who work on the island you are on (the others keep working where you put them). */
+  get helpersHere() {
+    return this.helpers.filter((m) => (m.home ?? 'home') === this.save.island)
   }
   /** Helpers on the island (Day Care and jobs) walk around like the party. */
   get helpers() {
@@ -517,6 +581,7 @@ export class Game {
     if (from === role) return true
     if (from === 'expedition') return false // it is away until it comes back
     if (from === 'party' && s.party.length <= 1) return false
+    if (from === 'party' && this.isPartner(id)) return false // your partner stays with you
     // check the destination has room
     if (role === 'party' && s.party.length >= PARTY_MAX) return false
     if (role === 'daycare' && !s.daycare.ids.includes(null)) return false
@@ -533,7 +598,12 @@ export class Game {
     }
     if (from.startsWith('job:')) delete s.jobs[from.slice(4) as JobId]
     // take the new one
-    if (role === 'party') s.party.push(id)
+    if (role === 'party') {
+      s.party.push(id)
+      // it moves here: no longer a resident of any other island
+      for (const ids of Object.values(s.parties)) if (ids?.includes(id)) ids.splice(ids.indexOf(id), 1)
+    }
+    if (role !== 'party' && role !== 'box') m.home = s.island
     if (role === 'daycare') s.daycare.ids[s.daycare.ids.indexOf(null)] = id
     if (role.startsWith('job:')) {
       const job = role.slice(4) as JobId
@@ -653,11 +723,11 @@ export class Game {
     if (this.together.length) this.save.shells += n // studying together: double shells
     for (const m of this.party) {
       m.focusedMin += n
-      this.addExp(m, n)
+      this.addExp(m, n * EXP_PER_MIN)
     }
     // helpers (Day Care, jobs, expeditions) gain half, with the remainder carried over
     for (const m of this.workers) {
-      const total = (this.save.carry[m.id] ?? 0) + n
+      const total = (this.save.carry[m.id] ?? 0) + n * EXP_PER_MIN
       this.save.carry[m.id] = total % 2
       if (total >= 2) this.addExp(m, Math.floor(total / 2))
     }
@@ -667,7 +737,7 @@ export class Game {
     this.save.shells = Math.max(0, this.save.shells - n)
     for (const m of this.party) {
       m.focusedMin = Math.max(0, m.focusedMin - n)
-      m.exp = Math.max(0, m.exp - n)
+      m.exp = Math.max(0, m.exp - n * EXP_PER_MIN)
     }
   }
 
@@ -692,16 +762,23 @@ export class Game {
   private checkStreakStone() {
     const n = this.streak()
     const key = `${dayKey(this.now())}:${n}`
-    if (!STREAK_STONES.includes(n) || this.save.stonesPaid.includes(key)) return
+    if (!isStoneDay(n) || this.save.stonesPaid.includes(key)) return
     this.save.stonesPaid.push(key)
-    // prefer a stone that one of your Pokémon can use
-    const useful = STONES.filter((s) => this.save.mons.some((m) => this.evolutionOptions(m).some((e) => e.item === s)))
-    const pool = useful.length ? useful : STONES
-    const item = pool[Math.floor(Math.random() * pool.length)]
+    const item = this.pickStone()
     this.save.bag[item] = (this.save.bag[item] ?? 0) + 1
     this.save.starPieces++
     this.emit({ type: 'stone', item, streak: n })
     if (n >= 7) this.addEgg(this.randomEggDex(true), 'streak')
+  }
+
+  /** A stone someone can use, preferring one whose evolution you have not caught yet. */
+  pickStone(rand = Math.random) {
+    const uses = (stone: string, fresh: boolean) =>
+      this.save.mons.some((m) => this.evolutionOptions(m).some((e) => e.item === stone && (!fresh || !this.save.caught.includes(e.dex))))
+    const fresh = STONES.filter((st) => uses(st, true))
+    const useful = STONES.filter((st) => uses(st, false))
+    const pool = fresh.length ? fresh : useful.length ? useful : STONES
+    return pool[Math.floor(rand() * pool.length)]
   }
 
   // ---------- focus sessions ----------
@@ -730,15 +807,27 @@ export class Game {
     this.emit({ type: 'sessionStart' })
     if (leaving.length) this.emit({ type: 'wildLeave', ids: leaving })
     // a stone given in the break, or a friendship reached, pays off now
+    const out = new Set([...this.party, ...this.helpers].map((m) => m.id))
     for (const m of [...this.party, ...this.helpers]) {
       const to = this.evolutionDue(m)
       if (to) this.emit({ type: 'evolveReady', mon: m, to })
+    }
+    // one resting in the box (holding a stone, or fed past its level) evolves there, quietly
+    for (const m of this.save.mons) {
+      if (out.has(m.id)) continue
+      const to = this.evolutionDue(m)
+      if (!to) continue
+      const from = this.name(m)
+      this.evolve(m, to)
+      this.emit({ type: 'boxEvolved', mon: m, from })
     }
   }
 
   endSession(complete = false, capped = false) {
     const s = this.save.session
     if (!s) return
+    // an Open session counts as complete only after 25 focused minutes (stopping at once used to pay)
+    if (!s.length && s.credited < OPEN_COMPLETE) complete = false
     this.save.session = null
     if (this.save.bait) {
       this.save.bait = null
@@ -746,7 +835,8 @@ export class Game {
     }
     let berries = 0
     if (complete) {
-      berries = s.length && s.length >= 50 * 60 ? 2 : 1
+      // Open sessions already ripen a berry every 30 minutes, so they get none at the end
+      berries = !s.length ? 0 : s.length >= 50 * 60 ? 2 : 1
       this.save.berries = Math.min(BERRIES_MAX, this.save.berries + berries)
       this.save.breakUntil = this.now() + BREAK_SECONDS * 1000
     }
@@ -830,6 +920,12 @@ export class Game {
     if (!this.canSail(to)) return false
     const s = this.save
     s.stash[s.island] = { habitats: s.habitats, decor: s.decor, finds: s.finds, bait: s.bait }
+    // each island keeps its own residents; your partner comes along
+    s.parties[s.island] = s.party
+    const busy = (id: string) => s.daycare.ids.includes(id) || Object.values(s.jobs).includes(id) || s.expedition?.id === id
+    const here = (s.parties[to] ?? []).filter((id) => this.mon(id) && !busy(id) && !this.isPartner(id))
+    s.party = s.partner && this.mon(s.partner) ? [s.partner, ...here] : here.length ? here : s.party.slice(0, 1)
+    delete s.parties[to]
     // jobs tied to a decoration on the island you leave stop until you return
     const next = s.stash[to] ?? { habitats: [], decor: { owned: s.decor.owned, slots: {} }, finds: [], bait: null }
     s.habitats = next.habitats
@@ -991,15 +1087,15 @@ export class Game {
   private work(n: number, rand = Math.random) {
     const s = this.save
     // eggs warm up, oldest first
-    for (const e of s.eggs.slice(0, EGG_MAX)) {
-      e.progress = Math.min(e.need, e.progress + n)
+    for (const e of s.eggs.slice(0, this.eggMax)) {
+      e.progress = Math.min(e.need, e.progress + (s.upgrades.includes('warmsand') ? n * 1.25 : n))
       if (e.progress >= e.need) this.hatch(e)
     }
     // the Day Care: two Pokémon together make an egg now and then
     const pair = s.daycare.ids.map((id) => id && this.mon(id)).filter(Boolean) as Mon[]
     if (pair.length === 2) {
       s.daycare.progress += n
-      if (s.daycare.progress >= DAYCARE_EVERY && s.eggs.length < EGG_MAX) {
+      if (s.daycare.progress >= DAYCARE_EVERY && s.eggs.length < this.eggMax) {
         s.daycare.progress = 0
         const parent = pair[Math.floor(rand() * 2)]
         this.addEgg(this.species(parent.dex)?.line ?? parent.dex, 'daycare')
@@ -1017,7 +1113,7 @@ export class Game {
       if (j.id === 'bush') s.berries = Math.min(BERRIES_MAX, s.berries + 1)
       if (j.id === 'dig') this.dig(rand, m.id)
       if (j.id === 'lookout') this.passerBy()
-      if (j.id === 'campfire') s.shells += 5
+      if (j.id === 'campfire') s.shells += 3
       this.emit({ type: 'job', job: j.id, mon: m })
     }
     // the expedition
@@ -1033,7 +1129,7 @@ export class Game {
     return r === 'rare' || r === 'starter' ? 120 : r === 'uncommon' ? 75 : 40
   }
   addEgg(dex: number, source: Egg['source']) {
-    if (this.save.eggs.length >= EGG_MAX) return null
+    if (this.save.eggs.length >= this.eggMax) return null
     const e: Egg = { id: Math.random().toString(36).slice(2, 10), dex, need: this.eggNeed(dex), progress: 0, source }
     this.save.eggs.push(e)
     this.persist()
@@ -1057,7 +1153,7 @@ export class Game {
     const m = this.mon(ex.id)
     this.save.expedition = null
     if (!m) return
-    const haul: Haul = { shells: ex.long ? 30 + m.level * 4 : 10 + m.level * 2, items: [] }
+    const haul: Haul = { shells: ex.long ? 40 + m.level : 10 + Math.floor(m.level / 2), items: [] }
     const pick = () => {
       const r = rand()
       if (r < 0.35) return { kind: 'berry' as const, n: 1 }
@@ -1067,12 +1163,14 @@ export class Game {
     }
     const count = ex.long ? 2 + Math.floor(rand() * 3) : 1 + Math.floor(rand() * 2)
     for (let i = 0; i < count; i++) haul.items.push(pick())
-    if (ex.long && rand() < 0.3 + m.level / 200) haul.items.push({ kind: 'star-piece', n: 1 })
+    if (ex.long && rand() < 0.2 + m.level / 400) haul.items.push({ kind: 'star-piece', n: 1 })
+    if (ex.long && rand() < 0.1) haul.items.push({ kind: 'stone', id: this.pickStone(rand), n: 1 })
     // apply
     this.save.shells += haul.shells
     for (const it of haul.items) {
       if (it.kind === 'berry') this.save.berries = Math.min(BERRIES_MAX, this.save.berries + it.n)
       else if (it.kind === 'star-piece') this.save.starPieces += it.n
+      else if (it.kind === 'stone') this.save.bag[it.id!] = (this.save.bag[it.id!] ?? 0) + it.n
       else if (it.kind === 'food') this.save.foods[it.id!] = (this.save.foods[it.id!] ?? 0) + it.n
       else this.save.balls[it.kind] += it.n
     }
@@ -1114,18 +1212,37 @@ export class Game {
   }
   /** A wild Pokémon arrives and settles in to wait for your break. */
   passerBy(s = this.save.session) {
-    if (this.save.wild.length >= WILD_MAX || this.passersToday() >= PASSERS_PER_DAY) return null
+    if (this.passersToday() >= PASSERS_PER_DAY) return null
     // longer sessions and sessions without step-aways draw rarer Pokémon
     const lure = this.lure(s)
     const mult = (lure.long ? RARE_50 : 1) * (lure.clean ? 1 : 0.6) * (this.together.length ? 1.3 : 1)
-    const { dex, level } = this.pickVisitor(mult, Math.random, lure)
+    // when the island is full, the newcomer takes the place of the most common one waiting,
+    // as long as it is at least as rare (so a long session never loses its later passers-by)
+    let bumped: Wild | null = null
+    if (this.save.wild.length >= this.wildMax) {
+      bumped = [...this.save.wild].filter((w) => !w.guide).sort((a, b) => this.rarityRank(a.dex) - this.rarityRank(b.dex))[0] ?? null
+      if (!bumped) return null
+    }
+    // passers-by have their own daily cap, so they don't use up the friendly visitor's (commit = false)
+    const { dex, level } = this.pickVisitor(mult, Math.random, lure, false)
+    if (bumped && this.rarityRank(dex) < this.rarityRank(bumped.dex)) return null
+    this.mark(dex, false)
     this.save.passers = { day: dayKey(this.now()), count: this.passersToday() + 1 }
+    if (bumped) {
+      this.save.wild = this.save.wild.filter((w) => w !== bumped)
+      this.emit({ type: 'wildLeave', ids: [bumped.id] })
+    }
     const w: Wild = { id: Math.random().toString(36).slice(2, 10), dex, level, tries: 0 }
     this.save.wild.push(w)
     this.persist()
     this.emit({ type: 'passer', wild: w })
     return w
   }
+  private rarityRank(dex: number) {
+    const r = this.species(dex)?.rarity
+    return r === 'rare' || r === 'starter' ? 2 : r === 'uncommon' ? 1 : 0
+  }
+
   // ---------- the tutorial ----------
   setTutorial(step: TutorialStep) {
     this.save.tutorial = step
@@ -1153,15 +1270,18 @@ export class Game {
   dig(rand = Math.random, by?: string) {
     if (this.save.finds.length >= 6) return null
     const r = rand()
-    if (r > 0.97 && this.save.eggs.length < EGG_MAX) return this.addEgg(this.randomEggDex(false), 'find') && null
+    if (r > 0.97 && this.save.eggs.length < this.eggMax) return this.addEgg(this.randomEggDex(false), 'find') && null
+    // review 2026-11-11: fewer Star Pieces (10% -> 4%), and a 2% chance of an evolution stone
     const f: Find =
-      r < 0.55
+      r < 0.58
         ? { id: '', kind: 'shells', n: 5 + Math.floor(rand() * 11) }
-        : r < 0.75
+        : r < 0.78
           ? { id: '', kind: 'berry', n: 1 }
-          : r < 0.9
+          : r < 0.94
             ? { id: '', kind: 'poke-ball', n: 1 }
-            : { id: '', kind: 'star-piece', n: 1 }
+            : r < 0.98
+              ? { id: '', kind: 'star-piece', n: 1 }
+              : { id: '', kind: 'stone', n: 1, item: this.pickStone(rand) }
     f.id = Math.random().toString(36).slice(2, 10)
     f.by = by
     this.save.finds.push(f)
@@ -1177,8 +1297,24 @@ export class Game {
     if (f.kind === 'berry') this.save.berries = Math.min(BERRIES_MAX, this.save.berries + f.n)
     if (f.kind === 'poke-ball') this.save.balls['poke-ball'] += f.n
     if (f.kind === 'star-piece') this.save.starPieces += f.n
+    if (f.kind === 'stone' && f.item) this.save.bag[f.item] = (this.save.bag[f.item] ?? 0) + f.n
     this.persist()
     return f
+  }
+
+  /** Every third new species you meet earns a Star Piece (review 2026-11-11: one each left 50 unspent). */
+  newSpeciesStar(isNew: boolean) {
+    if (!isNew || this.save.caught.length % 3 !== 0) return false
+    this.save.starPieces++
+    this.persist()
+    return true
+  }
+  /** A visitor that chose to stay: joins like a catch, including the new-species Star Piece. */
+  befriend(dex: number, level: number) {
+    const isNew = !this.save.caught.includes(dex)
+    const m = this.addMon(dex, level)
+    const star = this.newSpeciesStar(isNew)
+    return { mon: m, star }
   }
 
   // ---------- catching ----------
@@ -1200,7 +1336,7 @@ export class Game {
     return Math.min(0.97, base * mult * (0.7 + 0.6 * quality))
   }
   /** Throw a ball at a waiting Pokémon. Only between sessions. */
-  throwBall(id: string, ball: Ball, quality: number, rand = Math.random): { caught: boolean; shakes: number; mon?: Mon } | null {
+  throwBall(id: string, ball: Ball, quality: number, rand = Math.random): { caught: boolean; shakes: number; mon?: Mon; fled?: boolean } | null {
     const w = this.save.wild.find((x) => x.id === id)
     if (!w || this.save.session || this.save.balls[ball] <= 0) return null
     this.save.balls[ball]--
@@ -1208,15 +1344,21 @@ export class Game {
     const caught = rand() < p
     if (!caught) {
       w.tries++
+      // rare ones and other starters run off after three break-frees (so better balls matter)
+      if (w.tries >= FLEE_AFTER && !w.guide && this.rarityRank(w.dex) >= 2) {
+        this.save.wild = this.save.wild.filter((x) => x !== w)
+        this.persist()
+        return { caught, shakes: Math.min(2, Math.floor(rand() * 3 * p + 0.3)), fled: true }
+      }
       this.persist()
       // it breaks free after zero, one or two shakes; closer odds shake longer
       return { caught, shakes: Math.min(2, Math.floor(rand() * 3 * p + 0.3)) }
     }
     this.save.wild = this.save.wild.filter((x) => x !== w)
     const newSpecies = !this.save.caught.includes(w.dex)
-    if (newSpecies) this.save.starPieces++ // a new species earns a Star Piece toward habitats
     const mon = this.addMon(w.dex, w.level)
-    this.emit({ type: 'caught', wild: w, mon, newSpecies })
+    const star = this.newSpeciesStar(newSpecies)
+    this.emit({ type: 'caught', wild: w, mon, newSpecies, star })
     return { caught, shakes: 3, mon }
   }
 
@@ -1312,7 +1454,8 @@ export class Game {
       if (s.rarity === 'starter' && dex === starterLine) continue
       // gates: a habitat it needs, night-only, rare ones only in long sessions
       if (s.needs && !lure.habitats.includes(s.needs)) continue
-      if (s.time === 'night' && !night) continue
+      // by day, night species only come near the stone lantern, at a fifth of their odds
+      if (s.time === 'night' && !night && !lure.decor.includes('lantern')) continue
       if ((s.rarity === 'rare' || s.rarity === 'starter') && !lure.long) continue
       // base odds per visit in a long session: rare about 4%, each other starter about 2%
       let w = s.rarity === 'common' ? 10 : s.rarity === 'uncommon' ? 5 * Math.sqrt(boost) : s.rarity === 'rare' ? 4 * boost : 2 * boost
@@ -1322,6 +1465,7 @@ export class Game {
       for (const h of HABITATS) if (lure.habitats.includes(h.id) && likes(s.types, h.types)) w *= 2
       for (const d of lure.decor) if (DECOR_LOVES[d]?.includes(dex)) w *= 2
       if (s.time === 'morning' && morning) w *= 2
+      if (s.time === 'night' && !night) w *= 0.2
       table.push({ dex, w, rarity: s.rarity })
     }
     if (!table.length) table.push({ dex: 54, w: 1, rarity: 'common' })
