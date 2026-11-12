@@ -275,6 +275,62 @@
     "home"
    ]
   },
+  "35": {
+   "name": "Clefairy",
+   "types": [
+    "fairy"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 36,
+     "item": "moon-stone"
+    }
+   ],
+   "stage": 2,
+   "line": 173,
+   "islands": []
+  },
+  "36": {
+   "name": "Clefable",
+   "types": [
+    "fairy"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 173,
+   "islands": []
+  },
+  "37": {
+   "name": "Vulpix",
+   "types": [
+    "fire"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 38,
+     "item": "fire-stone"
+    }
+   ],
+   "stage": 1,
+   "line": 37,
+   "islands": [
+    "ember"
+   ],
+   "rarity": "uncommon",
+   "time": "night"
+  },
+  "38": {
+   "name": "Ninetales",
+   "types": [
+    "fire"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 37,
+   "islands": [
+    "ember"
+   ]
+  },
   "41": {
    "name": "Zubat",
    "types": [
@@ -400,6 +456,19 @@
     "frost"
    ]
   },
+  "59": {
+   "name": "Arcanine",
+   "types": [
+    "fire"
+   ],
+   "evolvesTo": [],
+   "stage": 1,
+   "line": 59,
+   "islands": [
+    "ember"
+   ],
+   "guardian": "ember"
+  },
   "60": {
    "name": "Poliwag",
    "types": [
@@ -475,11 +544,59 @@
     "rock",
     "ground"
    ],
-   "evolvesTo": [],
+   "evolvesTo": [
+    {
+     "dex": 76,
+     "trade": true
+    }
+   ],
    "stage": 2,
    "line": 74,
    "islands": [
     "home"
+   ]
+  },
+  "76": {
+   "name": "Golem",
+   "types": [
+    "rock",
+    "ground"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 74,
+   "islands": [
+    "home"
+   ]
+  },
+  "77": {
+   "name": "Ponyta",
+   "types": [
+    "fire"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 78,
+     "level": 40
+    }
+   ],
+   "stage": 1,
+   "line": 77,
+   "islands": [
+    "ember"
+   ],
+   "rarity": "uncommon"
+  },
+  "78": {
+   "name": "Rapidash",
+   "types": [
+    "fire"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 77,
+   "islands": [
+    "ember"
    ]
   },
   "86": {
@@ -572,11 +689,60 @@
     "ghost",
     "poison"
    ],
-   "evolvesTo": [],
+   "evolvesTo": [
+    {
+     "dex": 94,
+     "trade": true
+    }
+   ],
    "stage": 2,
    "line": 92,
    "islands": [
     "home"
+   ]
+  },
+  "94": {
+   "name": "Gengar",
+   "types": [
+    "ghost",
+    "poison"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 92,
+   "islands": [
+    "home"
+   ]
+  },
+  "104": {
+   "name": "Cubone",
+   "types": [
+    "ground"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 105,
+     "level": 28
+    }
+   ],
+   "stage": 1,
+   "line": 104,
+   "islands": [
+    "ember"
+   ],
+   "rarity": "uncommon",
+   "needs": "rocks"
+  },
+  "105": {
+   "name": "Marowak",
+   "types": [
+    "ground"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 104,
+   "islands": [
+    "ember"
    ]
   },
   "124": {
@@ -590,6 +756,18 @@
    "line": 238,
    "islands": [
     "frost"
+   ]
+  },
+  "126": {
+   "name": "Magmar",
+   "types": [
+    "fire"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 240,
+   "islands": [
+    "ember"
    ]
   },
   "131": {
@@ -914,6 +1092,68 @@
     "home"
    ]
   },
+  "172": {
+   "name": "Pichu",
+   "types": [
+    "electric"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 25,
+     "friendship": true,
+     "time": null
+    }
+   ],
+   "stage": 1,
+   "line": 172,
+   "islands": [],
+   "rarity": "baby"
+  },
+  "173": {
+   "name": "Cleffa",
+   "types": [
+    "fairy"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 35,
+     "friendship": true,
+     "time": null
+    }
+   ],
+   "stage": 1,
+   "line": 173,
+   "islands": [],
+   "rarity": "baby"
+  },
+  "175": {
+   "name": "Togepi",
+   "types": [
+    "fairy"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 176,
+     "friendship": true,
+     "time": null
+    }
+   ],
+   "stage": 1,
+   "line": 175,
+   "islands": [],
+   "rarity": "baby"
+  },
+  "176": {
+   "name": "Togetic",
+   "types": [
+    "fairy",
+    "flying"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 175,
+   "islands": []
+  },
   "179": {
    "name": "Mareep",
    "types": [
@@ -972,6 +1212,33 @@
    "islands": [
     "home"
    ]
+  },
+  "183": {
+   "name": "Marill",
+   "types": [
+    "water",
+    "fairy"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 184,
+     "level": 18
+    }
+   ],
+   "stage": 2,
+   "line": 298,
+   "islands": []
+  },
+  "184": {
+   "name": "Azumarill",
+   "types": [
+    "water",
+    "fairy"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 298,
+   "islands": []
   },
   "187": {
    "name": "Hoppip",
@@ -1088,7 +1355,13 @@
     "dark",
     "ice"
    ],
-   "evolvesTo": [],
+   "evolvesTo": [
+    {
+     "dex": 461,
+     "item": "razor-claw",
+     "time": "night"
+    }
+   ],
    "stage": 1,
    "line": 215,
    "islands": [
@@ -1096,6 +1369,37 @@
    ],
    "rarity": "uncommon",
    "time": "night"
+  },
+  "218": {
+   "name": "Slugma",
+   "types": [
+    "fire"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 219,
+     "level": 38
+    }
+   ],
+   "stage": 1,
+   "line": 218,
+   "islands": [
+    "ember"
+   ],
+   "rarity": "common"
+  },
+  "219": {
+   "name": "Magcargo",
+   "types": [
+    "fire",
+    "rock"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 218,
+   "islands": [
+    "ember"
+   ]
   },
   "220": {
    "name": "Swinub",
@@ -1129,6 +1433,44 @@
     "frost"
    ]
   },
+  "222": {
+   "name": "Corsola",
+   "types": [
+    "water",
+    "rock"
+   ],
+   "evolvesTo": [],
+   "stage": 1,
+   "line": 222,
+   "islands": [],
+   "rarity": "rare"
+  },
+  "223": {
+   "name": "Remoraid",
+   "types": [
+    "water"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 224,
+     "level": 25
+    }
+   ],
+   "stage": 1,
+   "line": 223,
+   "islands": [],
+   "rarity": "rare"
+  },
+  "224": {
+   "name": "Octillery",
+   "types": [
+    "water"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 223,
+   "islands": []
+  },
   "225": {
    "name": "Delibird",
    "types": [
@@ -1143,6 +1485,70 @@
    ],
    "rarity": "common",
    "time": "morning"
+  },
+  "228": {
+   "name": "Houndour",
+   "types": [
+    "dark",
+    "fire"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 229,
+     "level": 24
+    }
+   ],
+   "stage": 1,
+   "line": 228,
+   "islands": [
+    "ember"
+   ],
+   "rarity": "common",
+   "time": "night"
+  },
+  "229": {
+   "name": "Houndoom",
+   "types": [
+    "dark",
+    "fire"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 228,
+   "islands": [
+    "ember"
+   ]
+  },
+  "231": {
+   "name": "Phanpy",
+   "types": [
+    "ground"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 232,
+     "level": 25
+    }
+   ],
+   "stage": 1,
+   "line": 231,
+   "islands": [
+    "ember"
+   ],
+   "rarity": "common",
+   "time": "morning"
+  },
+  "232": {
+   "name": "Donphan",
+   "types": [
+    "ground"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 231,
+   "islands": [
+    "ember"
+   ]
   },
   "238": {
    "name": "Smoochum",
@@ -1162,6 +1568,24 @@
     "frost"
    ],
    "rarity": "uncommon"
+  },
+  "240": {
+   "name": "Magby",
+   "types": [
+    "fire"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 126,
+     "level": 30
+    }
+   ],
+   "stage": 1,
+   "line": 240,
+   "islands": [
+    "ember"
+   ],
+   "rarity": "rare"
   },
   "246": {
    "name": "Larvitar",
@@ -1334,6 +1758,24 @@
    "line": 258,
    "islands": []
   },
+  "298": {
+   "name": "Azurill",
+   "types": [
+    "normal",
+    "fairy"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 183,
+     "friendship": true,
+     "time": null
+    }
+   ],
+   "stage": 1,
+   "line": 298,
+   "islands": [],
+   "rarity": "baby"
+  },
   "304": {
    "name": "Aron",
    "types": [
@@ -1378,6 +1820,82 @@
    "line": 304,
    "islands": []
   },
+  "313": {
+   "name": "Volbeat",
+   "types": [
+    "bug"
+   ],
+   "evolvesTo": [],
+   "stage": 1,
+   "line": 313,
+   "islands": [
+    "home"
+   ],
+   "rarity": "uncommon",
+   "time": "night",
+   "season": "summer"
+  },
+  "314": {
+   "name": "Illumise",
+   "types": [
+    "bug"
+   ],
+   "evolvesTo": [],
+   "stage": 1,
+   "line": 314,
+   "islands": [
+    "home"
+   ],
+   "rarity": "uncommon",
+   "time": "night",
+   "season": "summer"
+  },
+  "322": {
+   "name": "Numel",
+   "types": [
+    "fire",
+    "ground"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 323,
+     "level": 33
+    }
+   ],
+   "stage": 1,
+   "line": 322,
+   "islands": [
+    "ember"
+   ],
+   "rarity": "common"
+  },
+  "323": {
+   "name": "Camerupt",
+   "types": [
+    "fire",
+    "ground"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 322,
+   "islands": [
+    "ember"
+   ]
+  },
+  "324": {
+   "name": "Torkoal",
+   "types": [
+    "fire"
+   ],
+   "evolvesTo": [],
+   "stage": 1,
+   "line": 324,
+   "islands": [
+    "ember"
+   ],
+   "rarity": "uncommon",
+   "needs": "spring"
+  },
   "361": {
    "name": "Snorunt",
    "types": [
@@ -1387,6 +1905,10 @@
     {
      "dex": 362,
      "level": 42
+    },
+    {
+     "dex": 478,
+     "item": "dawn-stone"
     }
    ],
    "stage": 1,
@@ -1722,6 +2244,19 @@
     "frost"
    ]
   },
+  "461": {
+   "name": "Weavile",
+   "types": [
+    "dark",
+    "ice"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 215,
+   "islands": [
+    "frost"
+   ]
+  },
   "470": {
    "name": "Leafeon",
    "types": [
@@ -1745,6 +2280,19 @@
    "line": 133,
    "islands": [
     "home",
+    "frost"
+   ]
+  },
+  "478": {
+   "name": "Froslass",
+   "types": [
+    "ice",
+    "ghost"
+   ],
+   "evolvesTo": [],
+   "stage": 2,
+   "line": 361,
+   "islands": [
     "frost"
    ]
   }

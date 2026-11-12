@@ -193,15 +193,25 @@ export class Scene {
 
   /** Place decorations by slot; also keeps their footprints clear of wandering Pokémon. */
   setDecor(slots: Record<string, string | null>) {
-    this.decor = []
-    this.decorBlockers = []
+    this.slotDecor = []
     for (const sl of SLOTS) {
       const id = slots[sl.id]
       const art = id ? decorArt(id) : undefined
       if (!art) continue
-      this.decor.push({ x: sl.x, y: sl.y, art })
-      this.decorBlockers.push({ x: sl.x, y: sl.y, r: art.r })
+      this.slotDecor.push({ x: sl.x, y: sl.y, art })
     }
+    this.mergeDecor()
+  }
+  /** Home Island's landmarks, ruined or restored (L1); drawn, lit and blocked like decorations. */
+  setLandmarks(list: { x: number; y: number; art: DecorArt }[]) {
+    this.landmarks = list
+    this.mergeDecor()
+  }
+  private slotDecor: { x: number; y: number; art: DecorArt }[] = []
+  private landmarks: { x: number; y: number; art: DecorArt }[] = []
+  private mergeDecor() {
+    this.decor = [...this.slotDecor, ...this.landmarks]
+    this.decorBlockers = this.decor.filter((d) => d.art.r).map((d) => ({ x: d.x, y: d.y, r: d.art.r }))
     this.rebuildBlockers()
   }
   /** Built habitats: the pond and rocks are art, the tall grass is more tufts. */

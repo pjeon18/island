@@ -28,6 +28,12 @@ export const CATALOG: DecorDef[] = [
   { id: 'snowman', name: 'Snowman', price: 300, blurb: 'A snowman with a stick scarf.', frost: true },
   { id: 'icecarving', name: 'Ice carving', price: 500, blurb: 'A clear ice carving that catches the light.', frost: true },
   { id: 'aurora', name: 'Aurora lamp', price: 800, blurb: 'At night it glows green, then violet.', frost: true },
+  // 2026-11-12 (docs/CONTENT_PLAN.md, L9): something for each species no decoration drew
+  { id: 'leafpile', name: 'Leaf pile', price: 50, blurb: 'A soft heap of fallen leaves.' },
+  { id: 'rockpool', name: 'Rock pool', price: 140, blurb: 'A ring of stones around clear sea water.' },
+  { id: 'lightningrod', name: 'Lightning rod', price: 180, blurb: 'A copper rod that hums in a storm.' },
+  { id: 'batroost', name: 'Bat roost', price: 200, blurb: 'A little wooden box for sleeping by day.' },
+  { id: 'mudpatch', name: 'Mud patch', price: 120, blurb: 'Warm mud, good for rolling in.', frost: true },
 ]
 
 /** Ground points on the grassy top where a decoration can stand. */
@@ -342,7 +348,91 @@ function aurora(): DecorArt {
   }
 }
 
-const PAINTERS: Record<string, () => DecorArt> = { flowers, stones, mushrooms, sign, bench, umbrella, lantern, campfire, windmill, snowman, icecarving, aurora }
+function leafpile(): DecorArt {
+  const p = new Pix(16, 9)
+  const cols = [hex('#d9893a'), hex('#c4632c'), hex('#e8b04a'), hex('#a8512a')]
+  for (let y = 2; y < 9; y++)
+    for (let x = 0; x < 16; x++) {
+      const d = ((x - 8) / 7.5) ** 2 + ((y - 8) / 6) ** 2
+      if (d < 1) p.set(x, y, cols[Math.floor(bayer(x * 3, y * 5) * 4)])
+    }
+  for (const [x, y] of [[4, 4], [9, 3], [12, 5], [7, 6]]) p.set(x, y, hex('#f0c870'))
+  outline(p, hex('#7a3a1c'))
+  return { img: p.toCanvas(), ax: 8, ay: 8, r: 6 }
+}
+function rockpool(): DecorArt {
+  const p = new Pix(22, 12)
+  for (let y = 0; y < 12; y++)
+    for (let x = 0; x < 22; x++) {
+      const d = ((x - 11) / 10.5) ** 2 + ((y - 6) / 5.5) ** 2
+      if (d >= 1) continue
+      if (d > 0.55) p.set(x, y, bayer(x, y) > 0.5 ? PAL.stone : x + y < 14 ? PAL.stoneLight : PAL.stoneDark)
+      else p.set(x, y, d > 0.35 ? PAL.sea : bayer(x, y) > 0.7 ? PAL.shallow2 : PAL.shallow)
+    }
+  outline(p, PAL.stoneDark)
+  return {
+    img: p.toCanvas(),
+    ax: 11,
+    ay: 11,
+    r: 9,
+    live: (g, x, y, t) => {
+      // a slow glint on the water
+      const k = (t % 5) / 5
+      g.fillStyle = 'rgba(255,255,255,0.7)'
+      g.fillRect(x - 4 + Math.round(k * 6), y - 6, 2, 1)
+    },
+  }
+}
+function lightningrod(): DecorArt {
+  const p = new Pix(8, 26)
+  const cu = hex('#d08a4a')
+  const cuDark = hex('#9a5a2c')
+  for (let y = 2; y < 22; y++) {
+    p.set(3, y, cu)
+    p.set(4, y, cuDark)
+  }
+  p.set(3, 1, hex('#f0c080'))
+  p.set(3, 0, hex('#f0c080'))
+  for (let y = 22; y < 26; y++) for (let x = 1; x < 7; x++) p.set(x, y, y === 22 ? PAL.stoneLight : PAL.stone)
+  outline(p, hex('#5a3418'))
+  return {
+    img: p.toCanvas(),
+    ax: 4,
+    ay: 25,
+    r: 4,
+    live: (g, x, y, t) => {
+      // a spark at the tip now and then, small and soft
+      if (t % 7 > 0.35) return
+      g.fillStyle = 'rgba(255,240,150,0.85)'
+      g.fillRect(x - 1, y - 27, 2, 1)
+      g.fillRect(x, y - 28, 1, 3)
+    },
+  }
+}
+function batroost(): DecorArt {
+  const p = new Pix(12, 24)
+  for (let y = 10; y < 24; y++) {
+    p.set(5, y, PAL.woodDark)
+    p.set(6, y, PAL.wood)
+  }
+  for (let y = 1; y < 11; y++) for (let x = 1; x < 11; x++) p.set(x, y, y === 1 ? PAL.woodLight : x < 3 ? PAL.woodLight : x > 8 ? PAL.woodDark : PAL.wood)
+  for (let x = 4; x < 8; x++) p.set(x, 9, hex('#2a1a0e')) // the slot underneath
+  for (let x = 0; x < 12; x++) p.set(x, 0, PAL.woodDark)
+  outline(p, PAL.woodGap)
+  return { img: p.toCanvas(), ax: 6, ay: 23, r: 4 }
+}
+function mudpatch(): DecorArt {
+  const p = new Pix(20, 9)
+  for (let y = 0; y < 9; y++)
+    for (let x = 0; x < 20; x++) {
+      const d = ((x - 10) / 9.5) ** 2 + ((y - 4.5) / 4.2) ** 2
+      if (d < 1) p.set(x, y, d > 0.6 ? hex('#7a5232') : bayer(x, y) > 0.6 ? hex('#8e6440') : hex('#6a4428'))
+    }
+  for (const [x, y] of [[6, 3], [13, 5], [9, 6]]) p.set(x, y, hex('#a87c52'))
+  return { img: p.toCanvas(), ax: 10, ay: 8, r: 0 }
+}
+
+const PAINTERS: Record<string, () => DecorArt> = { flowers, stones, mushrooms, sign, bench, umbrella, lantern, campfire, windmill, snowman, icecarving, aurora, leafpile, rockpool, lightningrod, batroost, mudpatch }
 const cache = new Map<string, DecorArt>()
 export function decorArt(id: string) {
   let a = cache.get(id)

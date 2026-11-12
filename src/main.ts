@@ -5,7 +5,8 @@ import './styles.css'
 import { Creature } from './creature'
 import * as cloud from './cloud'
 import { CATALOG, SLOTS, decorDef } from './decor'
-import { BALLS, Ball, FOODS, Find, Game, GameEvent, dayKey, HABITATS, Haul, ISLANDS, JOBS, Mon, RARE_50, Role, Roster, STONES, Weather, Wild, aStone, loadSave, stoneName } from './game'
+import { BALLS, Ball, FOODS, Find, GUIDE_DEX, Game, GameEvent, RESTORE, dayKey, HABITATS, Haul, ISLANDS, JOBS, Mon, RARE_LONG, Role, Roster, STONES, Weather, Wild, aStone, loadSave, stoneName } from './game'
+import { LANDMARK_SPOTS, landmarkArt } from './landmarks'
 import { HABITAT_SPOTS } from './habitats'
 import { CatchAnim } from './catch'
 import { Intro } from './intro'
@@ -260,8 +261,14 @@ async function syncParty(initial = false) {
 }
 
 /** Helpers stay near their work: the Day Care by the nest, the bush, the campfire, the end of the pier. */
+/** Home Island's landmarks (L1), ruined or restored; the lighthouse glows when a Generator keeps it lit. */
+function syncLandmarks() {
+  if (game.save.island !== 'home') return scene.setLandmarks([])
+  scene.setLandmarks(RESTORE.map((r) => ({ ...LANDMARK_SPOTS[r.id], art: landmarkArt(r.id, game.restored(r.id), r.id === 'lighthouse' && game.lighthouseLit) })))
+}
 function anchorFor(role: Role): { x: number; y: number; r: number } | undefined {
   if (role === 'daycare') return { x: NEST.x + 13, y: NEST.y + 3, r: 5 }
+  if (role === 'job:generator' && game.save.island === 'home') return { x: LANDMARK_SPOTS.lighthouse.x + 10, y: LANDMARK_SPOTS.lighthouse.y + 4, r: 4 }
   if (role === 'job:bush') return { x: scene.island.bush.x - 10, y: scene.island.bush.y + 4, r: 6 }
   if (role === 'job:lookout') {
     const d = scene.island.dock
@@ -315,7 +322,7 @@ let visiting = false
 async function runVisit(rareMult = 1) {
   if (visiting) return
   visiting = true
-  // a friendly visitor after a 50-minute session can be a rare one
+  // a friendly visitor after an hour-long session can be a rare one
   const { dex, level } = game.pickVisitor(rareMult, Math.random, { ...game.lure(), long: rareMult > 1 })
   const sp = await ensure(dex)
   const gp = scene.island.grassPatch
@@ -1087,7 +1094,7 @@ function onGame(e: GameEvent) {
       break
     case 'job':
       if (e.job === 'bush') hud.toast(`${game.name(e.mon)} watered the bush. A berry ripened.`)
-      game.note('other', e.job === 'bush' ? `${game.name(e.mon)} watered the bush.` : `${game.name(e.mon)} finished a job.`, { dex: e.mon.dex, key: `job:${e.mon.id}` })
+      game.note('other', e.job === 'bush' ? `${game.name(e.mon)} watered the bush.` : e.job === 'garden' ? `${game.name(e.mon)} grew some food in the garden.` : `${game.name(e.mon)} finished a job.`, { dex: e.mon.dex, key: `job:${e.mon.id}` })
       hud.refreshSheet()
       break
     case 'expeditionOut':
@@ -1103,6 +1110,16 @@ function onGame(e: GameEvent) {
       game.note('other', `Sailed to ${ISLANDS.find((i) => i.id === e.to)!.name}.`)
       sailAway(e.to)
       break
+    case 'restored': {
+      // a landmark rebuilt (L1): Wooper tells a little more of the story
+      const r = RESTORE.find((x) => x.id === e.id)!
+      syncLandmarks()
+      game.note('other', `Restored ${({ hut: 'the Pokémon Center hut', lighthouse: 'the lighthouse', pier: 'the old pier' } as Record<string, string>)[r.id]}.`)
+      r.story.forEach((text, i) => hud.say({ dex: GUIDE_DEX, emotion: i === 0 ? 'Happy' : 'Normal', text, wait: true }))
+      hud.say({ dex: GUIDE_DEX, text: r.opens, wait: true })
+      hud.refreshSheet()
+      break
+    }
     case 'guardian': {
       const isl = ISLANDS.find((i) => i.id === e.island)!
       if (e.win) game.note('catch', `Beat the guardian of ${isl.name}.`, { dex: isl.guardian.dex })
@@ -1206,6 +1223,7 @@ function onGame(e: GameEvent) {
       syncWild()
       syncFinds()
       scene.setDecor(game.save.decor.slots)
+      syncLandmarks()
       hud.refreshSheet()
       publishParty()
       break
@@ -1389,7 +1407,7 @@ async function popOut() {
 const CHEATS: { title: string; items: [string, string][] }[] = [
   { title: 'Start', items: [['fresh', 'Play from the beginning'], ['endgame', 'Almost-finished island'], ['tour', 'Replay the island tour'], ['restore', 'Restore my save']] },
   { title: 'Focus', items: [['session', 'Start a session'], ['m10', '+10 focused min'], ['m30', '+30 focused min'], ['m60', '+60 focused min'], ['finish', 'Finish the session'], ['end', 'End it early']] },
-  { title: 'Visitors', items: [['passer', 'A passer-by'], ['passer3', 'Three passers-by'], ['visit', 'Friendly visitor'], ['visit50', 'Visitor, 50-min odds']] },
+  { title: 'Visitors', items: [['passer', 'A passer-by'], ['passer3', 'Three passers-by'], ['visit', 'Friendly visitor'], ['visit50', 'Visitor, 1-hour odds']] },
   { title: 'Moments', items: [['find', 'A find'], ['w-rain', 'Rain'], ['w-fog', 'Fog'], ['w-sun', 'Sun'], ['w-snow', 'Snow'], ['w-clear', 'Clear sky']] },
   { title: 'Time', items: [['h-7', 'Morning'], ['h-13', 'Noon'], ['h-19', 'Dusk'], ['h-22', 'Night'], ['clock', 'My clock']] },
   { title: 'Growth', items: [['evolve', 'Lead ready to evolve'], ['stone', 'A stone washes ashore'], ['bond', 'Lead: 10 h bond'], ['lv20', 'Party to Lv 20'], ['strong', 'Party to Lv 34']] },
@@ -1454,7 +1472,7 @@ function buildEndgame() {
     if (m) g.assign(m.id, role as Role)
   g.addEgg(25, 'find')
   s.log = []
-  for (const [kind, text, n] of [['focus', 'Focused for 50 minutes. Two berries ripened.', 50], ['visit', 'A wild Eevee came by.', 1], ['catch', 'Caught Eevee.', 1], ['level', 'Charizard reached level 38.', 1]] as const) g.note(kind, text, { n })
+  for (const [kind, text, n] of [['focus', 'Focused for an hour. Two berries ripened.', 60], ['visit', 'A wild Eevee came by.', 1], ['catch', 'Caught Eevee.', 1], ['level', 'Charizard reached level 38.', 1]] as const) g.note(kind, text, { n })
   s.logSeen = 0
   g.persist()
 }
@@ -1485,7 +1503,7 @@ function cheat(d: string) {
   }
   if (d === 'end' && s()) game.endSession(false)
   if (d === 'visit') runVisit()
-  if (d === 'visit50') runVisit(RARE_50)
+  if (d === 'visit50') runVisit(RARE_LONG)
   if (d === 'passer') game.passerBy()
   if (d === 'passer3') for (let i = 0; i < 3; i++) game.passerBy()
   if (d === 'find') game.dig()
@@ -1659,7 +1677,7 @@ async function boot() {
       end: () => {
         const s = game.save.session
         if (!s) return
-        // a paused session ends as it is; an Open one counts as complete only after 25 minutes (game.ts)
+        // a paused session ends as it is; an Open one counts as complete only after 30 minutes (game.ts)
         if (s.state !== 'running') return game.endSession(false)
         if (!s.length) return game.endSession(true)
         if (hud.hasTag('endnow')) return // one "End now?" at a time
@@ -1862,6 +1880,7 @@ async function boot() {
     }
   }
   scene.setDecor(game.save.decor.slots)
+  syncLandmarks()
   scene.setHabitats(game.save.habitats)
   scene.setBait(game.save.bait)
   void placeGuardian()

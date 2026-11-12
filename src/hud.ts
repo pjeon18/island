@@ -5,7 +5,7 @@
 // the sheet, and the sheet's choices only unlock between sessions.
 import type { CloudState, Friend, FriendRequest, Me } from './cloud'
 import { CATALOG, SLOTS, decorDef } from './decor'
-import { BALLS, berryExp, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
+import { BALLS, RESTORE, berryExp, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
 
 const BASE = import.meta.env.BASE_URL
 export const portraitUrl = (dex: number, emo = 'Normal') => `${BASE}sprites/${String(dex).padStart(4, '0')}/${emo}.png`
@@ -49,7 +49,7 @@ const TABS: [Tab, string, string][] = [
 /** Sub-tabs inside a menu, so each view stays short instead of one long scroll. */
 const SUBS: Partial<Record<Tab, [string, string][]>> = {
   mons: [['party', 'Party'], ['helpers', 'Helpers'], ['box', 'Box'], ['eggs', 'Eggs'], ['bag', 'Bag']],
-  island: [['map', 'Island'], ['habitats', 'Habitats'], ['decor', 'Decor'], ['shop', 'Shop']],
+  island: [['map', 'Map'], ['restore', 'Landmarks'], ['habitats', 'Habitats'], ['decor', 'Decor'], ['shop', 'Shop']],
   more: [['focus', 'Focus'], ['settings', 'Settings'], ['credits', 'Credits']],
 }
 /**
@@ -304,7 +304,7 @@ export class Hud {
       this.lastFocusKey = key
       const len = g.save.settings.length
       const seg = (v: string, label: string, on: boolean) => `<button class="seg${on ? ' on' : ''}" data-f="len:${v}">${label}</button>`
-      const segs = `<div class="segs">${seg('25', '25 min', len === 1500)}${seg('50', '50 min', len === 3000)}${seg('open', 'Open', len === null)}</div>`
+      const segs = `<div class="segs">${seg('30', '30 min', len === 1800)}${seg('60', '1 hour', len === 3600)}${seg('open', 'Open', len === null)}</div>`
       this.focus.innerHTML =
         key === 'none'
           ? ''
@@ -618,9 +618,13 @@ export class Hud {
       const dc = s.daycare.ids.filter(Boolean).length
       const jobs = JOBS.map((j) => {
         const who = s.jobs[j.id] && g.mon(s.jobs[j.id]!)
-        return `<div class="job-row"><span>${j.name}</span><span class="hint">${who ? `${g.name(who)}, every ${jobEvery(j, who.level)} min` : `${j.types.map((t) => t[0].toUpperCase() + t.slice(1)).join(' or ')}${j.needsDecor ? ', campfire' : ''}`}</span></div>`
+        const needs = `${j.types.map((t) => t[0].toUpperCase() + t.slice(1)).join(' or ')}${j.needsDecor ? ', campfire' : ''}${j.needsLandmark && !g.restored(j.needsLandmark) ? ', after the lighthouse' : ''}`
+        const doing = !who ? needs : j.id === 'generator' ? `${g.name(who)}, the lighthouse is lit` : j.id === 'fortune' ? `${g.name(who)} sees` : `${g.name(who)}, every ${jobEvery(j, who.level)} min`
+        // the Fortune job: silhouettes of the three likeliest next visitors
+        const seen = who && j.id === 'fortune' ? `<span class="fortune">${g.likelyVisitors(3).map((d) => `<img class="silhouette" src="${portraitUrl(d)}" alt="" />`).join('')}</span>` : ''
+        return `<div class="job-row"><span>${j.name}</span><span class="hint">${doing}${seen}</span></div>`
       }).join('')
-      return locked + `<div class="job-row"><span>Day Care</span><span class="hint">${dc} of 2${dc === 2 ? `, egg every ${DAYCARE_EVERY} min` : ''}</span></div>${jobs}` + (helpers.length ? helpers.map((m) => this.monRow(m)).join('') : `<p class="hint">Nobody is helping yet. Pick one in Box or Party.</p>`)
+      return locked + `<div class="job-row"><span>Day Care</span><span class="hint">${dc} of ${s.daycare.ids.length}${dc >= 2 ? `, egg every ${dc >= 3 ? DAYCARE_EVERY / 1.5 : DAYCARE_EVERY} min` : ''}</span></div>${jobs}` + (helpers.length ? helpers.map((m) => this.monRow(m)).join('') : `<p class="hint">Nobody is helping yet. Pick one in Box or Party.</p>`)
     }
     if (view === 'box') {
       const box = s.mons.filter((m) => g.roleOf(m.id) === 'box')
@@ -656,10 +660,11 @@ export class Hud {
       return `Evolves ${list(ways)}.${bondLine(opts.some((e) => e.friendship))}`
     }
     const lv = opts.filter((e) => e.level).map((e) => `at level ${e.level} into ${g.name(e.dex)}`)
-    const st = opts.filter((e) => e.item).map((e) => `with ${aStone(e.item!)} into ${g.name(e.dex)}`)
+    const st = opts.filter((e) => e.item).map((e) => `with ${aStone(e.item!)}${e.time ? ` at ${e.time}` : ''} into ${g.name(e.dex)}`)
+    const tr = opts.filter((e) => e.trade).map((e) => `when traded into ${g.name(e.dex)}`)
     const fr = opts.filter((e) => e.friendship).map((e) => `by friendship ${e.time ? `during the ${e.time} ` : ''}into ${g.name(e.dex)}`)
     const bond = fr.length ? ` ${icon('soothe-bell', 'ico-s')}Bond ${fmtMinutes(Math.min(m.focusedMin, BOND_FOR_FRIENDSHIP))} of ${fmtMinutes(BOND_FOR_FRIENDSHIP)}.` : ''
-    return `Evolves ${list([...lv, ...st, ...fr])}.${bond}`
+    return `Evolves ${list([...lv, ...st, ...fr, ...tr])}.${bond}`
   }
   private monRow(m: Mon) {
     const g = this.game
@@ -830,6 +835,7 @@ export class Hud {
     if (view === 'map') return this.islandsHtml()
     const wallet = `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${g.save.shells}</b></span><span title="Star Pieces">${icon('star-piece')}<b>×${g.save.starPieces}</b></span></p>${locked ? '<p class="note">Locked while focusing.</p>' : ''}`
     if (view === 'habitats') return `${wallet}${habitats}`
+    if (view === 'restore') return wallet + this.landmarksHtml(locked)
     if (view === 'decor') return `${wallet.replace('</p>', `<span>${free} of ${open.length} spots free</span></p>`)}<div class="decor-grid">${rows}</div>`
     const upgrades = UPGRADES.map((u) => {
       const have = g.save.upgrades.includes(u.id)
@@ -839,6 +845,32 @@ export class Hud {
     return `${wallet}<p class="row-title">Balls</p>${shop}
       <p class="row-title">Food</p>${g.save.bait ? `<p class="note">${FOODS.find((f) => f.id === g.save.bait)?.name} is out until the session ends.</p>` : ''}${food}
       <p class="row-title">Upgrades</p>${upgrades}`
+  }
+
+  /**
+   * Home Island's landmarks (L1): each one's needs as trainer-card rows, in order. Only the
+   * next one can be restored; the ones after it show what they will need.
+   */
+  private landmarksHtml(locked: boolean) {
+    const g = this.game
+    const next = g.nextLandmark
+    const row = (label: string, have: string, ok: boolean) => `<p class="${ok ? 'ok' : ''}"><span>${label}</span><b>${have}</b></p>`
+    return RESTORE.map((r) => {
+      if (g.restored(r.id)) return `<div class="landmark done"><p class="row-title">${r.name}</p><p class="hint">Restored. ${r.opens}</p></div>`
+      const p = g.restoreProgress(r.id)
+      const isNext = next?.id === r.id
+      const rows = [
+        row('Focused hours', `${Math.floor(Math.min(p.hours, r.hours))} of ${r.hours}`, p.hours >= r.hours),
+        row('Species', `${Math.min(p.species, r.species)} of ${r.species}`, p.species >= r.species),
+        row('Shells', `${r.shells}`, p.shells >= r.shells),
+        row('Star Pieces', `${r.stars}`, p.stars >= r.stars),
+        ...(r.guardian ? [row(`Beat ${g.name(ISLANDS.find((i) => i.id === r.guardian)!.guardian.dex)}`, p.guardian ? 'Done' : 'Not yet', p.guardian)] : []),
+      ].join('')
+      const act = isNext
+        ? `<button class="px-btn small${p.ready ? ' primary' : ''}" data-restore="${r.id}" ${!p.ready || locked ? 'disabled' : ''}>Restore</button>`
+        : `<span class="hint">After the ${RESTORE.indexOf(r) === 1 ? 'hut' : 'lighthouse'}</span>`
+      return `<div class="landmark"><p class="row-title">${r.name}</p><div class="stat-rows">${rows}</div><p class="hint">${r.opens}</p><div class="row-actions row">${act}</div></div>`
+    }).join('') + (g.save.island !== 'home' ? `<p class="hint">The landmarks are on Home Island.</p>` : `<p class="hint">Minutes focused with a friend count twice.</p>`)
   }
 
   // ---------- the journal ----------
@@ -970,8 +1002,8 @@ export class Hud {
     return `
       <p class="row-title">Session length</p>
       <div class="segs wide">
-        <button class="seg${len === 1500 ? ' on' : ''}" data-len="25">25 min</button>
-        <button class="seg${len === 3000 ? ' on' : ''}" data-len="50">50 min</button>
+        <button class="seg${len === 1800 ? ' on' : ''}" data-len="30">30 min</button>
+        <button class="seg${len === 3600 ? ' on' : ''}" data-len="60">1 hour</button>
         <button class="seg${len === null ? ' on' : ''}" data-len="open">Open</button>
       </div>
       <p class="row-title">Today</p>
@@ -989,6 +1021,11 @@ export class Hud {
     const subAt = at('sub')
     if (subAt) {
       this.sub[this.tab] = subAt
+      return this.renderSheet()
+    }
+    const rs = at('restore')
+    if (rs) {
+      if (!this.game.restore(rs)) this.note = 'Not ready yet.'
       return this.renderSheet()
     }
     const up = at('upgrade')

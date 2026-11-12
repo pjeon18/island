@@ -1550,6 +1550,392 @@
     ]
    }
   },
+  "0035": {
+   "name": "Clefairy",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      30,
+      3,
+      4,
+      5,
+      4,
+      3
+     ]
+    },
+    "Walk": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      8,
+      4,
+      8,
+      4,
+      8,
+      4,
+      8,
+      4
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 24,
+     "h": 80,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "estelstarlight",
+      "contact": "https://estelstarlight.tumblr.com/post/186838449949"
+     }
+    ]
+   }
+  },
+  "0036": {
+   "name": "Clefable",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 48,
+     "durations": [
+      30,
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 48,
+     "durations": [
+      8,
+      6,
+      6,
+      6,
+      8,
+      6,
+      6,
+      6
+     ]
+    },
+    "Sleep": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 88,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "jackolanternjackalope",
+      "contact": "https://www.instagram.com/jackolanternjackalope/"
+     },
+     {
+      "name": "Gust",
+      "contact": "https://twitter.com/Estelaris__"
+     }
+    ]
+   }
+  },
+  "0037": {
+   "name": "Vulpix",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      40,
+      12,
+      20,
+      12
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      6,
+      4,
+      4,
+      4,
+      6
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 24,
+     "h": 80,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    },
+    "Eat": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      6,
+      8,
+      6,
+      8
+     ]
+    },
+    "Laying": {
+     "w": 24,
+     "h": 16,
+     "durations": [
+      12
+     ]
+    },
+    "Nod": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      6,
+      8,
+      6
+     ]
+    },
+    "LookUp": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      6,
+      6,
+      6
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ]
+   }
+  },
+  "0038": {
+   "name": "Ninetales",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 40,
+     "h": 40,
+     "durations": [
+      60,
+      10,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      10
+     ]
+    },
+    "Walk": {
+     "w": 40,
+     "h": 40,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 40,
+     "h": 96,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      3,
+      3,
+      3,
+      3,
+      2,
+      1,
+      2
+     ]
+    },
+    "Eat": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      6,
+      8,
+      6,
+      8
+     ]
+    },
+    "Laying": {
+     "w": 32,
+     "h": 24,
+     "durations": [
+      12
+     ]
+    },
+    "Nod": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      6,
+      8,
+      6
+     ]
+    },
+    "LookUp": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      6,
+      6,
+      6
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "baronessfaron",
+      "contact": ""
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "baronessfaron",
+      "contact": ""
+     }
+    ]
+   }
+  },
   "0041": {
    "name": "Zubat",
    "shadowSize": 0,
@@ -2087,6 +2473,75 @@
     ]
    }
   },
+  "0059": {
+   "name": "Arcanine",
+   "shadowSize": 2,
+   "anims": {
+    "Idle": {
+     "w": 40,
+     "h": 48,
+     "durations": [
+      8
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 48,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 40,
+     "h": 96,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "baronessfaron",
+      "contact": ""
+     }
+    ]
+   }
+  },
   "0060": {
    "name": "Poliwag",
    "shadowSize": 1,
@@ -2469,6 +2924,289 @@
      },
      {
       "name": "Tainted#3886",
+      "contact": ""
+     }
+    ]
+   }
+  },
+  "0076": {
+   "name": "Golem",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      30,
+      25
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      8,
+      12,
+      8,
+      12
+     ]
+    },
+    "Sleep": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 88,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Emmuffin",
+      "contact": "https://twitter.com/Ernmuffin"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "baronessfaron",
+      "contact": ""
+     }
+    ]
+   }
+  },
+  "0077": {
+   "name": "Ponyta",
+   "shadowSize": 0,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      60,
+      10,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      10
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 88,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    },
+    "Eat": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      6,
+      8,
+      6,
+      8
+     ]
+    },
+    "Laying": {
+     "w": 32,
+     "h": 24,
+     "durations": [
+      12
+     ]
+    },
+    "Nod": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      6,
+      8,
+      6
+     ]
+    },
+    "LookUp": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      6,
+      6
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "JFain",
+      "contact": ""
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "deltaflare",
+      "contact": "<@555360707617488904>"
+     },
+     {
+      "name": "baronessfaron",
+      "contact": ""
+     }
+    ]
+   }
+  },
+  "0078": {
+   "name": "Rapidash",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 40,
+     "h": 56,
+     "durations": [
+      60,
+      10,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      10
+     ]
+    },
+    "Walk": {
+     "w": 40,
+     "h": 56,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 40,
+     "h": 104,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "deltaflare",
+      "contact": "<@555360707617488904>"
+     },
+     {
+      "name": "baronessfaron",
       "contact": ""
      }
     ]
@@ -2947,6 +3685,323 @@
     ]
    }
   },
+  "0094": {
+   "name": "Gengar",
+   "shadowSize": 2,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      40,
+      4,
+      3,
+      3,
+      3,
+      3,
+      3,
+      4
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 80,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    },
+    "Eat": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      6,
+      8,
+      6,
+      8
+     ]
+    },
+    "Laying": {
+     "w": 32,
+     "h": 24,
+     "durations": [
+      30
+     ]
+    },
+    "Nod": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      6,
+      8,
+      6
+     ]
+    },
+    "LookUp": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      6,
+      6,
+      6
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Emboarger",
+      "contact": ""
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ]
+   }
+  },
+  "0104": {
+   "name": "Cubone",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      40,
+      1,
+      2,
+      3,
+      2,
+      1
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 80,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    },
+    "Eat": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      6,
+      8,
+      6,
+      8
+     ]
+    },
+    "Laying": {
+     "w": 32,
+     "h": 24,
+     "durations": [
+      12
+     ]
+    },
+    "Nod": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      10,
+      8,
+      12,
+      8,
+      4
+     ]
+    },
+    "LookUp": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      6,
+      6
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Emmuffin",
+      "contact": "https://twitter.com/Ernmuffin"
+     },
+     {
+      "name": "Sceptile",
+      "contact": ""
+     },
+     {
+      "name": "Some_Shinx",
+      "contact": "<@1519393734008115314>"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Felis-Licht",
+      "contact": "https://www.deviantart.com/felis-licht/"
+     },
+     {
+      "name": "Morei",
+      "contact": "https://bsky.app/profile/murpia57.bsky.social"
+     },
+     {
+      "name": "Emmuffin",
+      "contact": "https://twitter.com/Ernmuffin"
+     }
+    ]
+   }
+  },
+  "0105": {
+   "name": "Marowak",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 48,
+     "durations": [
+      40,
+      6,
+      16,
+      6
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 88,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "JFain",
+      "contact": ""
+     },
+     {
+      "name": "Emmuffin",
+      "contact": "https://twitter.com/Ernmuffin"
+     }
+    ]
+   }
+  },
   "0124": {
    "name": "Jynx",
    "shadowSize": 2,
@@ -3010,6 +4065,77 @@
      {
       "name": "CHUNSOFT",
       "contact": "https://www.spike-chunsoft.com/"
+     }
+    ]
+   }
+  },
+  "0126": {
+   "name": "Magmar",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 48,
+     "durations": [
+      40,
+      6,
+      12,
+      6
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 48,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 40,
+     "h": 88,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Caitemis",
+      "contact": "https://caitemis-art.tumblr.com/"
      }
     ]
    }
@@ -4935,6 +6061,397 @@
     ]
    }
   },
+  "0172": {
+   "name": "Pichu",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 48,
+     "durations": [
+      32,
+      4,
+      6,
+      6
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 48,
+     "durations": [
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 88,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    },
+    "Eat": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      6,
+      8,
+      6,
+      8
+     ]
+    },
+    "Laying": {
+     "w": 32,
+     "h": 24,
+     "durations": [
+      30
+     ]
+    },
+    "Nod": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      6,
+      8,
+      6
+     ]
+    },
+    "LookUp": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      6,
+      6,
+      6
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Spikey-Valentine",
+      "contact": "https://twitter.com/spikeyvalentine"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "C_Pariah",
+      "contact": "<@322382592202637322>"
+     }
+    ]
+   }
+  },
+  "0173": {
+   "name": "Cleffa",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      36,
+      18
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      8,
+      6,
+      6,
+      6,
+      8,
+      6,
+      6,
+      6
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 24,
+     "h": 80,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "JFain",
+      "contact": ""
+     },
+     {
+      "name": "Deleca7755",
+      "contact": "<https://www.deviantart.com/deleca-7755>"
+     },
+     {
+      "name": "baronessfaron",
+      "contact": ""
+     }
+    ]
+   }
+  },
+  "0175": {
+   "name": "Togepi",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      30,
+      8,
+      10,
+      8
+     ]
+    },
+    "Walk": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      8,
+      6,
+      8,
+      8,
+      6,
+      8
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 24,
+     "h": 72,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "JFain",
+      "contact": ""
+     },
+     {
+      "name": "baronessfaron",
+      "contact": ""
+     }
+    ]
+   }
+  },
+  "0176": {
+   "name": "Togetic",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 24,
+     "h": 48,
+     "durations": [
+      30,
+      4,
+      3,
+      3,
+      3,
+      4
+     ]
+    },
+    "Walk": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 24,
+     "h": 88,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    },
+    "Eat": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      6,
+      8,
+      6,
+      8
+     ]
+    },
+    "Laying": {
+     "w": 32,
+     "h": 16,
+     "durations": [
+      12
+     ]
+    },
+    "Nod": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      6,
+      8,
+      6
+     ]
+    },
+    "LookUp": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      6,
+      6
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Emmuffin",
+      "contact": "https://twitter.com/Ernmuffin"
+     },
+     {
+      "name": "XModxGodX",
+      "contact": ""
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Emmuffin",
+      "contact": "https://twitter.com/Ernmuffin"
+     }
+    ]
+   }
+  },
   "0179": {
    "name": "Mareep",
    "shadowSize": 1,
@@ -5303,6 +6820,194 @@
      {
       "name": "gromchurch",
       "contact": "https://twitter.com/poongis2"
+     }
+    ]
+   }
+  },
+  "0183": {
+   "name": "Marill",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      26,
+      16
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      10,
+      8,
+      10,
+      8
+     ]
+    },
+    "Sleep": {
+     "w": 40,
+     "h": 24,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 40,
+     "h": 96,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    },
+    "Eat": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      6,
+      8,
+      6,
+      8
+     ]
+    },
+    "Laying": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      12
+     ]
+    },
+    "Nod": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      6,
+      8,
+      6
+     ]
+    },
+    "LookUp": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      6,
+      6
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "JFain",
+      "contact": ""
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Fearless-Quit",
+      "contact": ""
+     },
+     {
+      "name": "Jarleypeño",
+      "contact": "https://www.deviantart.com/applecone413"
+     }
+    ]
+   }
+  },
+  "0184": {
+   "name": "Azumarill",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 48,
+     "durations": [
+      30,
+      6,
+      6,
+      6
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 88,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Emmuffin",
+      "contact": "https://twitter.com/Ernmuffin"
+     },
+     {
+      "name": "ShyStarryRain",
+      "contact": ""
      }
     ]
    }
@@ -6103,6 +7808,148 @@
     ]
    }
   },
+  "0218": {
+   "name": "Slugma",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      10,
+      6,
+      34,
+      6
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      14,
+      8,
+      16,
+      8
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 80,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "JFain",
+      "contact": ""
+     }
+    ]
+   }
+  },
+  "0219": {
+   "name": "Magcargo",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      30,
+      12
+     ]
+    },
+    "Walk": {
+     "w": 40,
+     "h": 40,
+     "durations": [
+      8,
+      12,
+      8,
+      12
+     ]
+    },
+    "Sleep": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 88,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "JFain",
+      "contact": ""
+     }
+    ]
+   }
+  },
   "0220": {
    "name": "Swinub",
    "shadowSize": 1,
@@ -6280,6 +8127,236 @@
     ]
    }
   },
+  "0222": {
+   "name": "Corsola",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      52,
+      4,
+      4
+     ]
+    },
+    "Walk": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 24,
+     "h": 80,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Emmuffin",
+      "contact": "https://twitter.com/Ernmuffin"
+     },
+     {
+      "name": "Fearless-Quit",
+      "contact": ""
+     }
+    ]
+   }
+  },
+  "0223": {
+   "name": "Remoraid",
+   "shadowSize": 0,
+   "anims": {
+    "Idle": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      8,
+      8,
+      10,
+      10,
+      8,
+      8,
+      10,
+      10
+     ]
+    },
+    "Walk": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      8,
+      8,
+      8,
+      8
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      8,
+      8,
+      26,
+      8,
+      8,
+      26
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 80,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "JFain",
+      "contact": ""
+     },
+     {
+      "name": "Caitemis",
+      "contact": "https://caitemis-art.tumblr.com/"
+     }
+    ]
+   }
+  },
+  "0224": {
+   "name": "Octillery",
+   "shadowSize": 2,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      24,
+      20
+     ]
+    },
+    "Walk": {
+     "w": 40,
+     "h": 40,
+     "durations": [
+      10,
+      12,
+      8,
+      16,
+      8
+     ]
+    },
+    "Sleep": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 40,
+     "h": 72,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Top_Kec",
+      "contact": "@topkec.bsky.social"
+     }
+    ]
+   }
+  },
   "0225": {
    "name": "Delibird",
    "shadowSize": 1,
@@ -6394,6 +8471,404 @@
     ]
    }
   },
+  "0228": {
+   "name": "Houndour",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 48,
+     "durations": [
+      60,
+      10,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      10
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 88,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    },
+    "Eat": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      6,
+      8,
+      6,
+      8
+     ]
+    },
+    "Laying": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      12
+     ]
+    },
+    "Nod": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      6,
+      8,
+      6
+     ]
+    },
+    "LookUp": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      6,
+      6,
+      6
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "JFain",
+      "contact": ""
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "JFain",
+      "contact": ""
+     },
+     {
+      "name": "Gust",
+      "contact": "https://twitter.com/Estelaris__"
+     }
+    ]
+   }
+  },
+  "0229": {
+   "name": "Houndoom",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 40,
+     "h": 64,
+     "durations": [
+      60,
+      10,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      2,
+      10
+     ]
+    },
+    "Walk": {
+     "w": 40,
+     "h": 56,
+     "durations": [
+      8,
+      12,
+      8,
+      12
+     ]
+    },
+    "Sleep": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 40,
+     "h": 104,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "PhillipsYoung",
+      "contact": "https://twitter.com/PhilliYoung196"
+     },
+     {
+      "name": "",
+      "contact": ""
+     },
+     {
+      "name": "Morei",
+      "contact": "https://bsky.app/profile/murpia57.bsky.social"
+     }
+    ]
+   }
+  },
+  "0231": {
+   "name": "Phanpy",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      40,
+      8,
+      20,
+      8
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      6,
+      8,
+      6,
+      8
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 80,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    },
+    "Eat": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      6,
+      8,
+      6,
+      8
+     ]
+    },
+    "Laying": {
+     "w": 32,
+     "h": 24,
+     "durations": [
+      12
+     ]
+    },
+    "Nod": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      6,
+      8,
+      6
+     ]
+    },
+    "LookUp": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      6,
+      6,
+      6
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ]
+   }
+  },
+  "0232": {
+   "name": "Donphan",
+   "shadowSize": 2,
+   "anims": {
+    "Idle": {
+     "w": 40,
+     "h": 56,
+     "durations": [
+      40,
+      8,
+      20,
+      8
+     ]
+    },
+    "Walk": {
+     "w": 40,
+     "h": 32,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 32,
+     "h": 24,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 40,
+     "h": 96,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Emmuffin",
+      "contact": "https://twitter.com/Ernmuffin"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Emboarger",
+      "contact": ""
+     },
+     {
+      "name": "G〜",
+      "contact": "https://bsky.app/profile/justtr4sh.pmd.social"
+     }
+    ]
+   }
+  },
   "0238": {
    "name": "Smoochum",
    "shadowSize": 1,
@@ -6502,6 +8977,118 @@
      {
       "name": "Gust",
       "contact": "https://twitter.com/Estelaris__"
+     }
+    ]
+   }
+  },
+  "0240": {
+   "name": "Magby",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 24,
+     "h": 48,
+     "durations": [
+      30,
+      2,
+      3,
+      4,
+      3,
+      2
+     ]
+    },
+    "Walk": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 24,
+     "h": 88,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    },
+    "Eat": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      6,
+      8,
+      6,
+      8
+     ]
+    },
+    "Laying": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      12
+     ]
+    },
+    "Nod": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      6,
+      8,
+      6
+     ]
+    },
+    "LookUp": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      6,
+      6
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Emboarger",
+      "contact": ""
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "JFain",
+      "contact": ""
      }
     ]
    }
@@ -7610,6 +10197,81 @@
     ]
    }
   },
+  "0298": {
+   "name": "Azurill",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 24,
+     "h": 32,
+     "durations": [
+      16,
+      10,
+      16,
+      10
+     ]
+    },
+    "Walk": {
+     "w": 40,
+     "h": 40,
+     "durations": [
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "Sleep": {
+     "w": 32,
+     "h": 24,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 48,
+     "h": 88,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Fable",
+      "contact": "https://twitter.com/fabledpainter"
+     }
+    ]
+   }
+  },
   "0304": {
    "name": "Aron",
    "shadowSize": 1,
@@ -7875,6 +10537,380 @@
      {
       "name": "baronessfaron",
       "contact": ""
+     }
+    ]
+   }
+  },
+  "0313": {
+   "name": "Volbeat",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      30,
+      8,
+      4,
+      8,
+      4,
+      8,
+      4,
+      8
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 56,
+     "durations": [
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 88,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "JFain",
+      "contact": ""
+     },
+     {
+      "name": "NOLASMOR",
+      "contact": ""
+     }
+    ]
+   }
+  },
+  "0314": {
+   "name": "Illumise",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      30,
+      20
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 56,
+     "durations": [
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4,
+      4
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 24,
+     "h": 88,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "JFain",
+      "contact": ""
+     }
+    ]
+   }
+  },
+  "0322": {
+   "name": "Numel",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 40,
+     "h": 40,
+     "durations": [
+      40,
+      8,
+      12,
+      8
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 32,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 80,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Emmuffin",
+      "contact": "https://twitter.com/Ernmuffin"
+     }
+    ]
+   }
+  },
+  "0323": {
+   "name": "Camerupt",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 40,
+     "h": 48,
+     "durations": [
+      8,
+      20,
+      8,
+      20
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 40,
+     "h": 88,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "JFain",
+      "contact": ""
+     }
+    ]
+   }
+  },
+  "0324": {
+   "name": "Torkoal",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      40,
+      20,
+      20,
+      20
+     ]
+    },
+    "Walk": {
+     "w": 40,
+     "h": 32,
+     "durations": [
+      8,
+      10,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 24,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 80,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "Gust",
+      "contact": "https://twitter.com/Estelaris__"
      }
     ]
    }
@@ -9851,6 +12887,84 @@
     ]
    }
   },
+  "0461": {
+   "name": "Weavile",
+   "shadowSize": 1,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 48,
+     "durations": [
+      60,
+      20
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 48,
+     "durations": [
+      8,
+      8,
+      8,
+      8
+     ]
+    },
+    "Sleep": {
+     "w": 32,
+     "h": 40,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 88,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "JFain",
+      "contact": ""
+     },
+     {
+      "name": "PhillipsYoung",
+      "contact": "https://twitter.com/PhilliYoung196"
+     },
+     {
+      "name": "ShyStarryRain",
+      "contact": ""
+     }
+    ]
+   }
+  },
   "0470": {
    "name": "Leafeon",
    "shadowSize": 1,
@@ -10081,6 +13195,96 @@
      {
       "name": "PhillipsYoung",
       "contact": "https://twitter.com/PhilliYoung196"
+     }
+    ]
+   }
+  },
+  "0478": {
+   "name": "Froslass",
+   "shadowSize": 0,
+   "anims": {
+    "Idle": {
+     "w": 32,
+     "h": 48,
+     "durations": [
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6,
+      6
+     ]
+    },
+    "Walk": {
+     "w": 32,
+     "h": 48,
+     "durations": [
+      6,
+      4,
+      8,
+      10,
+      6,
+      4,
+      8,
+      10
+     ]
+    },
+    "Sleep": {
+     "w": 24,
+     "h": 40,
+     "durations": [
+      30,
+      35
+     ]
+    },
+    "Hop": {
+     "w": 32,
+     "h": 96,
+     "durations": [
+      2,
+      1,
+      2,
+      3,
+      4,
+      4,
+      3,
+      2,
+      1,
+      2
+     ]
+    }
+   },
+   "portraits": [
+    "Normal",
+    "Happy"
+   ],
+   "credits": {
+    "sprite": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     }
+    ],
+    "portrait": [
+     {
+      "name": "CHUNSOFT",
+      "contact": "https://www.spike-chunsoft.com/"
+     },
+     {
+      "name": "JFain",
+      "contact": ""
+     },
+     {
+      "name": "baronessfaron",
+      "contact": ""
      }
     ]
    }

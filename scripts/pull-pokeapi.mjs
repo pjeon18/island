@@ -40,7 +40,8 @@ async function addSpecies(dex, extra) {
   return s
 }
 
-const STONES = new Set(['thunder-stone', 'water-stone', 'fire-stone', 'leaf-stone', 'ice-stone', 'sun-stone', 'moon-stone'])
+const STONES = new Set(['thunder-stone', 'water-stone', 'fire-stone', 'leaf-stone', 'ice-stone', 'sun-stone', 'moon-stone', 'dawn-stone'])
+const HELD = new Set(['razor-claw'])
 const MAX_DEX = 493 // Gens 1–4 only (complete PMD Collab coverage)
 
 /**
@@ -48,7 +49,9 @@ const MAX_DEX = 493 // Gens 1–4 only (complete PMD Collab coverage)
  *  - plain level-up                      → { level }
  *  - a stone                             → { item }
  *  - friendship, optionally by day/night → { friendship: true, time }
- * Anything else (trade, location, held item…) is skipped.
+ *  - a held Razor Claw at night          → { item, time }
+ *  - a plain trade                       → { trade: true }
+ * Anything else (location, trades with items…) is skipped.
  */
 function method(details) {
   const extras = (d, allowed) =>
@@ -57,7 +60,17 @@ function method(details) {
     if (d.trigger?.name === 'level-up' && d.min_level && extras(d, ['min_level']).length === 0) return { level: d.min_level }
   }
   for (const d of details) {
-    if (d.trigger?.name === 'use-item' && STONES.has(d.item?.name) && extras(d, ['item']).length === 0) return { item: d.item.name }
+    // the Dawn Stone's gender rule is ignored (2026-11-12: Snorunt into Froslass)
+    if (d.trigger?.name === 'use-item' && STONES.has(d.item?.name) && extras(d, ['item', 'gender']).length === 0) return { item: d.item.name }
+  }
+  for (const d of details) {
+    // a held item (Razor Claw) works like a stone: hold it through a session, at the right time of day
+    if (d.trigger?.name === 'level-up' && HELD.has(d.held_item?.name) && extras(d, ['held_item', 'time_of_day']).length === 0)
+      return { item: d.held_item.name, time: d.time_of_day || null }
+  }
+  for (const d of details) {
+    // plain trades (Haunter, Graveler) finish by trading with a friend or the pier's sailor
+    if (d.trigger?.name === 'trade' && extras(d, []).length === 0) return { trade: true }
   }
   for (const d of details) {
     if (d.trigger?.name === 'level-up' && d.min_happiness && extras(d, ['min_happiness', 'time_of_day']).length === 0)
@@ -71,6 +84,7 @@ for (const line of LINES) {
   if (line.rarity) extra.rarity = line.rarity
   if (line.needs) extra.needs = line.needs
   if (line.time) extra.time = line.time
+  if (line.season) extra.season = line.season
   if (line.guardian) extra.guardian = line.guardian
   const s = await addSpecies(line.dex, extra)
   if (line.guardian) continue // guardians do not evolve on the island
@@ -84,6 +98,8 @@ for (const line of LINES) {
       const m = method(next.evolution_details)
       if (!m || to > MAX_DEX) continue
       species[from].evolvesTo.push({ dex: to, ...m })
+      // a baby line (Pichu) evolves into a line that is already on the roster (Pikachu): link, don't overwrite
+      if (species[to] && species[to].line !== line.dex) continue
       await addSpecies(to, { stage: stage + 1, line: line.dex, islands: extra.islands })
       await walk(next, stage + 1)
     }

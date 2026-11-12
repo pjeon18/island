@@ -59,7 +59,32 @@ export const LINES = [
   { dex: 304, rarity: 'deep', islands: [] }, // Aron, deep in Pier Hollow
   { dex: 147, rarity: 'deep', islands: [] }, // Dratini, deep in Glacier Grotto
 
+  // ---------- hatched only (2026-11-12, docs/CONTENT_PLAN.md) ----------
+  // babies from Day Care pairs, Wooper's Togepi, and expedition eggs; they never pass by
+  { dex: 172, rarity: 'baby', islands: [] }, // Pichu (from a Pikachu-line pair)
+  { dex: 298, rarity: 'baby', islands: [] }, // Azurill (from two water types)
+  { dex: 173, rarity: 'baby', islands: [] }, // Cleffa (from two normal types); Clefairy visits in meteor week
+  { dex: 175, rarity: 'baby', islands: [] }, // Togepi (Wooper's gift for a full Home Pokédex)
+  { dex: 222, rarity: 'rare', islands: [] }, // Corsola (Kelp Bed expeditions)
+  { dex: 223, rarity: 'rare', islands: [] }, // Remoraid (Ice Shelf expeditions)
+
+  // ---------- seasons ----------
+  { dex: 313, rarity: 'uncommon', time: 'night', season: 'summer' }, // Volbeat
+  { dex: 314, rarity: 'uncommon', time: 'night', season: 'summer' }, // Illumise
+
+  // ---------- Ember Cove (third island) ----------
+  { dex: 322, rarity: 'common', islands: ['ember'] }, // Numel
+  { dex: 218, rarity: 'common', islands: ['ember'] }, // Slugma
+  { dex: 231, rarity: 'common', islands: ['ember'], time: 'morning' }, // Phanpy
+  { dex: 228, rarity: 'common', islands: ['ember'], time: 'night' }, // Houndour
+  { dex: 77, rarity: 'uncommon', islands: ['ember'] }, // Ponyta
+  { dex: 104, rarity: 'uncommon', islands: ['ember'], needs: 'rocks' }, // Cubone
+  { dex: 37, rarity: 'uncommon', islands: ['ember'], time: 'night' }, // Vulpix
+  { dex: 324, rarity: 'uncommon', islands: ['ember'], needs: 'spring' }, // Torkoal
+  { dex: 240, rarity: 'rare', islands: ['ember'] }, // Magby (also a Day Care baby from fire types)
+
   // ---------- guardians ----------
   { dex: 143, guardian: 'home' }, // Snorlax, asleep across the end of the pier
   { dex: 131, guardian: 'frost' }, // Lapras, resting by the Frost Isle pier
+  { dex: 59, guardian: 'ember' }, // Arcanine, at the mouth of Ember Cove's crater
 ]

@@ -8,13 +8,14 @@
 // friendship evolutions. Choices (befriend, feed, stones, party, decorations)
 // happen between sessions, and evolutions play out while you focus.
 
-export type Rarity = 'starter' | 'common' | 'uncommon' | 'rare' | 'deep'
+export type Rarity = 'starter' | 'common' | 'uncommon' | 'rare' | 'deep' | 'baby'
 export interface Evolution {
   dex: number
   level?: number
   item?: string
   friendship?: boolean
   time?: 'day' | 'night' | null
+  trade?: boolean // finishes by trading (docs/CONTENT_PLAN.md, social)
 }
 export interface SpeciesInfo {
   name: string
@@ -27,6 +28,7 @@ export interface SpeciesInfo {
   stage: number
   line: number
   rarity?: Rarity
+  season?: 'spring' | 'summer' | 'autumn' | 'winter' // only comes in this season
 }
 export type Roster = Record<string, SpeciesInfo>
 
@@ -116,15 +118,20 @@ export interface Egg {
   need: number // focused minutes to hatch
   progress: number
   source: 'daycare' | 'streak' | 'find' | 'expedition' | 'gift'
+  fast?: boolean // from a pair that shares a type: it warms a quarter faster (L6)
 }
-export type JobId = 'bush' | 'dig' | 'lookout' | 'campfire'
+export type JobId = 'bush' | 'dig' | 'lookout' | 'campfire' | 'garden' | 'generator' | 'fortune'
 /** One Pokémon per job. Interval in focused minutes at level 1; stronger Pokémon work faster. */
-export const JOBS: { id: JobId; name: string; types: string[]; every: number; floor: number; needsDecor?: string; does: string }[] = [
+export const JOBS: { id: JobId; name: string; types: string[]; every: number; floor: number; needsDecor?: string; needsLandmark?: string; does: string }[] = [
   { id: 'bush', name: 'Berry bush', types: ['water'], every: 30, floor: 12, does: 'An extra Oran Berry' },
   { id: 'dig', name: 'Digging', types: ['ground', 'rock'], every: 24, floor: 16, does: 'An extra find' },
   { id: 'lookout', name: 'Lookout', types: ['flying'], every: 40, floor: 18, does: 'An extra passer-by' },
   // review 2 B5: dig and campfire floors raised (10 → 16, 6 → 10) so focus stays the main income
   { id: 'campfire', name: 'Campfire', types: ['fire'], every: 14, floor: 10, needsDecor: 'campfire', does: '3 extra shells' },
+  // 2026-11-12 (docs/CONTENT_PLAN.md, L9): jobs for grass, electric and psychic types
+  { id: 'garden', name: 'Garden', types: ['grass'], every: 40, floor: 20, does: 'A food for the dish' },
+  { id: 'generator', name: 'Generator', types: ['electric'], every: 60, floor: 60, needsLandmark: 'lighthouse', does: 'Keeps the lighthouse lit' },
+  { id: 'fortune', name: 'Fortune', types: ['psychic'], every: 60, floor: 60, does: 'Shows who is likely to come next' },
 ]
 export const jobEvery = (job: (typeof JOBS)[number], level: number) => Math.max(job.floor, Math.round(job.every - level / 2))
 export const EGG_MAX = 3
@@ -161,6 +168,10 @@ export const FOODS: { id: string; name: string; price: number; types: string[] }
   { id: 'cheri-berry', name: 'Cheri Berry', price: 15, types: ['fire', 'electric'] },
   { id: 'pecha-berry', name: 'Pecha Berry', price: 15, types: ['water', 'ground', 'normal'] },
   { id: 'chesto-berry', name: 'Chesto Berry', price: 15, types: ['ghost', 'dark', 'psychic'] },
+  // 2026-11-12 (L9): nothing drew ice, bug and steel, or fighting and dragon types
+  { id: 'aspear-berry', name: 'Aspear Berry', price: 15, types: ['ice'] },
+  { id: 'rawst-berry', name: 'Rawst Berry', price: 15, types: ['bug', 'steel'] },
+  { id: 'persim-berry', name: 'Persim Berry', price: 15, types: ['fighting', 'dragon'] },
 ]
 export const WEATHER_TYPES: Record<Weather, string[]> = { clear: [], rain: ['water', 'electric'], sun: ['grass', 'fire'], fog: ['ghost', 'normal', 'psychic'], snow: ['ice', 'water'] }
 /** Each decoration has a few Pokémon that love it. */
@@ -177,11 +188,19 @@ export const DECOR_LOVES: Record<string, number[]> = {
   snowman: [361, 225],
   icecarving: [363, 215],
   aurora: [238, 459],
+  // 2026-11-12 (L9): the nine species no decoration drew
+  rockpool: [60, 90, 86, 393],
+  lightningrod: [179, 403],
+  batroost: [41],
+  leafpile: [10],
+  mudpatch: [220],
 }
 export const isNightHour = (h: number) => h >= 19 || h < 5
+/** The real calendar's season (northern hemisphere): March to May is spring, and so on. */
+export const seasonOf = (t: number) => (['winter', 'winter', 'spring', 'spring', 'spring', 'summer', 'summer', 'summer', 'autumn', 'autumn', 'autumn', 'winter'] as const)[new Date(t).getMonth()]
 /** What is drawing Pokémon right now; built by Game.lure(). */
 export interface Lure {
-  long: boolean // a 50-minute session (or an open one past 50 minutes): rare ones can come
+  long: boolean // an hour-long session (or an open one past an hour): rare ones can come
   clean: boolean
   hour: number
   weather: Weather
@@ -231,7 +250,9 @@ export interface Save {
   partner?: string // your starter: it lives on every island
   parties: Partial<Record<IslandId, string[]>> // other islands' residents while you are away from them
   upgrades: string[] // island upgrades bought with Star Pieces (UPGRADES)
-  lanterns: number // Lantern charges: one per finished session of 25+ minutes, up to LANTERN_MAX; a charged dungeon run opens chests
+  restored?: string[] // landmarks restored (RESTORE, docs/CONTENT_PLAN.md L1)
+  togetherMin?: number // focused minutes with a friend; they count twice toward restoration
+  lanterns: number // Lantern charges: one per finished session of 30+ minutes, up to LANTERN_MAX; a charged dungeon run opens chests
   deepTries: Record<string, number> // failed throws at each dungeon's special Pokémon (each makes the next likelier)
 }
 
@@ -245,6 +266,29 @@ export const UPGRADES: { id: string; name: string; text: string; stars: number }
   { id: 'nest', name: 'Bigger nest', text: 'Room for a fourth egg.', stars: 5 },
   { id: 'warmsand', name: 'Warm sand', text: 'Eggs hatch a quarter faster.', stars: 6 },
   { id: 'longpier', name: 'Longer pier', text: 'A fifth Pokémon can wait for your break.', stars: 8 },
+]
+
+/**
+ * The restoration story (docs/CONTENT_PLAN.md, L1, 2026-11-12). Home Island's three ruined
+ * landmarks are rebuilt with focused hours and species brought back, plus some shells and
+ * Star Pieces; they can't simply be bought. Minutes focused with a friend count twice.
+ */
+export const RESTORE: { id: string; name: string; hours: number; species: number; shells: number; stars: number; guardian?: IslandId; opens: string; story: string[] }[] = [
+  {
+    id: 'hut', name: 'Pokémon Center hut', hours: 15, species: 20, shells: 800, stars: 3,
+    opens: 'A third Day Care spot, and eggs warm a quarter faster.',
+    story: ['The Pokémon Center hut is open again!', 'Before the storm, travelers rested here on their way between the islands.', 'With its beds back, the Day Care has room for one more.'],
+  },
+  {
+    id: 'lighthouse', name: 'Lighthouse', hours: 30, species: 35, shells: 1500, stars: 6,
+    opens: 'The Lookout works twice as fast at night. An Electric type on the Generator lights it, which draws night Pokémon by day and makes room for one more to wait.',
+    story: ['The lighthouse is standing again.', 'The storm that woke Snorlax and Lapras put its light out, and nobody could find the island in the dark.', 'If an Electric type keeps it running, Pokémon will see it from far away.'],
+  },
+  {
+    id: 'pier', name: 'The old pier', hours: 50, species: 50, shells: 2500, stars: 10, guardian: 'home',
+    opens: 'The sail to Ember Cove.',
+    story: ['The old pier reaches the deep water again.', 'Out past the reef there is a warm island. Its guardian woke in the same storm.', 'We can sail to Ember Cove now.'],
+  },
 ]
 
 /** The opening, in order. Saves from before the tutorial existed load as 'done'. */
@@ -277,7 +321,10 @@ export const AWAY_GAP = 5 * 60 // a gap this long means you were gone
 export const CHECKIN_EVERY = 60 * 60 // without idle detection
 export const ANSWER_WINDOW = 10 * 60
 export const MAX_SESSION = 3 * 60 * 60
-export const OPEN_COMPLETE = 25 * 60 // an Open session must reach this to count as complete
+// session lengths (Paul, 2026-11-12: 30 minutes and an hour, was 25 and 50)
+export const SHORT_SESSION = 30 * 60
+export const LONG_SESSION = 60 * 60
+export const OPEN_COMPLETE = SHORT_SESSION // an Open session must reach this to count as complete
 export const FLEE_AFTER = 3 // break-frees before a rare Pokémon or starter runs off
 export const IDLE_THRESHOLD = 10 * 60 // idle detector threshold
 export const OPEN_VISIT_EVERY = 30 * 60
@@ -292,11 +339,11 @@ export const BREAK_SECONDS = 5 * 60
 // a stone on streak day 3, then every 7th day with no end (review 2026-11-11: the old 3/7/14/30
 // paid four ever and rewarded breaking the streak)
 export const isStoneDay = (n: number) => n === 3 || (n >= 7 && n % 7 === 0)
-export const RARE_50 = 3.3 // rare-weight multiplier for a finished 50-minute session
-export const STONES = ['thunder-stone', 'water-stone', 'fire-stone', 'leaf-stone', 'ice-stone', 'sun-stone']
+export const RARE_LONG = 3.3 // rare-weight multiplier for a finished hour-long session
+export const STONES = ['thunder-stone', 'water-stone', 'fire-stone', 'leaf-stone', 'ice-stone', 'sun-stone', 'dawn-stone']
 // catching (docs/GAME_DESIGN.md, stage 1)
 export const PASSER_EVERY = 12 * 60 // a passer-by every 12 focused minutes
-export const WILD_MAX = 4 // at most this many wait on the island at once (review 2026-11-11: 3 lost a 50-minute session's fourth)
+export const WILD_MAX = 4 // at most this many wait on the island at once (review 2026-11-11: 3 lost a long session's fourth)
 export const PASSERS_PER_DAY = 24
 export const FIND_EVERY = 9 * 60
 export const WEATHER_EVERY = 15 * 60
@@ -306,7 +353,7 @@ export const BALLS: { id: Ball; name: string; price: number; mult: number }[] = 
   { id: 'great-ball', name: 'Great Ball', price: 15, mult: 1.5 },
   { id: 'ultra-ball', name: 'Ultra Ball', price: 30, mult: 2 },
 ]
-const CATCH_BASE: Record<Rarity, number> = { common: 0.7, uncommon: 0.5, rare: 0.35, starter: 0.3, deep: 0.25 }
+const CATCH_BASE: Record<Rarity, number> = { common: 0.7, uncommon: 0.5, rare: 0.35, starter: 0.3, deep: 0.25, baby: 0.5 }
 
 export const SAVE_KEY = 'island-save-v1'
 const KEY = SAVE_KEY
@@ -333,7 +380,7 @@ export function emptySave(): Save {
     mons: [],
     session: null,
     days: {},
-    settings: { length: 25 * 60, detector: false },
+    settings: { length: SHORT_SESSION, detector: false },
     seen: [],
     caught: [],
     shells: 0,
@@ -381,6 +428,9 @@ export function loadSave(): Save {
         const m = { ...emptySave(), ...s }
         if (!s.tutorial) m.tutorial = s.mons.length ? 'done' : 'prologue'
         if (!m.partner && m.mons.length) m.partner = m.mons[0].id
+        // 25 and 50 minutes became 30 and 60 (Paul, 2026-11-12)
+        if (m.settings.length === 25 * 60) m.settings.length = SHORT_SESSION
+        if (m.settings.length === 50 * 60) m.settings.length = LONG_SESSION
         // your partner lives on every island: put it on this one if it is free
         const pid = m.partner
         const busy = !!pid && (m.daycare.ids.includes(pid) || Object.values(m.jobs).includes(pid) || m.expedition?.id === pid)
@@ -426,6 +476,7 @@ export type GameEvent =
   | { type: 'rolesChanged' }
   | { type: 'sail'; to: IslandId }
   | { type: 'guardian'; island: IslandId; win: boolean }
+  | { type: 'restored'; id: string }
 
 export class Game {
   save: Save
@@ -529,7 +580,16 @@ export class Game {
     return EGG_MAX + (this.save.upgrades.includes('nest') ? 1 : 0)
   }
   get wildMax() {
-    return WILD_MAX + (this.save.upgrades.includes('longpier') ? 1 : 0)
+    return WILD_MAX + (this.save.upgrades.includes('longpier') ? 1 : 0) + (this.lighthouseLit ? 1 : 0)
+  }
+  /** Has this landmark been restored (docs/CONTENT_PLAN.md, L1)? */
+  restored(id: string) {
+    return !!this.save.restored?.includes(id)
+  }
+  /** The lighthouse is restored and a Generator helper keeps it lit. */
+  get lighthouseLit() {
+    const id = this.save.jobs.generator
+    return this.restored('lighthouse') && !!id && !!this.mon(id)
   }
   buyUpgrade(id: string) {
     const u = UPGRADES.find((x) => x.id === id)
@@ -583,6 +643,7 @@ export class Game {
   canDoJob(m: Mon, job: JobId) {
     const j = JOBS.find((x) => x.id === job)!
     if (j.needsDecor && !Object.values(this.save.decor.slots).includes(j.needsDecor)) return false
+    if (j.needsLandmark && !this.restored(j.needsLandmark)) return false
     return !!this.species(m.dex)?.types?.some((t) => j.types.includes(t))
   }
   /** Move a Pokémon to a new role. Only between sessions; the party never drops below one. */
@@ -658,7 +719,7 @@ export class Game {
     if (m.noEvolve) return null
     for (const e of this.evolutionOptions(m)) {
       if (e.level && m.level >= e.level) return e.dex
-      if (e.item && m.heldItem === e.item) return e.dex
+      if (e.item && m.heldItem === e.item && (!e.time || (e.time === 'day') === isDay(t))) return e.dex
       if (e.friendship && m.focusedMin >= BOND_FOR_FRIENDSHIP && (!e.time || (e.time === 'day') === isDay(t))) return e.dex
     }
     return null
@@ -734,7 +795,10 @@ export class Game {
   }
   private giveExp(n: number) {
     this.save.shells += n
-    if (this.together.length) this.save.shells += n // studying together: double shells
+    if (this.together.length) {
+      this.save.shells += n // studying together: double shells
+      this.save.togetherMin = (this.save.togetherMin ?? 0) + n
+    }
     for (const m of this.party) {
       m.focusedMin += n
       this.addExp(m, n * EXP_PER_MIN)
@@ -850,16 +914,16 @@ export class Game {
     let berries = 0
     if (complete) {
       // Open sessions already ripen a berry every 30 minutes, so they get none at the end
-      berries = !s.length ? 0 : s.length >= 50 * 60 ? 2 : 1
+      berries = !s.length ? 0 : s.length >= LONG_SESSION ? 2 : 1
       this.save.berries = Math.min(BERRIES_MAX, this.save.berries + berries)
-      // a finished session of 25 minutes or more lights a Lantern charge for the dungeons
-      if (s.credited >= 25 * 60) this.save.lanterns = Math.min(LANTERN_MAX, (this.save.lanterns ?? 0) + 1)
+      // a finished session of 30 minutes or more lights a Lantern charge for the dungeons
+      if (s.credited >= SHORT_SESSION) this.save.lanterns = Math.min(LANTERN_MAX, (this.save.lanterns ?? 0) + 1)
       this.save.breakUntil = this.now() + BREAK_SECONDS * 1000
     }
     this.persist()
     this.emit({ type: 'sessionEnd', minutes: s.granted, complete, berries, capped })
     // the old end-of-session visitor is now a minor extra; passers-by are the main way in
-    if (complete && Math.random() < FRIENDLY_VISIT_CHANCE) this.requestVisit(s.length && s.length >= 50 * 60 ? RARE_50 : 1, this.lure(s))
+    if (complete && Math.random() < FRIENDLY_VISIT_CHANCE) this.requestVisit(s.length && s.length >= LONG_SESSION ? RARE_LONG : 1, this.lure(s))
   }
 
   private requestVisit(rareMult: number, _lure?: Lure) {
@@ -869,7 +933,7 @@ export class Game {
 
   /** Everything drawing Pokémon right now. */
   lure(s = this.save.session): Lure {
-    const long = !!s && ((!!s.length && s.length >= 50 * 60) || (!s.length && s.credited >= 50 * 60))
+    const long = !!s && ((!!s.length && s.length >= LONG_SESSION) || (!s.length && s.credited >= LONG_SESSION))
     return {
       long,
       clean: !s || s.clean !== false,
@@ -888,12 +952,66 @@ export class Game {
     if (sp.needs) notes.push(`Needs ${HABITATS.find((h) => h.id === sp.needs)!.name.toLowerCase()}.`)
     if (sp.time === 'night') notes.push('Night only.')
     if (sp.time === 'morning') notes.push('Likes mornings.')
-    if (sp.rarity === 'rare' || sp.rarity === 'starter') notes.push('Comes in 50-minute sessions, or rarely in shorter ones on a 3-day streak.')
+    if (sp.rarity === 'rare' || sp.rarity === 'starter') notes.push('Comes in hour-long sessions, or rarely in shorter ones on a 3-day streak.')
     const food = FOODS.filter((f) => f.types.some((t) => sp.types?.includes(t))).map((f) => f.name)
     if (food.length) notes.push(`Likes ${food.join(' or ')}.`)
     const decor = Object.entries(DECOR_LOVES).filter(([, ds]) => ds.includes(dex)).map(([id]) => decorName(id).toLowerCase())
     if (decor.length) notes.push(`Loves the ${decor.join(' and ')}.`)
     return notes
+  }
+
+  /**
+   * What a Day Care pair lays (L6). Usually one parent's first stage; a third of the time, a
+   * baby that never passes by: Pichu from the Pikachu line, Magby from a Fire type, Azurill
+   * from two Water types, Cleffa from a Normal type.
+   */
+  eggFrom(a: Mon, b: Mon, rand = Math.random) {
+    const sp = (m: Mon) => this.species(m.dex)
+    const has = (m: Mon, t: string) => !!sp(m)?.types?.includes(t)
+    const babies: number[] = []
+    if ([a, b].some((m) => sp(m)?.line === 25)) babies.push(172)
+    if ([a, b].some((m) => has(m, 'fire'))) babies.push(240)
+    if (has(a, 'water') && has(b, 'water')) babies.push(298)
+    if ([a, b].some((m) => has(m, 'normal'))) babies.push(173)
+    const ok = babies.filter((d) => this.species(d))
+    if (ok.length && rand() < 1 / 3) return ok[Math.floor(rand() * ok.length)]
+    const parent = rand() < 0.5 ? a : b
+    return sp(parent)?.line ?? parent.dex
+  }
+
+  // ---------- restoration (L1) ----------
+  /** Hours toward restoration: everything focused, plus minutes with a friend counted again. */
+  restoreHours() {
+    return this.totalHours() + (this.save.togetherMin ?? 0) / 60
+  }
+  /** How far along a landmark is, part by part. */
+  restoreProgress(id: string) {
+    const r = RESTORE.find((x) => x.id === id)!
+    const s = this.save
+    return {
+      hours: this.restoreHours(),
+      species: s.caught.length,
+      shells: s.shells,
+      stars: s.starPieces,
+      guardian: !r.guardian || s.guardians.includes(r.guardian),
+      ready: this.restoreHours() >= r.hours && s.caught.length >= r.species && s.shells >= r.shells && s.starPieces >= r.stars && (!r.guardian || s.guardians.includes(r.guardian)),
+    }
+  }
+  /** The next landmark not yet restored (they go in order). */
+  get nextLandmark() {
+    return RESTORE.find((r) => !this.restored(r.id)) ?? null
+  }
+  restore(id: string) {
+    const r = RESTORE.find((x) => x.id === id)
+    const s = this.save
+    if (!r || s.session || this.restored(id) || this.nextLandmark?.id !== id || !this.restoreProgress(id).ready) return false
+    s.shells -= r.shells
+    s.starPieces -= r.stars
+    s.restored = [...(s.restored ?? []), id]
+    if (id === 'hut' && s.daycare.ids.length < 3) s.daycare.ids.push(null)
+    this.persist()
+    this.emit({ type: 'restored', id })
+    return true
   }
 
   // ---------- islands ----------
@@ -1104,17 +1222,21 @@ export class Game {
     const s = this.save
     // eggs warm up, oldest first
     for (const e of s.eggs.slice(0, this.eggMax)) {
-      e.progress = Math.min(e.need, e.progress + (s.upgrades.includes('warmsand') ? n * 1.25 : n))
+      const k = (s.upgrades.includes('warmsand') ? 1.25 : 1) * (this.restored('hut') ? 1.25 : 1) * (e.fast ? 1.25 : 1)
+      e.progress = Math.min(e.need, e.progress + n * k)
       if (e.progress >= e.need) this.hatch(e)
     }
-    // the Day Care: two Pokémon together make an egg now and then
+    // the Day Care: two Pokémon together make an egg now and then (three, with the hut, half as often again)
     const pair = s.daycare.ids.map((id) => id && this.mon(id)).filter(Boolean) as Mon[]
-    if (pair.length === 2) {
-      s.daycare.progress += n
+    if (pair.length >= 2) {
+      s.daycare.progress += n * (pair.length >= 3 ? 1.5 : 1)
       if (s.daycare.progress >= DAYCARE_EVERY && s.eggs.length < this.eggMax) {
         s.daycare.progress = 0
-        const parent = pair[Math.floor(rand() * 2)]
-        this.addEgg(this.species(parent.dex)?.line ?? parent.dex, 'daycare')
+        const [a, b] = [...pair].sort(() => rand() - 0.5)
+        const egg = this.addEgg(this.eggFrom(a, b, rand), 'daycare')
+        // a pair that shares a type warms its egg a quarter faster (L6)
+        const ta = this.species(a.dex)?.types ?? []
+        if (egg && (this.species(b.dex)?.types ?? []).some((t) => ta.includes(t))) egg.fast = true
       }
     }
     // jobs
@@ -1123,13 +1245,21 @@ export class Game {
       const m = id && this.mon(id)
       if (!m) continue
       if (j.needsDecor && !Object.values(s.decor.slots).includes(j.needsDecor)) continue
-      s.jobProgress[j.id] = (s.jobProgress[j.id] ?? 0) + n
+      if (j.needsLandmark && !this.restored(j.needsLandmark)) continue
+      // with the lighthouse restored, the Lookout spots passers-by twice as often at night
+      const nightWatch = j.id === 'lookout' && this.restored('lighthouse') && isNightHour(new Date(this.now()).getHours())
+      s.jobProgress[j.id] = (s.jobProgress[j.id] ?? 0) + n * (nightWatch ? 2 : 1)
       if (s.jobProgress[j.id]! < jobEvery(j, m.level)) continue
       s.jobProgress[j.id] = 0
       if (j.id === 'bush') s.berries = Math.min(BERRIES_MAX, s.berries + 1)
       if (j.id === 'dig') this.dig(rand, m.id)
       if (j.id === 'lookout') this.passerBy()
       if (j.id === 'campfire') s.shells += 3
+      if (j.id === 'garden') {
+        const f = FOODS[Math.floor(rand() * FOODS.length)].id
+        s.foods[f] = (s.foods[f] ?? 0) + 1
+      }
+      if (j.id === 'generator' || j.id === 'fortune') continue // they work all the time, with no payout to announce
       this.emit({ type: 'job', job: j.id, mon: m })
     }
     // the expedition
@@ -1154,7 +1284,7 @@ export class Game {
   }
   /** An egg from the wider roster, as long sessions draw (streaks, finds, expeditions). */
   private randomEggDex(long: boolean) {
-    return this.pickVisitor(long ? RARE_50 : 1, Math.random, { ...this.lure(), long }, false).dex
+    return this.pickVisitor(long ? RARE_LONG : 1, Math.random, { ...this.lure(), long }, false).dex
   }
   private hatch(e: Egg) {
     this.save.eggs = this.save.eggs.filter((x) => x !== e)
@@ -1231,7 +1361,7 @@ export class Game {
     if (this.passersToday() >= PASSERS_PER_DAY) return null
     // longer sessions and sessions without step-aways draw rarer Pokémon
     const lure = this.lure(s)
-    const mult = (lure.long ? RARE_50 : 1) * (lure.clean ? 1 : 0.6) * (this.together.length ? 1.3 : 1)
+    const mult = (lure.long ? RARE_LONG : 1) * (lure.clean ? 1 : 0.6) * (this.together.length ? 1.3 : 1)
     // when the island is full, the newcomer takes the place of the most common one waiting,
     // as long as it is at least as rare (so a long session never loses its later passers-by)
     let bumped: Wild | null = null
@@ -1486,46 +1616,11 @@ export class Game {
   // ---------- visitors ----------
   /**
    * Weighted draw of a first-stage visitor. Rare ones get likelier with a
-   * 50-minute session, a 3-day streak and a long day. Species you have never
+   * an hour-long session, a 3-day streak and a long day. Species you have never
    * befriended are a little likelier, so the Pokédex keeps moving.
    */
   pickVisitor(rareMult = 1, rand = Math.random, lure: Lure = this.lure(), commit = true): { dex: number; level: number } {
-    const caughtLines = new Set(this.save.caught.map((d) => this.species(d)?.line))
-    const starterLine = this.save.mons[0] ? this.species(this.save.mons[0].dex)?.line : undefined
-    const boost = rareMult * (1 + (this.streak() >= 3 ? 0.6 : 0) + (this.todayMinutes() >= 120 ? 0.4 : 0))
-    const night = isNightHour(lure.hour)
-    const morning = lure.hour >= 5 && lure.hour < 10
-    const likes = (types: string[] | undefined, want: string[]) => !!types && types.some((t) => want.includes(t))
-    const bait = FOODS.find((f) => f.id === lure.bait)
-    const streakRare = this.streak() >= 3
-    const table: { dex: number; w: number; rarity: Rarity }[] = []
-    for (const [k, s] of Object.entries(this.roster)) {
-      if (s.stage !== 1 || !s.rarity || s.guardian) continue
-      if (!(s.islands ?? ['home']).includes(this.save.island)) continue
-      const dex = Number(k)
-      if (s.rarity === 'starter' && dex === starterLine) continue
-      // gates: a habitat it needs, night-only, rare ones only in long sessions
-      if (s.needs && !lure.habitats.includes(s.needs)) continue
-      // by day, night species only come near the stone lantern, at a fifth of their odds
-      if (s.time === 'night' && !night && !lure.decor.includes('lantern')) continue
-      // rare ones and other starters: 50-minute sessions, or (review 2 B8) shorter ones on a
-      // 3-day streak at about a quarter of the 50-minute odds, so light players are not locked out
-      // (RARE_50 / 6 measured: 6.7% of short-session visitors against 26.7% in 50-minute ones)
-      const scarce = s.rarity === 'rare' || s.rarity === 'starter'
-      if (scarce && !lure.long && !streakRare) continue
-      // base odds per visit in a long session: rare about 4%, each other starter about 2%
-      let w = s.rarity === 'common' ? 10 : s.rarity === 'uncommon' ? 5 * Math.sqrt(boost) : s.rarity === 'rare' ? 4 * boost : 2 * boost
-      if (scarce && !lure.long) w *= RARE_50 / 6
-      if (caughtLines.has(s.line)) w *= 0.5
-      if (likes(s.types, WEATHER_TYPES[lure.weather])) w *= 2.5
-      if (bait && likes(s.types, bait.types)) w *= 3
-      for (const h of HABITATS) if (lure.habitats.includes(h.id) && likes(s.types, h.types)) w *= 2
-      for (const d of lure.decor) if (DECOR_LOVES[d]?.includes(dex)) w *= 2
-      if (s.time === 'morning' && morning) w *= 2
-      if (s.time === 'night' && !night) w *= 0.2
-      table.push({ dex, w, rarity: s.rarity })
-    }
-    if (!table.length) table.push({ dex: 54, w: 1, rarity: 'common' })
+    const table = this.visitorTable(rareMult, lure)
     const total = table.reduce((a, b) => a + b.w, 0)
     let r = rand() * total
     let pick = table[0]
@@ -1545,6 +1640,56 @@ export class Game {
       this.persist()
     }
     return { dex: pick.dex, level }
+  }
+  /** The Fortune job: the n Pokémon most likely to come by in your next session, as it is set up now. */
+  likelyVisitors(n = 3) {
+    const lure = { ...this.lure(), long: this.save.settings.length === null || (this.save.settings.length ?? 0) >= LONG_SESSION }
+    return this.visitorTable(lure.long ? RARE_LONG : 1, lure)
+      .sort((a, b) => b.w - a.w)
+      .slice(0, n)
+      .map((e) => e.dex)
+  }
+  /** Every first stage that could come by now, with its weight. */
+  private visitorTable(rareMult: number, lure: Lure) {
+    const caughtLines = new Set(this.save.caught.map((d) => this.species(d)?.line))
+    const starterLine = this.save.mons[0] ? this.species(this.save.mons[0].dex)?.line : undefined
+    const boost = rareMult * (1 + (this.streak() >= 3 ? 0.6 : 0) + (this.todayMinutes() >= 120 ? 0.4 : 0))
+    const night = isNightHour(lure.hour)
+    const morning = lure.hour >= 5 && lure.hour < 10
+    const likes = (types: string[] | undefined, want: string[]) => !!types && types.some((t) => want.includes(t))
+    const bait = FOODS.find((f) => f.id === lure.bait)
+    const streakRare = this.streak() >= 3
+    const table: { dex: number; w: number; rarity: Rarity }[] = []
+    for (const [k, s] of Object.entries(this.roster)) {
+      if (s.stage !== 1 || !s.rarity || s.guardian) continue
+      if (!(s.islands ?? ['home']).includes(this.save.island)) continue
+      const dex = Number(k)
+      if (s.rarity === 'starter' && dex === starterLine) continue
+      // gates: a habitat it needs, night-only, rare ones only in long sessions
+      if (s.needs && !lure.habitats.includes(s.needs)) continue
+      // by day, night species only come near the stone lantern, at a fifth of their odds
+      // (or, with the lighthouse lit by a Generator, at half their odds)
+      if (s.time === 'night' && !night && !lure.decor.includes('lantern') && !this.lighthouseLit) continue
+      if (s.season && s.season !== seasonOf(this.now())) continue
+      // rare ones and other starters: hour-long sessions, or (review 2 B8) shorter ones on a
+      // 3-day streak at about a quarter of the long-session odds, so light players are not locked out
+      // (RARE_LONG / 6 measured: 6.9% of short-session visitors against 26.4% in long ones)
+      const scarce = s.rarity === 'rare' || s.rarity === 'starter'
+      if (scarce && !lure.long && !streakRare) continue
+      // base odds per visit in a long session: rare about 4%, each other starter about 2%
+      let w = s.rarity === 'common' ? 10 : s.rarity === 'uncommon' ? 5 * Math.sqrt(boost) : s.rarity === 'rare' ? 4 * boost : 2 * boost
+      if (scarce && !lure.long) w *= RARE_LONG / 6
+      if (caughtLines.has(s.line)) w *= 0.5
+      if (likes(s.types, WEATHER_TYPES[lure.weather])) w *= 2.5
+      if (bait && likes(s.types, bait.types)) w *= 3
+      for (const h of HABITATS) if (lure.habitats.includes(h.id) && likes(s.types, h.types)) w *= 2
+      for (const d of lure.decor) if (DECOR_LOVES[d]?.includes(dex)) w *= 2
+      if (s.time === 'morning' && morning) w *= 2
+      if (s.time === 'night' && !night) w *= this.lighthouseLit ? 0.5 : 0.2
+      table.push({ dex, w, rarity: s.rarity })
+    }
+    if (!table.length) table.push({ dex: 54, w: 1, rarity: 'common' })
+    return table
   }
 
   reset() {
