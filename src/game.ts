@@ -143,9 +143,19 @@ export const EXPEDITIONS = [
   { id: 'long', name: 'Long trip', minutes: 90 },
 ] as const
 export type Role = 'party' | 'box' | 'daycare' | 'expedition' | `job:${JobId}`
+/**
+ * Far destinations for a long trip, by the traveler's level (L8, 2026-11-12). Each has its own
+ * loot, sometimes an egg that never passes by, and a postcard line for the Journal.
+ */
+export const DESTINATIONS: { id: string; name: string; level: number; minutes: number; egg?: number; postcard: string }[] = [
+  { id: 'kelp', name: 'Kelp Bed', level: 15, minutes: 90, egg: 222, postcard: 'The water over the Kelp Bed was full of light.' },
+  { id: 'ruins', name: 'Old Ruins', level: 30, minutes: 120, postcard: 'The Old Ruins had carvings of the guardians.' },
+  { id: 'shelf', name: 'Ice Shelf', level: 40, minutes: 150, egg: 223, postcard: 'The Ice Shelf creaked all night.' },
+]
 export interface Expedition {
   id: string // the Pokémon
   long: boolean
+  dest?: string // a far destination (DESTINATIONS); a long trip without one goes along the shore
   need: number
   progress: number
 }
@@ -153,6 +163,7 @@ export interface Haul {
   shells: number
   items: { kind: 'berry' | Ball | 'star-piece' | 'food' | 'stone'; id?: string; n: number }[]
   egg?: Egg
+  dest?: string
 }
 
 // ---------- lures (docs/GAME_DESIGN.md, stage 2) ----------
@@ -198,6 +209,17 @@ export const DECOR_LOVES: Record<string, number[]> = {
   mudpatch: [220],
 }
 export const isNightHour = (h: number) => h >= 19 || h < 5
+/** Weeks since 1970, starting on Mondays: the tide changes each week (L7). */
+export const weekOf = (t: number) => Math.floor((t / 864e5 + 3) / 7)
+/** Each week's tide favours one type, in this order (L7). */
+export const TIDE_TYPES = ['water', 'grass', 'fire', 'electric', 'bug', 'normal', 'ghost', 'ice', 'rock', 'flying', 'psychic', 'ground']
+/** Meteor showers (the Lyrids, the Perseids, the Geminids): Clefairy comes at night and Moon Stones wash up (L7). */
+export const isMeteorWeek = (t: number) => {
+  const d = new Date(t)
+  const m = d.getMonth()
+  const day = d.getDate()
+  return (m === 3 && day >= 19 && day <= 25) || (m === 7 && day >= 9 && day <= 15) || (m === 11 && day >= 11 && day <= 17)
+}
 /** The real calendar's season (northern hemisphere): March to May is spring, and so on. */
 export const seasonOf = (t: number) => (['winter', 'winter', 'spring', 'spring', 'spring', 'summer', 'summer', 'summer', 'autumn', 'autumn', 'autumn', 'winter'] as const)[new Date(t).getMonth()]
 /** What is drawing Pokémon right now; built by Game.lure(). */
@@ -256,6 +278,7 @@ export interface Save {
   dexPaid?: string[] // Pokédex milestones already paid, as `${island}:${percent}` (L5)
   extraSlots?: number // decoration spots from Pokédex milestones (decor.ts SLOTS milestone)
   shinies?: number[] // species you have caught shiny
+  tideSeen?: number // the week whose tide Wooper last announced
   togetherMin?: number // focused minutes with a friend; they count twice toward restoration
   lanterns: number // Lantern charges: one per finished session of 30+ minutes, up to LANTERN_MAX; a charged dungeon run opens chests
   deepTries: Record<string, number> // failed throws at each dungeon's special Pokémon (each makes the next likelier)
@@ -741,11 +764,13 @@ export class Game {
     return true
   }
   /** Send a Pokémon (not the last one in the party) on an expedition. */
-  sendExpedition(id: string, long: boolean) {
+  sendExpedition(id: string, long: boolean, dest?: string) {
     const m = this.mon(id)
     if (!m || this.save.session || this.save.expedition) return false
+    const d = dest ? DESTINATIONS.find((x) => x.id === dest) : undefined
+    if (dest && (!d || m.level < d.level)) return false
     if (!this.assign(id, 'box')) return false
-    this.save.expedition = { id, long, need: long ? 90 : 30, progress: 0 }
+    this.save.expedition = { id, long: long || !!d, need: d ? d.minutes : long ? 90 : 30, progress: 0, dest: d?.id }
     this.persist()
     this.emit({ type: 'expeditionOut', mon: m })
     this.emit({ type: 'rolesChanged' })
@@ -1366,6 +1391,15 @@ export class Game {
     for (let i = 0; i < count; i++) haul.items.push(pick())
     if (ex.long && rand() < 0.2 + m.level / 400) haul.items.push({ kind: 'star-piece', n: 1 })
     if (ex.long && rand() < 0.1) haul.items.push({ kind: 'stone', id: this.pickStone(rand), n: 1 })
+    // far destinations (L8): the Kelp Bed brings berries and water food, the Ruins stones and
+    // Star Pieces, the Ice Shelf better balls and Aspear Berries
+    if (ex.dest === 'kelp') haul.items.push({ kind: 'berry', n: 2 }, { kind: 'food', id: 'pecha-berry', n: 2 })
+    if (ex.dest === 'ruins') {
+      if (rand() < 0.3) haul.items.push({ kind: 'stone', id: this.pickStone(rand), n: 1 })
+      if (rand() < 0.4) haul.items.push({ kind: 'star-piece', n: 1 })
+    }
+    if (ex.dest === 'shelf') haul.items.push({ kind: 'great-ball', n: 2 }, { kind: rand() < 0.3 ? 'ultra-ball' : 'great-ball', n: 1 }, { kind: 'food', id: 'aspear-berry', n: 2 })
+    haul.dest = ex.dest
     // apply
     this.save.shells += haul.shells
     for (const it of haul.items) {
@@ -1375,7 +1409,9 @@ export class Game {
       else if (it.kind === 'food') this.save.foods[it.id!] = (this.save.foods[it.id!] ?? 0) + it.n
       else this.save.balls[it.kind] += it.n
     }
-    if (ex.long && rand() < 0.25 + m.level / 200) haul.egg = this.addEgg(this.randomEggDex(true), 'expedition') ?? undefined
+    const far = DESTINATIONS.find((d) => d.id === ex.dest)
+    if (far?.egg && this.species(far.egg) && rand() < 0.15) haul.egg = this.addEgg(far.egg, 'expedition') ?? undefined
+    else if (ex.long && rand() < 0.25 + m.level / 200) haul.egg = this.addEgg(this.randomEggDex(true), 'expedition') ?? undefined
     this.persist()
     this.emit({ type: 'expeditionBack', mon: m, haul })
     this.emit({ type: 'rolesChanged' })
@@ -1398,7 +1434,9 @@ export class Game {
       s.nextWeather += WEATHER_EVERY
       if (this.save.weather.until < this.now() && rand() < 0.45) {
         const r = rand()
-        const kind: Weather = r < 0.45 ? (this.save.island === 'frost' ? 'snow' : 'rain') : r < 0.7 ? 'fog' : 'sun'
+        // December snows on Home Island too (L7)
+        const snowy = this.save.island === 'frost' || new Date(this.now()).getMonth() === 11
+        const kind: Weather = r < 0.45 ? (snowy ? 'snow' : 'rain') : r < 0.7 ? 'fog' : snowy ? 'snow' : 'sun'
         this.save.weather = { kind, until: this.now() + (10 + rand() * 15) * 60 * 1000 }
         this.persist()
         this.emit({ type: 'weather', kind })
@@ -1485,7 +1523,7 @@ export class Game {
             ? { id: '', kind: 'poke-ball', n: 1 }
             : r < 0.98
               ? { id: '', kind: 'star-piece', n: 1 }
-              : { id: '', kind: 'stone', n: 1, item: this.pickStone(rand) }
+              : { id: '', kind: 'stone', n: 1, item: isMeteorWeek(this.now()) && rand() < 0.5 ? 'moon-stone' : this.pickStone(rand) }
     f.id = Math.random().toString(36).slice(2, 10)
     f.by = by
     this.save.finds.push(f)
@@ -1703,6 +1741,15 @@ export class Game {
     }
     return { dex: pick.dex, level }
   }
+  /** This week's tide (L7): a type, and one rare Pokémon of this island that is likelier. */
+  tide() {
+    const wk = weekOf(this.now())
+    const rares = Object.entries(this.roster)
+      .filter(([, s]) => s.stage === 1 && (s.rarity === 'rare' || s.rarity === 'starter') && !s.guardian && (s.islands ?? ['home']).includes(this.save.island))
+      .map(([k]) => Number(k))
+      .sort((a, b) => a - b)
+    return { week: wk, type: TIDE_TYPES[wk % TIDE_TYPES.length], rare: rares.length ? rares[wk % rares.length] : 0 }
+  }
   /** The Fortune job: the n Pokémon most likely to come by in your next session, as it is set up now. */
   likelyVisitors(n = 3) {
     const lure = { ...this.lure(), long: this.save.settings.length === null || (this.save.settings.length ?? 0) >= LONG_SESSION }
@@ -1721,6 +1768,7 @@ export class Game {
     const likes = (types: string[] | undefined, want: string[]) => !!types && types.some((t) => want.includes(t))
     const bait = FOODS.find((f) => f.id === lure.bait)
     const streakRare = this.streak() >= 3
+    const tide = this.tide()
     const table: { dex: number; w: number; rarity: Rarity }[] = []
     for (const [k, s] of Object.entries(this.roster)) {
       if (s.stage !== 1 || !s.rarity || s.guardian) continue
@@ -1748,8 +1796,14 @@ export class Game {
       for (const d of lure.decor) if (DECOR_LOVES[d]?.includes(dex)) w *= 2
       if (s.time === 'morning' && morning) w *= 2
       if (s.time === 'night' && !night) w *= this.lighthouseLit ? 0.5 : 0.2
+      // this week's tide: its type twice as likely, and one rare one too (L7)
+      if (s.types?.includes(tide.type)) w *= 2
+      if (dex === tide.rare) w *= 2
+      if (dex === 187 && seasonOf(this.now()) === 'spring') w *= 2 // Hoppip drifts in on spring winds
       table.push({ dex, w, rarity: s.rarity })
     }
+    // a meteor shower: Clefairy comes down at night
+    if (night && isMeteorWeek(this.now()) && this.species(35)) table.push({ dex: 35, w: 6, rarity: 'uncommon' })
     if (!table.length) table.push({ dex: 54, w: 1, rarity: 'common' })
     return table
   }

@@ -5,7 +5,7 @@
 // the sheet, and the sheet's choices only unlock between sessions.
 import type { CloudState, Friend, FriendRequest, Me } from './cloud'
 import { CATALOG, SLOTS, decorDef } from './decor'
-import { BALLS, RESTORE, berryExp, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
+import { BALLS, DESTINATIONS, RESTORE, berryExp, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
 
 const BASE = import.meta.env.BASE_URL
 export const portraitUrl = (dex: number, emo = 'Normal') => `${BASE}sprites/${String(dex).padStart(4, '0')}/${emo}.png`
@@ -110,7 +110,7 @@ export interface HudHandlers {
   buyFood: (id: string, n: number) => void
   setBait: (id: string) => void
   assign: (id: string, role: Role) => void
-  expedition: (id: string, long: boolean) => void
+  expedition: (id: string, long: boolean, dest?: string) => void
   challenge: () => void
   cheats?: () => void
   pet: (id: string) => void
@@ -702,6 +702,8 @@ export class Hud {
             ...JOBS.filter((j) => g.canDoJob(m, j.id) && role !== `job:${j.id}`).map((j) => btn(`data-role="${m.id}|job:${j.id}"`, j.name, locked || !!s.jobs[j.id] || (role === 'party' && s.party.length <= 1))),
             btn(`data-trip="${m.id}|0"`, 'Trip 30', locked || !!s.expedition || (role === 'party' && s.party.length <= 1)),
             btn(`data-trip="${m.id}|1"`, 'Trip 90', locked || !!s.expedition || (role === 'party' && s.party.length <= 1)),
+            // the furthest destination this one is strong enough for (L8)
+            ...[...DESTINATIONS].reverse().filter((d) => m.level >= d.level).slice(0, 1).map((d) => btn(`data-trip="${m.id}|${d.id}"`, `${d.name} ${d.minutes}`, locked || !!s.expedition || (role === 'party' && s.party.length <= 1))),
           ].join('')
       const partyBtn = roleBtns
       const stoneRow =
@@ -790,9 +792,10 @@ export class Hud {
       })
       .join('')
     const hours = Math.floor(g.totalHours())
+    const tide = g.tide()
     const growth = here.id === 'home' ? GROWTH.map((x) => `<p class="hint"><i class="tick${hours >= x.hours ? ' on' : ''}"></i>${x.hours} h: ${x.text}</p>`).join('') : ''
     return `<p class="row-title">${here.name}</p>
-      <div class="stat-rows"><p><span>Pokédex</span><b>${dex.caught} of ${dex.all.length}</b></p><p><span>Focused</span><b>${hours} ${hours === 1 ? 'hour' : 'hours'}</b></p></div>
+      <div class="stat-rows"><p><span>Pokédex</span><b>${dex.caught} of ${dex.all.length}</b></p><p><span>Focused</span><b>${hours} ${hours === 1 ? 'hour' : 'hours'}</b></p><p><span>This week's tide</span><b>${tide.type[0].toUpperCase() + tide.type.slice(1)}</b></p></div>
       <div class="decor-row"><img class="shop-ico mini-face" src="${portraitUrl(gd.dex)}" alt="" /><div class="mon-main"><p>${g.name(gd.dex)} <span class="hint">Lv${gd.level}</span></p><p class="hint">${beaten ? 'Beaten. It joined you.' : `Guardian, ${gd.where}.`}</p></div><div class="row-actions row">${beaten ? '' : `<button class="px-btn small primary" data-act="challenge" ${g.inSession ? 'disabled' : ''}>Enter</button>`}</div></div>
       ${growth}
       <p class="row-title">Islands</p>${others}`
@@ -1080,7 +1083,7 @@ export class Hud {
     const trip = at('trip')
     if (trip) {
       const [id, l] = trip.split('|')
-      return this.h.expedition(id, l === '1')
+      return this.h.expedition(id, l === '1', l.length > 1 ? l : undefined)
     }
     const hab = at('habitat')
     if (hab) return this.h.buildHabitat(hab as Habitat)

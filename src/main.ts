@@ -5,14 +5,14 @@ import './styles.css'
 import { Creature } from './creature'
 import * as cloud from './cloud'
 import { CATALOG, SLOTS, decorDef } from './decor'
-import { BALLS, Ball, FOODS, Find, GUIDE_DEX, Game, GameEvent, RESTORE, dayKey, HABITATS, Haul, ISLANDS, JOBS, Mon, RARE_LONG, Role, Roster, STONES, Weather, Wild, aStone, loadSave, stoneName } from './game'
+import { BALLS, Ball, DESTINATIONS, FOODS, Find, GUIDE_DEX, isMeteorWeek, seasonOf, Game, GameEvent, RESTORE, dayKey, HABITATS, Haul, ISLANDS, JOBS, Mon, RARE_LONG, Role, Roster, STONES, Weather, Wild, aStone, loadSave, stoneName } from './game'
 import { LANDMARK_SPOTS, landmarkArt } from './landmarks'
 import { HABITAT_SPOTS } from './habitats'
 import { CatchAnim } from './catch'
 import { Intro } from './intro'
 import { Tour, blackScreen, liftBlack, runPrologue } from './tutorial'
 import { Hud, fmtMinutes, hudScale } from './hud'
-import { H, W, seaCss, seaEdge, useIsland } from './island'
+import { H, W, seaCss, seaEdge, useIsland, useSeason } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
 import { NEST, Scene, lightAt, nightness } from './scene'
 import { Manifest, Species, loadManifest, loadSpecies } from './sprites'
@@ -56,6 +56,7 @@ let game: Game
 let hud: Hud
 // the island you are on decides the palette before anything is painted
 useIsland(visitData ? visitData.scene.island : (loadSave().island ?? 'home'))
+useSeason(seasonOf(Date.now()), visitData ? visitData.scene.island : (loadSave().island ?? 'home'))
 const scene = new Scene()
 scene.overlay = (gg) => catching?.draw(gg)
 // every load opens under a bank of clouds that part to reveal the island. They are drawn on
@@ -262,6 +263,19 @@ async function syncParty(initial = false) {
 }
 
 /** Helpers stay near their work: the Day Care by the nest, the bush, the campfire, the end of the pier. */
+/** The first break of each week: Wooper names the week's tide, and a meteor shower if there is one (L7). */
+function announceTide() {
+  if (game.save.tutorial !== 'done') return
+  const t = game.tide()
+  if (game.save.tideSeen === t.week) return
+  game.save.tideSeen = t.week
+  game.persist()
+  const type = t.type[0].toUpperCase() + t.type.slice(1)
+  const rare = t.rare ? ` ${game.name(t.rare)} has been seen nearby too.` : ''
+  hud.say({ dex: GUIDE_DEX, text: `This week the tide brings ${type} types.${rare}`, wait: true })
+  if (isMeteorWeek(game.now())) hud.say({ dex: GUIDE_DEX, text: 'It is meteor shower week. Clefairy come down at night, and Moon Stones wash up.', wait: true })
+  game.note('other', `This week's tide brings ${type} types.`)
+}
 /** Home Island's landmarks (L1), ruined or restored; the lighthouse glows when a Generator keeps it lit. */
 function syncLandmarks() {
   if (game.save.island !== 'home') return scene.setLandmarks([])
@@ -1042,6 +1056,7 @@ function onGame(e: GameEvent) {
       hud.clearQueue((d) => d.tag === 'checkin')
       void cloud.sessionEnd()
       game.note('focus', `Focused for ${fmtMinutes(e.minutes)}.${e.complete ? ` ${e.berries === 2 ? 'Two berries' : 'A berry'} ripened.` : ''}`, { n: e.minutes, dex: lead() })
+      announceTide()
       if (e.capped)
         hud.say({ dex: lead(), text: "Three hours focused. That's the most one session counts, so take a real break. Start another whenever you're ready.", wait: true })
       else if (e.complete)
@@ -1126,6 +1141,11 @@ function onGame(e: GameEvent) {
     case 'expeditionBack':
       hud.say({ dex: e.mon.dex, emotion: 'Happy', text: `${game.name(e.mon)} came back with ${haulText(e.haul)}.`, auto: 7000 })
       game.note('find', `${game.name(e.mon)} came back with ${haulText(e.haul)}.`, { dex: e.mon.dex })
+      // a postcard from a far destination (L8)
+      {
+        const d = DESTINATIONS.find((x) => x.id === e.haul.dest)
+        if (d) game.note('other', `A postcard from ${game.name(e.mon)}: ${d.postcard}`, { dex: e.mon.dex })
+      }
       hud.refreshSheet()
       break
     case 'sail':
@@ -1812,8 +1832,8 @@ async function boot() {
         if (!game.assign(id, role)) hud.toast(game.inSession ? 'Change roles between sessions.' : 'That spot is taken.')
         hud.refreshSheet()
       },
-      expedition: (id, long) => {
-        if (!game.sendExpedition(id, long)) hud.toast(game.inSession ? 'Send them off between sessions.' : 'Someone is already away.')
+      expedition: (id, long, dest) => {
+        if (!game.sendExpedition(id, long, dest)) hud.toast(game.inSession ? 'Send them off between sessions.' : 'Someone is already away.')
         hud.refreshSheet()
       },
       buildHabitat: (id) => {

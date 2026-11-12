@@ -89,6 +89,19 @@ export function useIsland(id: string) {
   Object.assign(TUFT, { out: '#6d8aa6', dark: '#a9c2d8', mid: '#c9dbea', light: '#f4f9fd' })
 }
 
+/**
+ * Seasons on Home Island (L7, 2026-11-12): in autumn the tree's leaves turn amber and the grass
+ * warms a little. Applied after useIsland and before the scene is built.
+ */
+export function useSeason(season: string, id: string) {
+  if (id !== 'home' || season !== 'autumn') return
+  const A: Partial<Record<keyof typeof PAL, string>> = {
+    leaf: '#c0702e', leafMid: '#d88a3c', leafLight: '#eeb054', leafDeep: '#8e4a22',
+    grassLight: '#b4d466', grass: '#92bf52', grassDark: '#74a442', grassDeep: '#5a8a36',
+  }
+  for (const [k, v] of Object.entries(A)) PAL[k as keyof typeof PAL] = hex(v!)
+}
+
 /** The open-sea colour, for the page behind the canvas. */
 export const seaCss = () => `rgb(${PAL.dusk.join(',')})`
 /** The darkest water, drawn only in a thin band at the window's edges. */
