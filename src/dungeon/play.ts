@@ -70,6 +70,24 @@ const COL: Record<string, string> = {
   dragon: '#7a70ff', fairy: '#ffa0d8', normal: '#f0f0f0', fighting: '#e06040', ground: '#d8b060', flying: '#c0d8ff', bug: '#a8d040', rock: '#c8a868', dark: '#705848', steel: '#c0c8d8',
 }
 
+/**
+ * How an ordinary enemy fights (enemy roles, 2026-11-12). Each one has a tell you can read and answer:
+ * - fighter: walks up and winds up a blow you can step out of;
+ * - caster: keeps its distance, shoots, and now and then charges a bigger shot;
+ * - flier: circles out of reach, then dives down a warned lane;
+ * - brute: curls up when hit (30% damage), then rolls down a warned lane;
+ * - phantom: fades out, can't be hit, and comes back behind you with a wound-up Lick;
+ * - hunter: goes for your weakest Pokémon, pounces down a warned lane, and bites harder below a third of its health.
+ */
+type Role = 'fighter' | 'caster' | 'flier' | 'brute' | 'phantom' | 'hunter'
+function roleOf(types: string[]): Role {
+  if (types.includes('ghost')) return 'phantom'
+  if (types.includes('flying')) return 'flier'
+  if (types.includes('dark')) return 'hunter'
+  if (types.some((t) => t === 'rock' || t === 'ground' || t === 'steel')) return 'brute'
+  return types.some((t) => RANGED.has(t)) ? 'caster' : 'fighter'
+}
+
 interface Actor {
   id: number
   monId?: string // your Pokémon's id in the save (to carry HP between floors)
@@ -115,6 +133,17 @@ interface Actor {
   alt: number // which move of its kit a boss or miniboss uses next
   svx: number // momentum on slick ice
   svy: number
+  role: Role // how an ordinary enemy fights (roleOf); your Pokémon and bosses ignore it
+  shoots: boolean // fires shots rather than striking up close
+  wind: number // seconds left winding up a plain blow (it lands only if you are still in reach)
+  windOn?: Actor
+  windMult: number
+  windLabel?: string
+  windClose?: boolean // a phantom's Lick: a strike up close even though it shoots
+  brace: number // a brute's seconds curled up (it takes 30% damage)
+  braceCd: number
+  hide: number // a phantom's seconds faded out (it can't be hit or targeted)
+  trick: number // seconds until its role move (dive, pounce, fade, charged shot) is ready
   tx?: number // guest: where the host says it is (drawn easing toward it)
   ty?: number
 }
@@ -313,6 +342,8 @@ const PARTY_HP = 1.6
 // melee types stand in harm's way for 20 px of reach against 74, so they hit harder and take more (D-F2)
 const MELEE_ATK = 1.4
 const MELEE_HP = 1.2
+// ordinary enemies: before the roles a room melted in about a second, too fast for anything to read (2026-11-12)
+const FOE_HP = 3
 const shoots = (types: string[]) => types.some((t) => RANGED.has(t))
 function makeActor(side: Actor['side'], dex: number, level: number, sp: Species, types: string[], name: string, x: number, y: number, boss = false, mini = false): Actor {
   const st = statsFor(level, boss, mini)
@@ -320,7 +351,19 @@ function makeActor(side: Actor['side'], dex: number, level: number, sp: Species,
     st.hp = Math.round(st.hp * PARTY_HP * (shoots(types) ? 1 : MELEE_HP))
     if (!shoots(types)) st.atk *= MELEE_ATK
   }
+  // an ordinary enemy fights by its role, and lasts long enough for the role to show
+  const plain = side === 'foe' && !boss && !mini
+  const role = plain ? roleOf(types) : 'fighter'
+  if (plain) st.hp = Math.round(st.hp * FOE_HP)
   return {
+    role,
+    shoots: plain ? role === 'caster' || role === 'phantom' : shoots(types),
+    wind: 0,
+    windMult: 1,
+    brace: 0,
+    braceCd: 0,
+    hide: 0,
+    trick: 1 + Math.random() * 2,
     id: nextId++, side, dex, name, level, types, sp, x, y, dir: 0, hp: st.hp, maxHp: st.hp, atk: st.atk, cd: Math.random() * 0.6, cd1: 0, cd2: boss ? 4 : mini ? 3 : 0, moving: false,
     t: Math.random() * 3, hurt: 0, hop: 0, awake: false, boss, mini, dead: false, fade: 0, sleep: 0, dash: 0, dashCd: 0, dashDir: [0, 1], phase: 1, summoned: false, reviveT: 0, still: 0, stuck: 0,
     guard: 0, lunge: 0, alt: 0, svx: 0, svy: 0,
@@ -454,7 +497,7 @@ function nearest(from: { x: number; y: number }, xs: Actor[], within = Infinity)
   let best: Actor | null = null
   let bd = within
   for (const x of xs) {
-    if (x.dead) continue
+    if (x.dead || x.hide > 0) continue
     const d = dist(from, x)
     if (d < bd) {
       bd = d
@@ -465,14 +508,25 @@ function nearest(from: { x: number; y: number }, xs: Actor[], within = Infinity)
 }
 
 // ---------- combat ----------
-const ranged = (a: Actor) => a.types.some((t) => RANGED.has(t))
+const ranged = (a: Actor) => a.shoots
 const range = (a: Actor) => (a.boss ? 26 : a.mini ? 22 : ranged(a) ? 74 : 20)
 const bestType = (a: Actor, d: Actor) => a.types.reduce((b, t) => (effectiveness(t, d.types) > effectiveness(b, d.types) ? t : b), a.types[0] ?? 'normal')
 function hit(from: Actor, to: Actor, mult: number, type: string) {
-  if (to.dead || to.dash > 0 || to.guard > 0) return
+  if (to.dead || to.dash > 0 || to.guard > 0 || to.hide > 0) return
   const eff = effectiveness(type, to.types)
+  // a hunter bites harder at a Pokémon below a third of its health
+  if (from.role === 'hunter' && from.side === 'foe' && to.hp < to.maxHp / 3) mult *= 1.5
+  const braced = to.brace > 0
+  if (braced) mult *= 0.3
   const dmg = Math.max(1, Math.round(from.atk * 0.5 * mult * (eff || 0.25) * (0.9 + Math.random() * 0.2)))
-  hurt(to, dmg, eff > 1 ? '#ffe040' : eff < 1 ? '#c8c8c8' : '#ffffff')
+  hurt(to, dmg, braced ? '#8a9ab8' : eff > 1 ? '#ffe040' : eff < 1 ? '#c8c8c8' : '#ffffff')
+  // a brute curls up once it's hit, then rolls out when it uncurls
+  if (to.role === 'brute' && to.side === 'foe' && !braced && to.braceCd <= 0 && !to.dead && !to.charge) {
+    to.brace = 1.5
+    to.braceCd = 6.5
+    to.wind = 0
+    pops.push({ x: to.x, y: to.y - 30, text: to.types.includes('steel') ? 'Harden' : 'Defense Curl', t: 0, col: '#c8d4ec' })
+  }
   if (eff > 1 && Math.random() < 0.5) toast("It's super effective!", true)
 }
 function hurt(to: Actor, dmg: number, col = '#ffffff') {
@@ -783,6 +837,119 @@ function miniBrain(f: Actor, t: Actor) {
   } else {
     const d = dist(f, t) || 1
     slam(f, (t.x - f.x) / d, (t.y - f.y) / d, 90, 10, 0.8, 1.4, 'Take Down')
+  }
+}
+/** Start winding up a blow or a shot: it stands still, shows the tell, and lets go when the time is up. */
+function windUp(f: Actor, t: Actor, sec: number, mult: number, label?: string, close = false) {
+  f.wind = sec
+  f.windOn = t
+  f.windMult = mult
+  f.windLabel = label
+  f.windClose = close
+  f.dir = dirFrom(t.x - f.x, t.y - f.y)
+}
+/** Circle a target at radius r, in this actor's own direction. */
+function orbit(f: Actor, t: Actor, r: number, speed: number, dt: number, near: boolean) {
+  const s = f.id % 2 ? 1 : -1
+  const a = Math.atan2((f.y - t.y) / 0.7, f.x - t.x) + 0.55 * s
+  f.moving = true
+  seek(f, t.x + Math.cos(a) * r, t.y + Math.sin(a) * r * 0.7, speed, dt, near && dist(f, t) > 90)
+}
+/** An ordinary enemy's turn, by its role (see Role). */
+function roleBrain(f: Actor, t: Actor, dt: number, near: boolean) {
+  // a hunter goes for the weakest Pokémon near it
+  if (f.role === 'hunter') {
+    const weak = party.filter((p) => !p.dead && dist(f, p) < 130).sort((a, b) => a.hp / a.maxHp - b.hp / b.maxHp)[0]
+    if (weak) t = weak
+  }
+  const d = dist(f, t)
+  const ux = (t.x - f.x) / (d || 1)
+  const uy = (t.y - f.y) / (d || 1)
+  const stand = () => {
+    f.moving = false
+    walk(f, 0, 0, dt)
+  }
+  // curled up: it holds still, then rolls out down a warned lane
+  if (f.brace > 0) {
+    f.brace -= dt
+    stand()
+    if (f.brace <= 0 && d < 120) slam(f, ux, uy, Math.min(110, d + 30), 9, 0.6, 1.5, 'Rollout', 210)
+    return
+  }
+  // faded out: it drifts round behind its target, then comes back winding up a Lick
+  if (f.hide > 0) {
+    f.hide -= dt
+    const [bx, by] = DIRV[t.dir] ?? [0, 1]
+    f.moving = true
+    seek(f, t.x - bx * 16, t.y - by * 12, 72, dt, false)
+    if (f.hide <= 0) windUp(f, t, 0.5, 1.4, 'Lick', true)
+    return
+  }
+  // winding up: the blow lands only on someone still in reach, so stepping away answers it
+  if (f.wind > 0) {
+    f.wind -= dt
+    stand()
+    if (f.wind > 0) return
+    const w = f.windOn
+    f.windOn = undefined
+    if (!w || w.dead) return
+    if (f.windClose) {
+      if (dist(f, w) > 28) return
+      f.hop = 0.3
+      f.lunge = 0.2
+      pops.push({ x: f.x, y: f.y - 30, text: f.windLabel ?? '', t: 0, col: COL[f.types[0]] ?? '#fff' })
+      hit(f, w, f.windMult, bestType(f, w))
+    } else if (dist(f, w) <= range(f) + (f.shoots ? 30 : 8)) attack(f, w, f.windMult, f.windLabel)
+    return
+  }
+  if (f.still > 0) return stand()
+  const clear = () => clearLine(f, t.x, t.y)
+  if (f.role === 'flier') {
+    // it never trades blows: it circles out of reach and dives down a warned lane
+    if (f.trick <= 0 && d < 100 && clear()) {
+      f.trick = 2.6 + Math.random()
+      slam(f, ux, uy, Math.min(100, d + 20), 7, 0.5, 1.3, 'Wing Attack', 240)
+      return
+    }
+    orbit(f, t, 46, 62, dt, near)
+    return
+  }
+  if (f.role === 'hunter' && f.trick <= 0) {
+    // ready to pounce: up close it backs off first, so the pounce always comes down a lane you can see
+    if (d < 44) {
+      f.moving = true
+      seek(f, f.x - ux * 30, f.y - uy * 30, 70, dt, false)
+      if (f.trick < -1.5) f.trick = 1 // cornered: it gives up and bites
+      return
+    }
+    if (d < 110 && clear()) {
+      f.trick = 3.6 + Math.random()
+      slam(f, ux, uy, Math.min(100, d + 18), 8, 0.55, 1.3, 'Feint Attack', 260)
+      return
+    }
+  }
+  if (f.role === 'phantom' && f.trick <= 0 && d < 110) {
+    f.trick = 4.5 + Math.random() * 1.5
+    f.hide = 1.4
+    return
+  }
+  if (f.role === 'caster' && f.trick <= 0 && d <= range(f) && clear()) {
+    f.trick = 5 + Math.random() * 2
+    windUp(f, t, 0.7, 1.7, STRONG[f.types[0]] ?? 'Hyper Beam')
+    return
+  }
+  if (f.role === 'caster' && d < 40) {
+    // too close: it backs away to shoot from range
+    f.moving = true
+    seek(f, f.x - ux * 30, f.y - uy * 30, 40, dt, false)
+  } else {
+    f.moving = d > range(f) - 4
+    if (f.moving) seek(f, t.x, t.y, f.role === 'brute' ? 34 : f.role === 'hunter' ? 50 : 44, dt, near)
+    else walk(f, 0, 0, dt)
+  }
+  if (f.cd <= 0 && d <= range(f)) {
+    f.cd = f.role === 'brute' ? 1.7 : f.role === 'phantom' ? 1.9 : f.shoots ? 1.5 : 1.25
+    windUp(f, t, f.shoots ? 0.25 : 0.35, f.role === 'brute' ? 1.2 : 1)
   }
 }
 function summon(f: Actor, n: number) {
@@ -1160,6 +1327,8 @@ function update(dt: number) {
     a.still = Math.max(0, a.still - dt)
     a.guard = Math.max(0, a.guard - dt)
     a.lunge = Math.max(0, a.lunge - dt)
+    a.braceCd -= dt
+    a.trick -= dt
     if (a.dead) a.fade = Math.min(1, a.fade + dt * 1.5)
   }
   glow = Math.max(0, glow - dt)
@@ -1282,6 +1451,10 @@ function update(dt: number) {
       if (f.charge.left <= 0 || (f.x === bx && f.y === by)) f.charge = undefined
       continue
     }
+    if (!f.boss && !f.mini) {
+      roleBrain(f, t, dt, [me, ...guestLeads].some((l) => dist(t, l) < 30))
+      continue
+    }
     f.moving = f.still <= 0 && f.guard <= 0 && d > range(f) - 4
     if (f.moving) seek(f, t.x, t.y, f.boss ? 30 : f.mini ? 36 : 44, dt, [me, ...guestLeads].some((l) => dist(t, l) < 30))
     else walk(f, 0, 0, dt)
@@ -1343,7 +1516,7 @@ function update(dt: number) {
     const tile = baked.at(tx, ty)
     if (!walkableTile(tile) && tile !== 2) s.life = 0
     for (const a of s.side === 'you' ? foes : party) {
-      if (a.dead || s.life <= 0) continue
+      if (a.dead || a.hide > 0 || s.life <= 0) continue
       if (Math.hypot(a.x - s.x, a.y - 9 - s.y) < 8) {
         hit(s.from, a, s.mult, s.type)
         s.life = 0
@@ -1400,7 +1573,7 @@ function openNear(x: number, y: number) {
 }
 /** What the guest needs to draw this moment (positions are whole pixels). */
 function snapshot(): Snap {
-  const flags = (a: Actor) => (a.moving ? 1 : 0) | (a.hop > 0 ? 2 : 0) | (a.hurt > 0 ? 4 : 0) | (a.dead ? 8 : 0) | (a.sleep > 0 ? 16 : 0) | (a.dash > 0 ? 32 : 0) | (a.lunge > 0.1 ? 64 : 0) | (a.guard > 0 ? 128 : 0)
+  const flags = (a: Actor) => (a.moving ? 1 : 0) | (a.hop > 0 ? 2 : 0) | (a.hurt > 0 ? 4 : 0) | (a.dead ? 8 : 0) | (a.sleep > 0 ? 16 : 0) | (a.dash > 0 ? 32 : 0) | (a.lunge > 0.1 ? 64 : 0) | (a.guard > 0 ? 128 : 0) | (a.wind > 0 ? (a.windMult > 1.35 ? 2048 : 256) : 0) | (a.brace > 0 ? 512 : 0) | (a.hide > 0 ? 1024 : 0)
   return {
     a: [...party, ...foes].map((a) => [a.id, a.side === 'you' ? 1 : 0, a.dex, Math.round(a.x), Math.round(a.y), a.dir, Math.round(a.hp), Math.round(a.maxHp), flags(a), a.level, a.boss ? 1 : a.mini ? 2 : 0, a.name, +a.fade.toFixed(2), +a.cd1.toFixed(1), +a.cd2.toFixed(1), a.awake ? 1 : 0]),
     s: shots.map((x) => [Math.round(x.x), Math.round(x.y), x.type]),
@@ -1669,6 +1842,10 @@ function applySnap(raw: Snap) {
     if (!mineLead && fl & 32) a.dash = 0.05
     if (fl & 64) a.lunge = Math.max(a.lunge, 0.15)
     a.guard = fl & 128 ? 0.1 : 0
+    a.wind = fl & (256 | 2048) ? 0.1 : 0
+    a.windMult = fl & 2048 ? 2 : 1
+    a.brace = fl & 512 ? 0.1 : 0
+    a.hide = fl & 1024 ? 0.1 : 0
     a.fade = fade
     a.cd1 = cd1
     a.cd2 = cd2
@@ -1772,20 +1949,33 @@ function drawActor(g: CanvasRenderingContext2D, a: Actor, cx: number, cy: number
   const t = a.hop > 0 ? 0.3 - a.hop : a.moving ? a.t * (a.dash > 0 ? 2 : 0.8) : a.t
   const f = frameAt(anim, t, a.hop <= 0)
   // a melee lunge: a short step toward where it faces, and back
-  const lk = a.lunge > 0 ? Math.sin((1 - a.lunge / 0.2) * Math.PI) * 5 : 0
+  // a wind-up draws it back a step before it lets go (the tell)
+  const lk = a.lunge > 0 ? Math.sin((1 - a.lunge / 0.2) * Math.PI) * 5 : a.wind > 0 ? -2 : 0
   const [ux, uy] = DIRV[a.dir] ?? [0, 1]
   const x = a.x - cx + Math.round(ux * lk)
   const y = a.y - cy + Math.round(uy * lk * 0.7)
-  g.globalAlpha = 1 - a.fade * 0.85
+  // a faded phantom is only a faint shape
+  g.globalAlpha = a.hide > 0 ? 0.14 : 1 - a.fade * 0.85
   g.fillStyle = 'rgba(0,0,0,0.35)'
   g.fillRect(Math.round(x - 6), Math.round(y - 1), 12, 2)
-  if (a.hurt > 0 || a.dash > 0 || a.guard > 0) {
+  if (a.hurt > 0 || a.dash > 0 || a.guard > 0 || a.wind > 0 || a.brace > 0) {
     scratch.width = anim.w
     scratch.height = anim.h
     const sg = scratch.getContext('2d')!
     drawFrame(sg, anim, f, a.dir, anim.ax, anim.ay)
     sg.globalCompositeOperation = 'source-atop'
-    sg.fillStyle = a.hurt > 0 ? 'rgba(255,255,255,0.8)' : a.dash > 0 ? 'rgba(200,230,255,0.5)' : 'rgba(255,236,190,0.35)'
+    sg.fillStyle =
+      a.hurt > 0
+        ? 'rgba(255,255,255,0.8)'
+        : a.dash > 0
+          ? 'rgba(200,230,255,0.5)'
+          : a.brace > 0
+            ? 'rgba(150,175,225,0.45)'
+            : a.wind > 0
+              ? a.windMult > 1.35
+                ? 'rgba(255,200,120,0.5)' // a charged shot or a Lick: a stronger glow
+                : 'rgba(255,170,130,0.32)'
+              : 'rgba(255,236,190,0.35)'
     sg.fillRect(0, 0, anim.w, anim.h)
     g.drawImage(scratch, Math.round(x - anim.ax), Math.round(y - anim.ay))
   } else drawFrame(g, anim, f, a.dir, x, y)

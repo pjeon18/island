@@ -1,5 +1,25 @@
 # Validation
 
+## Enemy roles (2026-11-12)
+- **Arena runs in the browser.** A scripted party of Charizard, Pidgeot and Vaporeon fought rooms of 3 or 4 real floor enemies in an open room, stepped by hand.
+  - Before the roles, a B1 room at Lv30 lasted 2 seconds and cost 1% of the party's health.
+  - With `FOE_HP` 3, Pier Hollow B1 rooms at Lv26 last about 4 to 6.5 seconds.
+  - A lead that stands still loses about 10% to 25% of its health a room. A lead that moves and dashes out of lanes and wind-ups loses about 3% to 10%. Followers lose about 10% to 25% either way.
+  - Ember Crater B1 at Lv66 lasts about 4 seconds, because Vaporeon is strong against every type there.
+- **Every role used its move:**
+  - brutes curled up and rolled out;
+  - fliers dived;
+  - Houndoom pounced, about once a fight (after a fix: it had stood too close to ever pounce);
+  - Gastly faded and came back with Lick;
+  - casters charged shots.
+- **The Gastly room was too hard at first.** A still lead fainted in most fights, so Lick went from 1.6 to 1.4, the charged shot from 1.9 to 1.7, and Gastly shoots every 1.9 seconds.
+- **Co-op:** a guest tab received the curled-up, faded and winding states through the snapshot flags.
+- **A screenshot** showed the curled-up tint and the faded Gastly.
+- **Not checked:**
+  - real-time hand play;
+  - a guest seeing the tells drawn on screen (the pane was hidden, so the guest was stepped by hand);
+  - Glacier Grotto's Sneasel in a room.
+
 ## Content pass (2026-11-12, docs/CONTENT_PLAN.md)
 - **Island, in the browser on a local test save:**
   - Rare visitors in short sessions: 6.9% on a 3-day streak, 0% without one.
