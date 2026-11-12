@@ -123,11 +123,34 @@ Read `docs/GAME_DESIGN.md` first: it is the game loop and core features from Pau
     - Guests get the states as snapshot flag bits: 256 winding, 2048 winding a strong move, 512 curled up, 1024 faded.
     - Numbers are in VALIDATION.md.
     - No bug type appears in any dungeon, so the swarm idea from the review wasn't built. Hunters (dark) took its place.
+  - **Move choices** (2026-11-12):
+    - Moves 1 and 2 share one charge of three pips (`Actor.pp`, `PP_MAX`). Move 1 costs one pip and a burst costs two. A pip refills every `PP_EVERY` 2.5 s, and a Max Elixir refills the whole charge. Key 3 spends your second Pokémon's own charge.
+    - Followers use move 1 only from a full charge, so key 3 usually has two pips left.
+    - Every move leaves its type's status (`STATUS`, `applyStatus`):
+      - burn (fire) and poison (poison, bug) tick twice a second, scaled by the attacker's attack (`updateStatus`);
+      - paralysis (electric) and slow (water) halve an enemy's pace (`pace`: movement and its timers);
+      - freeze (ice) stops it for 1.2 s, then slows it;
+      - sleep (grass, psychic, fairy) holds it until a move hits it (auto-attacks leave sleepers alone);
+      - stagger (every other type) knocks it back and cancels a wind-up, a curl, a dive or pounce, or a fade.
+    - A burst leaves 60% of the status on everything it hits and pulls faded ghosts into view.
+    - Bosses and minibosses can't be put to sleep, frozen or staggered, and other statuses last half as long on them.
+    - The HUD shows the charge as three pips, each move's status word, and dims a move you can't afford. Statuses show as small coloured marks over an enemy's head.
+    - Guests get statuses as snapshot flag bits 4096 to 65536. A party actor's `cd1` slot carries its charge.
   - L5: `checkMilestones` (called when a species is first caught) pays each island's Pokédex at `DEX_MILESTONES` 25/50/75/100% once (`save.dexPaid`): a free decoration from `MILESTONE_DECOR`, an egg, an extra decoration spot (`extraSlots`, SLOTS `i` with `milestone: 1`, `slotOpen`), and Wooper's Togepi egg on Home or the gift-only `statue` elsewhere. Shinies: `SHINY_ODDS` 1/150 for passers-by in a clean long session (`Wild.shiny` → `Mon.shiny`, `save.shinies`); `Creature.shiny` draws with a hue-rotate filter and a brief sparkle (`syncShiny`); gold marks in the catch screen, summary, box and Pokédex.
+- Landmarks (2026-11-12, Paul: "not clear what they are", "placed on top and over the end of the island"):
+  - The ruins stand on open grass: the hut at `onIsland(81, 66)` and the lighthouse at `onIsland(55, 88)`. They are low and have soft dithered shadows (`shade`) with grass growing through them (`blades`).
+  - The hut ruin has a doorway, fallen red roof slabs and a Poké Ball sign. The lighthouse ruin has a red-and-white stump, a fallen section and its lamp cage.
+  - Tapping one (`landmarkAt`, `showLandmark`) has Wooper say what it is and what rebuilding takes, with "See progress" (`hud.openTo('island', 'restore')`). The next one, once affordable, glints gold every few seconds (`readyGlint`) and offers Rebuild.
+- The small window (compact HUD):
+  - Sub-tabs take the title's place beside the close button and wrap.
+  - The Box and Pokédex grids fit their columns to the width.
+  - Bag and Decor show one per row.
+- The island's frame timer reads the clock of the window the island is in (`host.performance.now()`), and frame time never runs backwards. The small window's frame times count from its own opening; mixing the two clocks made time jump, and the grass shook (Paul, 2026-11-12).
 - Sound (2026-11-12, from files Paul supplied):
   - `src/audio.ts` is one Web Audio context. It starts on the first press or key in the page or the small window (`initAudio`, `listenIn`), so the very first press is silent.
   - Sounds come from one sprite, `public/audio/sfx.m4a`, through `sfx(name)`. `click()` is a plain button's sound, and any other sound in the same press replaces it, so a press never makes two.
   - The music is `public/audio/overworld.m4a`. It loops sample-exactly (`MUSIC_LOOP`), fades in over 3 s to 0.32, and plays only in the window that runs the focus clock (`wantsMusic(clockOwner)`), so a pop-out and its opener never both play. It plays during focus, and the dungeon has none.
+  - Settings → Sound also has a master volume (25%, 50%, 75%, 100%; `settings.volume`, a `master` gain node, and cries scaled by it). Music credit: Mayra, Free Ambient Music (Loop), mayragandra.itch.io (credit required).
   - Settings → Sound has two buttons: "Sounds" (`settings.sound`, the old Cries toggle, now cries and effects) and "Music" (`settings.music`).
   - Where sounds play:
     - menus open, close and change tab; a line advances (`blip`); someone starts to speak (`speak`, never during focus);

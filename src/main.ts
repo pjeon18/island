@@ -14,7 +14,7 @@ import { Tour, blackScreen, liftBlack, runPrologue } from './tutorial'
 import { Hud, fmtMinutes, hudScale } from './hud'
 import { H, W, seaCss, seaEdge, useIsland, useSeason } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
-import { audioState, initAudio, listenIn, sfx, syncMusic, wantsMusic, type SfxName } from './audio'
+import { applyVolume, audioState, initAudio, listenIn, sfx, syncMusic, wantsMusic, type SfxName } from './audio'
 import { NEST, Scene, lightAt, nightness } from './scene'
 import { Manifest, Species, loadManifest, loadSpecies } from './sprites'
 
@@ -312,7 +312,72 @@ function announceTide() {
 function syncLandmarks() {
   if (game.save.island === 'ember') return scene.setLandmarks([{ ...CRATER_SPOT, art: craterArt() }])
   if (game.save.island !== 'home') return scene.setLandmarks([])
-  scene.setLandmarks(RESTORE.map((r) => ({ ...LANDMARK_SPOTS[r.id], art: landmarkArt(r.id, game.restored(r.id), r.id === 'lighthouse' && game.lighthouseLit) })))
+  const next = game.nextLandmark
+  const ready = !!next && game.restoreProgress(next.id).ready
+  scene.setLandmarks(
+    RESTORE.map((r) => {
+      const art = landmarkArt(r.id, game.restored(r.id), r.id === 'lighthouse' && game.lighthouseLit)
+      // the one you can rebuild now catches the light now and then: a slow gold glint above it
+      return { ...LANDMARK_SPOTS[r.id], art: ready && next!.id === r.id ? { ...art, live: readyGlint(art.ay) } : art }
+    }),
+  )
+  landmarkKey = `${game.save.restored?.join() ?? ''}|${ready}`
+}
+let landmarkKey = ''
+/** A gold glint that rises and settles every few seconds, a little above a ruin's top. */
+const readyGlint = (h: number) => (g: CanvasRenderingContext2D, x: number, y: number, t: number) => {
+  const k = (t % 3.2) / 3.2
+  const a = Math.sin(k * Math.PI) ** 2
+  if (a < 0.05) return
+  const top = y - h - 3 - Math.round(k * 3)
+  g.globalAlpha = a * 0.9
+  g.fillStyle = '#ffe890'
+  g.fillRect(x, top - 1, 1, 3)
+  g.fillRect(x - 1, top, 3, 1)
+  g.globalAlpha = 1
+}
+/** The landmark (Home only) whose picture is under this point, if any. */
+function landmarkAt(x: number, y: number) {
+  if (game.save.island !== 'home') return null
+  for (const r of RESTORE) {
+    const s = LANDMARK_SPOTS[r.id]
+    const a = landmarkArt(r.id, game.restored(r.id), r.id === 'lighthouse' && game.lighthouseLit)
+    if (x >= s.x - a.ax && x < s.x - a.ax + a.img.width && y >= s.y - a.ay && y <= s.y + 2) return r
+  }
+  return null
+}
+/** Tapping a landmark: Wooper says what it is and what rebuilding it takes. */
+function showLandmark(r: (typeof RESTORE)[number]) {
+  const name = r.id === 'hut' ? 'the Pokémon Center hut' : r.id === 'lighthouse' ? 'the lighthouse' : 'the old pier'
+  const Name = name[0].toUpperCase() + name.slice(1)
+  if (game.restored(r.id)) return hud.say({ dex: GUIDE_DEX, emotion: 'Happy', text: `${Name}. ${r.opens}`, auto: 6000 })
+  const next = game.nextLandmark
+  if (next?.id !== r.id) {
+    const before = RESTORE[RESTORE.indexOf(r) - 1]
+    return hud.say({ dex: GUIDE_DEX, text: `The storm wrecked ${name} too. We can rebuild it after ${before.id === 'hut' ? 'the hut' : 'the lighthouse'}.`, auto: 6000 })
+  }
+  const needs = `${r.hours} focused hours, ${r.species} species, ${r.shells.toLocaleString()} shells and ${r.stars} Star Pieces${r.guardian ? ', with Snorlax beaten' : ''}`
+  if (game.restoreProgress(r.id).ready)
+    return hud.say({
+      dex: GUIDE_DEX,
+      emotion: 'Happy',
+      text: game.inSession ? `We can rebuild ${name} on your next break.` : `We have everything to rebuild ${name}: ${r.shells.toLocaleString()} shells and ${r.stars} Star Pieces.`,
+      actions: game.inSession
+        ? undefined
+        : [
+            { label: 'Rebuild', primary: true, run: () => void (game.restore(r.id) || hud.toast('Not yet.')) },
+            { label: 'Not now', run: () => {} },
+          ],
+      auto: game.inSession ? 5000 : undefined,
+    })
+  hud.say({
+    dex: GUIDE_DEX,
+    text: `The storm wrecked ${name}. Rebuilding it takes ${needs}.`,
+    actions: [
+      { label: 'See progress', primary: true, run: () => hud.openTo('island', 'restore') },
+      { label: 'OK', run: () => {} },
+    ],
+  })
 }
 function anchorFor(role: Role): { x: number; y: number; r: number } | undefined {
   if (role === 'daycare') return { x: NEST.x + 13, y: NEST.y + 3, r: 5 }
@@ -661,6 +726,8 @@ canvas.addEventListener('click', (e) => {
       .filter((m) => m.monId && !m.hidden && m.state !== 'leave' && Math.abs(m.x - x) < 11 && y > m.y - 26 && y < m.y + 3)
       .sort((a, b) => b.y - a.y)[0]
     if (mine) return petMon(mine)
+    const lm = landmarkAt(x, y)
+    if (lm) return showLandmark(lm)
     return hud.hideSummary()
   }
   if (game.inSession) return hud.toast(`${c.name} is waiting for your break.`)
@@ -674,7 +741,8 @@ canvas.addEventListener('mousemove', (e) => {
   const over =
     !!catching ||
     scene.finds.some((f) => Math.abs(f.x - x) < 6 && y > f.y - 9 && y < f.y + 3) ||
-    scene.creatures.some((c) => (c.wildId || c.monId || c.visitor) && !c.hidden && Math.abs(c.x - x) < 11 && y > c.y - 26 && y < c.y + 3)
+    scene.creatures.some((c) => (c.wildId || c.monId || c.visitor) && !c.hidden && Math.abs(c.x - x) < 11 && y > c.y - 26 && y < c.y + 3) ||
+    !!landmarkAt(x, y)
   canvas.style.cursor = over ? 'pointer' : ''
 })
 window.addEventListener('keydown', (e) => {
@@ -1022,9 +1090,9 @@ function cry(dex: number) {
   let a = cries.get(dex)
   if (!a) {
     a = new Audio(`${import.meta.env.BASE_URL}cries/${dex}.mp3`)
-    a.volume = 0.22
     cries.set(dex, a)
   }
+  a.volume = 0.22 * (game.save.settings.volume ?? 1)
   a.currentTime = 0
   void a.play().catch(() => {})
 }
@@ -1469,7 +1537,8 @@ function tick(dt: number) {
 }
 function frame(now: number) {
   lastFrameAt = now
-  const dt = Math.min(0.1, (now - last) / 1000)
+  // never backwards: the small window's frame times count from its own start, not the page's
+  const dt = Math.max(0, Math.min(0.1, (now - last) / 1000))
   last = now
   tick(dt)
   // night frames carry a per-pixel lighting pass, so draw them at 30 fps
@@ -1495,6 +1564,8 @@ function frame(now: number) {
 let loopGen = 0
 function startLoop() {
   const gen = ++loopGen
+  // the new window's clock from here on
+  last = lastFrameAt = host.performance.now()
   const tick = (now: number) => {
     if (gen !== loopGen) return
     frame(now)
@@ -1502,8 +1573,11 @@ function startLoop() {
   }
   host.requestAnimationFrame(tick)
 }
+// a hidden window gets no frames, so a timer keeps the island going. It reads the clock of the
+// window the island is in: a small window's frame times count from its own opening, and mixing
+// the two clocks made time jump back and forth (the grass shook; Paul, 2026-11-12)
 setInterval(() => {
-  const now = performance.now()
+  const now = host.performance.now()
   if (now - lastFrameAt > 200) frame(now)
 }, 250)
 // The focus clock: one beat a second, plus one whenever the page wakes. When
@@ -1534,6 +1608,10 @@ setInterval(() => {
   if (game && scene.weather !== game.weather) scene.weather = game.weather
   if (game) syncNest()
   if (game) dozeAt45()
+  if (game && game.save.island === 'home') {
+    const next = game.nextLandmark
+    if (`${game.save.restored?.join() ?? ''}|${!!next && game.restoreProgress(next.id).ready}` !== landmarkKey) syncLandmarks()
+  }
 }, 1000)
 // the page around the canvas takes the open sea's colour as the light changes, so there is no seam
 if (!floatMode)
@@ -1882,7 +1960,7 @@ async function boot() {
   const [m, roster] = await Promise.all([loadManifest(), fetch(import.meta.env.BASE_URL + `data/roster.json?v=${__BUILD__}`).then((r) => r.json())])
   manifest = m
   game = new Game((roster as { species: Roster }).species)
-  initAudio({ sounds: () => game.save.settings.sound !== false, music: () => game.save.settings.music !== false })
+  initAudio({ sounds: () => game.save.settings.sound !== false, music: () => game.save.settings.music !== false, volume: () => game.save.settings.volume ?? 1 })
   wantsMusic(clockOwner)
   // fire types light up the dark around them
   for (const [k, sp] of Object.entries((roster as { species: Roster }).species)) if (sp.types?.includes('fire')) scene.glowDex.add(k.padStart(4, '0'))
@@ -1997,6 +2075,13 @@ async function boot() {
       toggleSound: () => {
         game.save.settings.sound = game.save.settings.sound === false
         game.persist()
+        hud.refreshSheet()
+      },
+      setVolume: (v) => {
+        game.save.settings.volume = v
+        game.persist()
+        applyVolume()
+        sfx('click')
         hud.refreshSheet()
       },
       toggleMusic: () => {
@@ -2160,7 +2245,7 @@ function creditsHtml() {
   const rows = Object.values(manifest.species)
     .map((s) => `<li><strong>${s.name}</strong> ${names(s.credits.sprite)} / ${names(s.credits.portrait)}</li>`)
     .join('')
-  return `<p>PMD Sprite Repository, CC BY-NC 4.0. Cries and page sprites: Pokémon Showdown. Data and item icons: PokéAPI. Sound effects: Case Portman Audio (Cute & Cozy UI Audio). Sprite / portrait artists:</p><ul>${rows}</ul>`
+  return `<p>PMD Sprite Repository, CC BY-NC 4.0. Cries and page sprites: Pokémon Showdown. Data and item icons: PokéAPI. Sound effects: Case Portman Audio (Cute & Cozy UI Audio). Music: Mayra, Free Ambient Music (Loop), mayragandra.itch.io. Sprite / portrait artists:</p><ul>${rows}</ul>`
 }
 
 window.__island = {

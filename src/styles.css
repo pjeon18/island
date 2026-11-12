@@ -364,6 +364,14 @@ html:has(.float), body:has(.float) { background: transparent; }
 .hud.compact .strip-tab { width: 21px; height: 21px; }
 .hud.compact .strip-pop { display: none; }
 .hud.compact .hud-sheet { left: 4px; right: 4px; top: 4px; bottom: 30px; width: auto; height: auto; }
+/* the small window (Paul, 2026-11-12: the sub-tabs ran off the edge): sub-tabs wrap to a second row */
+.hud.compact .subtabs, .hud.compact .subtabs:has(.seg:nth-child(5)) { flex-wrap: wrap; margin: 0; align-self: stretch; flex: 1; min-width: 0; }
+.hud.compact .subtabs .seg { padding: 4px 3px; flex: 1 0 auto; }
+.hud.compact .sheet-head { padding: 4px 4px 2px; align-items: flex-start; }
+.hud.compact .sheet-body { padding: 2px 6px 8px; }
+/* grids take as many columns as fit; names get a whole row */
+.hud.compact .box-grid, .hud.compact .dex-grid { grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); }
+.hud.compact .bag-grid, .hud.compact .decor-grid { grid-template-columns: 1fr; }
 .hud.compact .hud-dialog, .hud.compact .hud-catch, .hud.compact .hud-summary { left: 4px; right: 4px; bottom: 30px; top: auto; max-width: none; width: auto; }
 .hud.compact .hud-dialog.task { top: 4px; bottom: auto; right: 4px; width: auto; }
 .hud.compact .hud-portrait-frame { display: none; }

@@ -2,13 +2,15 @@
 // Pokémon Center hut, lighthouse and old pier, each painted ruined and restored. They use the
 // decoration art shape (DecorArt), so the scene draws, lights and blocks them like decorations.
 import { DecorArt } from './decor'
-import { PAL, onIsland } from './island'
+import { PAL, TUFT, onIsland } from './island'
 import { Pix, RGB, bayer, hex } from './pixel'
 
 /** Where each landmark stands on Home Island (ground points, through onIsland like every fixed spot). */
+// (2026-11-12, Paul: the ruins sat on the island's rim and hung over the beach. They now stand
+// on open grass: the hut on the north-west lawn, the lighthouse on the west lawn.)
 export const LANDMARK_SPOTS: Record<string, { x: number; y: number }> = {
-  hut: onIsland(80, 58),
-  lighthouse: onIsland(53, 73),
+  hut: onIsland(81, 66),
+  lighthouse: onIsland(55, 88),
   pier: onIsland(197, 117),
 }
 
@@ -30,7 +32,22 @@ const roofDark = hex('#a8303a')
 const roofLight = hex('#ee6a70')
 const door = hex('#4a78b8')
 const rubble = (x: number, y: number) => (bayer(x, y) > 0.5 ? PAL.stone : PAL.stoneDark)
-
+/** A soft, dithered shadow on the grass under a landmark, so it sits in the ground. */
+const shade = (p: Pix, cx: number, cy: number, rx: number, ry: number) => {
+  const c = hex(TUFT.out)
+  for (let y = Math.floor(cy - ry); y <= cy + ry; y++)
+    for (let x = Math.floor(cx - rx); x <= cx + rx; x++) {
+      const d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2
+      if (d < 1 && !p.alpha(x, y) && bayer(x, y) < 0.75 - d * 0.5) p.set(x, y, c, 110)
+    }
+}
+/** A few blades of grass growing up through the ruin's edge. */
+const blades = (p: Pix, pts: [number, number][]) => {
+  for (const [x, y] of pts) {
+    p.set(x, y, hex(TUFT.mid))
+    p.set(x, y - 1, hex(TUFT.light))
+  }
+}
 function hut(restored: boolean): DecorArt {
   const p = new Pix(30, 26)
   if (restored) {
@@ -49,17 +66,34 @@ function hut(restored: boolean): DecorArt {
     rect(p, 13, 13, 4, 3, hex('#ffffff'))
     p.set(15, 14, roof)
     outline(p, hex('#7a2a24'))
+    shade(p, 15, 25, 14, 1)
     return { img: p.toCanvas(), ax: 15, ay: 25, r: 11, glow: { x: 0, y: -8, r: 22, rgb: '255, 210, 160' } }
   }
-  // ruined: broken walls, no roof, a plank or two
-  const tops = [6, 5, 8, 9, 7, 10, 12, 11, 9, 8, 10, 7, 6, 8, 9, 12, 13, 11, 10, 9, 7, 8, 10, 11]
-  for (let i = 0; i < 24; i++) rect(p, 3 + i, 25 - tops[i], 1, tops[i], (x, y) => (bayer(x, y) > 0.75 ? wallShade : wall))
-  rect(p, 12, 19, 6, 6, hex('#5a4a3a'))
-  rect(p, 0, 23, 30, 3, rubble)
-  rect(p, 18, 21, 9, 1, PAL.woodDark)
-  rect(p, 4, 22, 7, 1, PAL.wood)
-  outline(p, hex('#6a6058'))
-  return { img: p.toCanvas(), ax: 15, ay: 25, r: 10 }
+  // ruined: the hut's back wall stands to about knee height with its doorway, the red roof lies
+  // in pieces in front, and the round Poké Ball sign leans against the step
+  const tops = [5, 7, 8, 6, 7, 9, 0, 0, 0, 0, 0, 8, 6, 5, 7, 4, 6, 5, 3, 4]
+  tops.forEach((h, i) => {
+    if (!h) return
+    rect(p, 5 + i, 19 - h, 1, h, (x, y) => (x > 21 ? wallShade : bayer(x, y) > 0.8 ? wallShade : wall))
+  })
+  rect(p, 11, 13, 4, 6, hex('#4a3a2e')) // the empty doorway
+  // the floor's stone edge in front
+  for (let x = 4; x < 26; x++) p.set(x, 19, bayer(x, 19) > 0.4 ? PAL.stone : PAL.stoneDark)
+  // fallen roof: two red slabs, lit on top
+  rect(p, 16, 17, 9, 3, (x, y) => (y === 17 ? roofLight : x > 22 ? roofDark : roof))
+  rect(p, 3, 18, 6, 2, (x, y) => (y === 18 ? roofLight : roof))
+  // the Poké Ball sign: red top, white bottom, a dark band and a white button
+  const ball = hex('#e04848')
+  for (let y = 0; y < 6; y++)
+    for (let x = 0; x < 6; x++) {
+      const d = (x - 2.5) ** 2 + (y - 2.5) ** 2
+      if (d > 8.5) continue
+      p.set(10 + x, 15 + y, y < 2 ? ball : y === 2 || y === 3 ? (x === 2 || x === 3 ? hex('#ffffff') : hex('#3a2a2a')) : hex('#f4f0e8'))
+    }
+  outline(p, hex('#6a5a4c'))
+  blades(p, [[4, 20], [14, 20], [21, 20], [26, 19]])
+  shade(p, 15, 20.5, 14, 3)
+  return { img: p.toCanvas(), ax: 15, ay: 20, r: 10 }
 }
 
 function lighthouse(restored: boolean, lit: boolean): DecorArt {
@@ -78,8 +112,12 @@ function lighthouse(restored: boolean, lit: boolean): DecorArt {
     rect(p, 3, 11, 10, 1, hex('#2a2a36'))
     for (let y = 2; y < 6; y++) rect(p, 8 - (y - 1), y, (y - 1) * 2, 1, red)
     p.set(8, 1, hex('#2a2a36'))
-    rect(p, 2, 42, 12, 4, rubble)
+    for (let x = 2; x < 14; x++) {
+      p.set(x, 42, PAL.stoneLight)
+      p.set(x, 43, bayer(x, 43) > 0.5 ? PAL.stone : PAL.stoneDark)
+    }
     outline(p, hex('#5a2a2a'))
+    shade(p, 8, 44.5, 8, 1.5)
     return {
       img: p.toCanvas(),
       ax: 8,
@@ -101,18 +139,29 @@ function lighthouse(restored: boolean, lit: boolean): DecorArt {
         : undefined,
     }
   }
-  // ruined: a broken stump of the tower and its fallen stones
-  for (let y = 30; y < 42; y++) {
-    const half = Math.round(3 + (y - 12) * 0.12)
-    const top = 30 + ((y * 7) % 3)
-    if (y < top) continue
-    for (let x = 8 - half; x < 8 + half; x++) if (y > 31 || bayer(x, y) > 0.4) p.set(x, y, Math.floor((y - 12) / 6) % 2 === 0 ? red : white)
+  // ruined: the bottom of the tower on its round stone footing, broken off in a jagged edge,
+  // with a fallen red-and-white section and the dark lamp cage lying on the grass beside it
+  const q = new Pix(26, 46)
+  const tops = [33, 31, 30, 32, 29, 31, 33, 34]
+  for (let i = 0; i < 8; i++)
+    for (let y = tops[i]; y < 43; y++) {
+      const band = Math.floor((y - 30) / 5) % 2 === 0 ? white : red
+      q.set(9 + i, y, i === 7 ? (band === red ? hex('#a8343a') : hex('#d6ccbc')) : band)
+    }
+  // the round footing: a lit top face and a darker front
+  for (let x = 6; x < 20; x++) {
+    q.set(x, 43, PAL.stoneLight)
+    q.set(x, 44, bayer(x, 44) > 0.5 ? PAL.stone : PAL.stoneDark)
   }
-  rect(p, 0, 42, 16, 4, rubble)
-  p.set(13, 40, PAL.stone)
-  p.set(2, 41, PAL.stoneLight)
-  outline(p, hex('#5a4848'))
-  return { img: p.toCanvas(), ax: 8, ay: 45, r: 6 }
+  // a fallen section of the tower, lying on its side
+  for (let x = 19; x < 25; x++) for (let y = 41; y < 45; y++) q.set(x, y, Math.floor((x - 19) / 3) % 2 === 0 ? red : white)
+  // the lamp cage: dark iron with a pale pane
+  rect(q, 1, 40, 5, 4, hex('#3a3a4a'))
+  rect(q, 2, 41, 3, 2, hex('#9ab8c8'))
+  outline(q, hex('#5a4848'))
+  blades(q, [[7, 45], [17, 45], [24, 45], [3, 44]])
+  shade(q, 13, 45, 12, 1.5)
+  return { img: q.toCanvas(), ax: 13, ay: 45, r: 7 }
 }
 
 function pier(restored: boolean): DecorArt {

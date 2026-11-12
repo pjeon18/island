@@ -117,6 +117,7 @@ export interface HudHandlers {
   pet: (id: string) => void
   toggleSound: () => void
   toggleMusic: () => void
+  setVolume: (v: number) => void
   visit: (id: string) => void
   /** Host a co-op dungeon and invite this friend into it. */
   inviteDungeon?: (id: string) => void
@@ -554,6 +555,11 @@ export class Hud {
   private markStrip() {
     this.el.querySelectorAll<HTMLElement>('.strip-tab').forEach((b) => b.classList.toggle('on', !this.sheet.hidden && b.dataset.openTab === this.tab))
   }
+  /** Open a menu on one of its sub-tabs (a landmark's "See progress" opens Landmarks). */
+  openTo(tab: Tab, sub: string) {
+    this.sub[tab] = sub
+    this.openSheet(tab)
+  }
   openSheet(tab: Tab) {
     sfx(this.sheet.hidden ? 'open' : 'tab')
     this.el.querySelector<HTMLElement>('.hud-cheats')!.hidden = true
@@ -616,10 +622,12 @@ export class Hud {
     const view = `${this.tab}:${cur}`
     const scroll = view === this.lastView ? (this.sheet.querySelector('.sheet-body')?.scrollTop ?? 0) : 0
     this.lastView = view
+    // in the small window the sub-tabs take the title's place, so the page keeps its room
+    const small = this.el.classList.contains('compact') && !!bar
     this.sheet.innerHTML = `
       <div class="px-panel sheet-panel">
-        <div class="sheet-head"><p class="sheet-title">${title}</p><button class="close-x" data-act="close" aria-label="Close"></button></div>
-        ${bar}
+        <div class="sheet-head">${small ? bar : `<p class="sheet-title">${title}</p>`}<button class="close-x" data-act="close" aria-label="Close"></button></div>
+        ${small ? '' : bar}
         <div class="sheet-body">${this.note ? `<p class="note flash">${esc(this.note)}</p>` : ''}${body}</div>
       </div>`
     const sb = this.sheet.querySelector('.sheet-body')
@@ -1043,6 +1051,8 @@ export class Hud {
     if (view === 'credits') return `<div class="credits-body">${this.credits()}</div>`
     if (view === 'settings')
       return `<p class="row-title">Sound</p><button class="px-btn small" data-act="sound">Sounds ${g.save.settings.sound === false ? 'off' : 'on'}</button> <button class="px-btn small" data-act="music">Music ${g.save.settings.music === false ? 'off' : 'on'}</button>
+      <p class="row-title">Volume</p>
+      <div class="segs wide">${[0.25, 0.5, 0.75, 1].map((v) => `<button class="seg${Math.abs((g.save.settings.volume ?? 1) - v) < 0.01 ? ' on' : ''}" data-vol="${v}">${v * 100}%</button>`).join('')}</div>
       ${this.h.popOut ? `<p class="row-title">Window</p><button class="px-btn small" data-act="popout">Pop out</button>` : ''}
       ${this.h.quit ? `<p class="row-title">Window</p><button class="px-btn small" data-act="quit">Close</button>` : ''}
       ${this.h.cheats ? `<p class="row-title">Testing</p><button class="px-btn small" data-act="cheats">Cheats</button> <span class="hint">or press \`</span>` : ''}`
@@ -1177,6 +1187,8 @@ export class Hud {
       this.h.buyBall(id as Ball, Number(n))
       return this.renderSheet()
     }
+    const vol = at('vol')
+    if (vol) return this.h.setVolume(Number(vol))
     const len = at('len')
     if (len) {
       this.h.setLength(len === 'open' ? null : Number(len) * 60)

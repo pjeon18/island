@@ -55,3 +55,9 @@ html, body { margin: 0; height: 100%; background: #07080a; overflow: hidden; }
 .dg-msg .dg-toggle { align-self: flex-start; margin: 2px 0 4px; }
 /* key 3 with no second Pokémon standing */
 .dg-move.off { opacity: .55; }
+/* the shared move charge (move choices): three pips, the next one filling from the left */
+.dg-pips { display: flex; gap: 3px; margin-top: 3px; }
+.dg-pips i { position: relative; width: 14px; height: 6px; background: #2a3448; border: 1px solid #0e1628; }
+.dg-pips i.full { background: var(--gold); }
+.dg-pips i[style]::after { content: ''; position: absolute; inset: 0; width: var(--fill); background: #8a7a40; }
+.dg-move .dg-pips i { position: relative; bottom: auto; left: auto; }

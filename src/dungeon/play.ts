@@ -81,6 +81,87 @@ const COL: Record<string, string> = {
  * - hunter: goes for your weakest Pokémon, pounces down a warned lane, and bites harder below a third of its health.
  */
 type Role = 'fighter' | 'caster' | 'flier' | 'brute' | 'phantom' | 'hunter'
+
+/**
+ * Move choices (2026-11-12): moves 1 and 2 share one charge of three pips (move 1 costs 1, move 2
+ * costs 2, one pip comes back every PP_EVERY seconds), and every move leaves its type's status:
+ * - burn (fire) and poison (poison, bug) hurt over time;
+ * - paralysis (electric) and slow (water) halve how fast it moves and winds up;
+ * - freeze (ice) stops it for a moment, then slows it;
+ * - sleep (grass, psychic, fairy) stops it until something hits it;
+ * - stagger (every other type) knocks it back and breaks what it was doing: a wind-up, a brute's
+ *   curl, a dive or pounce, and it pulls a faded ghost back into view.
+ * A burst (move 2) leaves 60% of the status on everything it hits. Bosses and minibosses can't be
+ * put to sleep, frozen or staggered, and other statuses last half as long on them.
+ */
+type Status = 'burn' | 'poison' | 'para' | 'freeze' | 'slow' | 'sleep' | 'stagger'
+const STATUS: Record<string, Status> = {
+  fire: 'burn', poison: 'poison', bug: 'poison', electric: 'para', ice: 'freeze', water: 'slow', grass: 'sleep', psychic: 'sleep', fairy: 'sleep',
+}
+const statusOf = (type: string): Status => STATUS[type] ?? 'stagger'
+const STATUS_WORD: Record<Status, string> = { burn: 'Burns', poison: 'Poisons', para: 'Paralyzes', freeze: 'Freezes', slow: 'Slows', sleep: 'Sleep', stagger: 'Staggers' }
+const STATUS_POP: Record<Status, [string, string]> = {
+  burn: ['Burned', '#ff9a50'], poison: ['Poisoned', '#c070e8'], para: ['Paralyzed', '#ffe040'], freeze: ['Frozen', '#a8f0ff'], slow: ['Slowed', '#70b8ff'], sleep: ['Asleep', '#c8b8ff'], stagger: ['Staggered', '#f0f0f0'],
+}
+// the same colours, dark enough to read on the white move cards
+const STATUS_INK: Record<Status, string> = { burn: '#c8501e', poison: '#8a3cb0', para: '#9a7a00', freeze: '#2a88b8', slow: '#2a68b8', sleep: '#6a58b8', stagger: '#6a5a4a' }
+const PP_MAX = 3
+const PP_EVERY = 2.5 // seconds for one pip to come back
+/** Leave a status on an enemy, `k` of its full length (1 for move 1, 0.6 for a burst). */
+function applyStatus(from: Actor, to: Actor, type: string, k: number) {
+  if (to.side !== 'foe' || to.dead) return
+  const st = statusOf(type)
+  const big = to.boss || to.mini
+  if (big && (st === 'sleep' || st === 'stagger' || st === 'freeze')) return
+  const len = k * (big ? 0.5 : 1)
+  if (st === 'burn') to.burn = Math.max(to.burn, 4 * len)
+  if (st === 'poison') to.poison = Math.max(to.poison, 7 * len)
+  if (st === 'burn' || st === 'poison') to.dotAtk = Math.max(to.dotAtk, from.atk)
+  if (st === 'para') to.para = Math.max(to.para, 4 * len)
+  if (st === 'slow') to.slow = Math.max(to.slow, 3 * len)
+  if (st === 'freeze') {
+    to.frozen = Math.max(to.frozen, 1.2 * len)
+    to.slow = Math.max(to.slow, 3 * len)
+  }
+  if (st === 'sleep') to.sleep = Math.max(to.sleep, 3 * len)
+  if (st === 'freeze' || st === 'sleep' || st === 'stagger') {
+    // whatever it was doing stops
+    to.wind = 0
+    to.windOn = undefined
+    to.charge = undefined
+    to.still = 0
+    to.brace = 0
+    if (to.hide > 0) to.hide = 0
+  }
+  if (st === 'stagger') {
+    const d = dist(from, to) || 1
+    move(to, ((to.x - from.x) / d) * 10, ((to.y - from.y) / d) * 10)
+    to.hop = 0.3
+    to.trick = Math.max(to.trick, 1.5)
+    to.cd = Math.max(to.cd, 0.8)
+  }
+  const [word, col] = STATUS_POP[st]
+  pops.push({ x: to.x, y: to.y - 34, text: word, t: 0, col })
+}
+/** Burn and poison tick twice a second, scaled by the attack of whoever left them. */
+function updateStatus(f: Actor, dt: number) {
+  f.burn = Math.max(0, f.burn - dt)
+  f.poison = Math.max(0, f.poison - dt)
+  f.para = Math.max(0, f.para - dt)
+  f.slow = Math.max(0, f.slow - dt)
+  f.frozen = Math.max(0, f.frozen - dt)
+  if (f.burn <= 0 && f.poison <= 0) return
+  f.dotT -= dt
+  if (f.dotT > 0) return
+  f.dotT = 0.5
+  const dmg = f.dotAtk * ((f.burn > 0 ? 0.12 : 0) + (f.poison > 0 ? 0.07 : 0))
+  // a status tick doesn't wake a sleeper (only a real hit does)
+  const asleep = f.sleep
+  hurt(f, Math.max(1, Math.round(dmg)), f.burn > 0 ? '#ffb070' : '#d090f0')
+  if (asleep > 0 && !f.dead) f.sleep = asleep
+}
+/** How fast it acts now: frozen stops it, paralysis and slow halve it. */
+const pace = (f: Actor) => (f.frozen > 0 ? 0 : f.para > 0 || f.slow > 0 ? 0.5 : 1)
 function roleOf(types: string[]): Role {
   if (types.includes('ghost')) return 'phantom'
   if (types.includes('flying')) return 'flier'
@@ -145,6 +226,15 @@ interface Actor {
   braceCd: number
   hide: number // a phantom's seconds faded out (it can't be hit or targeted)
   trick: number // seconds until its role move (dive, pounce, fade, charged shot) is ready
+  pp: number // your Pokémon's move charge: 0 to 3 pips, shared by moves 1 and 2 (move choices)
+  gcd: number // a short lockout after a move, so one press never fires twice
+  burn: number // status seconds left (see STATUS)
+  poison: number
+  para: number
+  slow: number
+  frozen: number
+  dotT: number // seconds to the next burn or poison tick
+  dotAtk: number // the attack of whoever burned or poisoned it
   tx?: number // guest: where the host says it is (drawn easing toward it)
   ty?: number
 }
@@ -158,6 +248,7 @@ interface Shot {
   mult: number
   type: string
   life: number
+  status?: number // a move's status strength, applied where the shot lands
 }
 interface Pop {
   x: number
@@ -365,6 +456,15 @@ function makeActor(side: Actor['side'], dex: number, level: number, sp: Species,
     braceCd: 0,
     hide: 0,
     trick: 1 + Math.random() * 2,
+    pp: 3,
+    gcd: 0,
+    burn: 0,
+    poison: 0,
+    para: 0,
+    slow: 0,
+    frozen: 0,
+    dotT: 0,
+    dotAtk: 0,
     id: nextId++, side, dex, name, level, types, sp, x, y, dir: 0, hp: st.hp, maxHp: st.hp, atk: st.atk, cd: Math.random() * 0.6, cd1: 0, cd2: boss ? 4 : mini ? 3 : 0, moving: false,
     t: Math.random() * 3, hurt: 0, hop: 0, awake: false, boss, mini, dead: false, fade: 0, sleep: 0, dash: 0, dashCd: 0, dashDir: [0, 1], phase: 1, summoned: false, reviveT: 0, still: 0, stuck: 0,
     guard: 0, lunge: 0, alt: 0, svx: 0, svy: 0,
@@ -512,8 +612,8 @@ function nearest(from: { x: number; y: number }, xs: Actor[], within = Infinity)
 const ranged = (a: Actor) => a.shoots
 const range = (a: Actor) => (a.boss ? 26 : a.mini ? 22 : ranged(a) ? 74 : 20)
 const bestType = (a: Actor, d: Actor) => a.types.reduce((b, t) => (effectiveness(t, d.types) > effectiveness(b, d.types) ? t : b), a.types[0] ?? 'normal')
-function hit(from: Actor, to: Actor, mult: number, type: string) {
-  if (to.dead || to.dash > 0 || to.guard > 0 || to.hide > 0) return
+function hit(from: Actor, to: Actor, mult: number, type: string): boolean {
+  if (to.dead || to.dash > 0 || to.guard > 0 || to.hide > 0) return false
   const eff = effectiveness(type, to.types)
   // a hunter bites harder at a Pokémon below a third of its health
   if (from.role === 'hunter' && from.side === 'foe' && to.hp < to.maxHp / 3) mult *= 1.5
@@ -528,6 +628,7 @@ function hit(from: Actor, to: Actor, mult: number, type: string) {
     to.wind = 0
     pops.push({ x: to.x, y: to.y - 30, text: to.types.includes('steel') ? 'Harden' : 'Defense Curl', t: 0, col: '#c8d4ec' })
   }
+  return true
   if (eff > 1 && Math.random() < 0.5) toast("It's super effective!", true)
 }
 function hurt(to: Actor, dmg: number, col = '#ffffff') {
@@ -543,7 +644,7 @@ function hurt(to: Actor, dmg: number, col = '#ffffff') {
   pops.push({ x: to.x + (Math.random() - 0.5) * 6, y: to.y - 24, text: String(dmg), t: 0, col })
   if (to.hp === 0) faint(to)
 }
-function attack(a: Actor, target: Actor, mult = 1, label?: string) {
+function attack(a: Actor, target: Actor, mult = 1, label?: string, status = 0) {
   const type = bestType(a, target)
   a.hop = 0.3
   if (!ranged(a) && !a.boss && !a.mini) a.lunge = 0.2
@@ -551,14 +652,19 @@ function attack(a: Actor, target: Actor, mult = 1, label?: string) {
   if (label) pops.push({ x: a.x, y: a.y - 30, text: label, t: 0, col: COL[type] ?? '#fff' })
   if (ranged(a) && !a.boss && !a.mini) {
     const d = dist(a, target) || 1
-    shots.push({ x: a.x, y: a.y - 9, vx: ((target.x - a.x) / d) * 150, vy: ((target.y - a.y) / d) * 150, side: a.side, from: a, mult, type, life: 0.9 })
-  } else hit(a, target, mult, type)
+    shots.push({ x: a.x, y: a.y - 9, vx: ((target.x - a.x) / d) * 150, vy: ((target.y - a.y) / d) * 150, side: a.side, from: a, mult, type, life: 0.9, status })
+  } else if (hit(a, target, mult, type) && status) applyStatus(a, target, type, status)
 }
 function burst(a: Actor, mult: number, radius: number, label: string, at = { x: a.x, y: a.y }) {
   const type = a.types[0] ?? 'normal'
   if (label) pops.push({ x: a.x, y: a.y - 30, text: label, t: 0, col: COL[type] ?? '#fff' })
   rings.push({ x: at.x, y: at.y - 4, r: 0, max: radius, col: COL[type] ?? '#fff', t: 0 })
-  for (const f of a.side === 'you' ? foes : party) if (!f.dead && dist(at, f) < radius) hit(a, f, mult, bestType(a, f))
+  for (const f of a.side === 'you' ? foes : party) {
+    if (f.dead || dist(at, f) >= radius) continue
+    // a burst reaches into a faded ghost and pulls it back into view
+    if (a.side === 'you' && f.hide > 0) f.hide = 0
+    if (hit(a, f, mult, bestType(a, f)) && a.side === 'you') applyStatus(a, f, type, 0.6)
+  }
 }
 const rings: { x: number; y: number; r: number; max: number; col: string; t: number }[] = []
 function warn(w: Omit<Warning, 't'>) {
@@ -909,10 +1015,10 @@ function roleBrain(f: Actor, t: Actor, dt: number, near: boolean) {
     // it never trades blows: it circles out of reach and dives down a warned lane
     if (f.trick <= 0 && d < 100 && clear()) {
       f.trick = 2.6 + Math.random()
-      slam(f, ux, uy, Math.min(100, d + 20), 7, 0.5, 1.3, 'Wing Attack', 240)
+      slam(f, ux, uy, Math.min(100, d + 20), 7, 0.5, 1.1, 'Wing Attack', 240)
       return
     }
-    orbit(f, t, 46, 62, dt, near)
+    orbit(f, t, 36, 58, dt, near)
     return
   }
   if (f.role === 'hunter' && f.trick <= 0) {
@@ -1304,10 +1410,7 @@ function useBerry() {
 function useElixir() {
   if (run.items.elixir <= 0) return toast('No Elixirs left.')
   run.items.elixir--
-  for (const p of party) {
-    p.cd1 = 0
-    p.cd2 = 0
-  }
+  for (const p of party) p.pp = PP_MAX
   pops.push({ x: party[lead].x, y: party[lead].y - 28, text: 'Max Elixir', t: 0, col: '#ffe080' })
   hudKey = ''
   saveRun()
@@ -1332,6 +1435,9 @@ function update(dt: number) {
     a.lunge = Math.max(0, a.lunge - dt)
     a.braceCd -= dt
     a.trick -= dt
+    a.gcd -= dt
+    if (a.side === 'you' && !a.dead) a.pp = Math.min(PP_MAX, a.pp + dt / PP_EVERY)
+    if (a.side === 'foe' && !a.dead) updateStatus(a, dt)
     if (a.dead) a.fade = Math.min(1, a.fade + dt * 1.5)
   }
   glow = Math.max(0, glow - dt)
@@ -1394,9 +1500,9 @@ function update(dt: number) {
     p.moving = d > (safe || out ? 4 : foe ? range(p) - 8 : 14)
     if (p.moving) seek(p, tx, ty, d > 80 ? 70 : 58, dt, toLead)
     else walk(p, 0, 0, dt)
-    // followers use move 1 when it's ready and something awake is in reach (D-F2)
-    if (p.cd1 <= 0) {
-      const t = nearest(p, foes.filter((f) => f.awake), reach1(p))
+    // followers use move 1 only from a full charge, so your key 3 usually has two pips left (D-F2)
+    if (p.pp >= PP_MAX && p.gcd <= 0) {
+      const t = nearest(p, foes.filter((f) => f.awake && f.sleep <= 0), reach1(p))
       if (t) strong(p, t)
     }
     // a follower stuck far behind for a few seconds is brought back beside its lead (review 2 D11)
@@ -1410,7 +1516,8 @@ function update(dt: number) {
     }
   })
   // auto-attacks for the party: only at awake enemies, so a sleeping room can be sneaked past (D-F1)
-  const awake = foes.filter((f) => f.awake && !f.dead)
+  // and never at a sleeper: sleep holds an enemy out of the fight until you choose to hit it
+  const awake = foes.filter((f) => f.awake && !f.dead && f.sleep <= 0)
   for (const p of party) {
     if (p.dead || p.cd > 0 || p.sleep > 0) continue
     const target = nearest(p, awake, range(p))
@@ -1454,12 +1561,17 @@ function update(dt: number) {
       if (f.charge.left <= 0 || (f.x === bx && f.y === by)) f.charge = undefined
       continue
     }
+    const k = pace(f)
+    if (k === 0) {
+      f.moving = false
+      continue
+    }
     if (!f.boss && !f.mini) {
-      roleBrain(f, t, dt, [me, ...guestLeads].some((l) => dist(t, l) < 30))
+      roleBrain(f, t, dt * k, [me, ...guestLeads].some((l) => dist(t, l) < 30))
       continue
     }
     f.moving = f.still <= 0 && f.guard <= 0 && d > range(f) - 4
-    if (f.moving) seek(f, t.x, t.y, f.boss ? 30 : f.mini ? 36 : 44, dt, [me, ...guestLeads].some((l) => dist(t, l) < 30))
+    if (f.moving) seek(f, t.x, t.y, (f.boss ? 30 : f.mini ? 36 : 44) * k, dt, [me, ...guestLeads].some((l) => dist(t, l) < 30))
     else walk(f, 0, 0, dt)
     if (f.cd <= 0 && d <= range(f) && f.guard <= 0) {
       // bosses last four times longer now, so their plain blows are rarer and lighter:
@@ -1521,7 +1633,7 @@ function update(dt: number) {
     for (const a of s.side === 'you' ? foes : party) {
       if (a.dead || a.hide > 0 || s.life <= 0) continue
       if (Math.hypot(a.x - s.x, a.y - 9 - s.y) < 8) {
-        hit(s.from, a, s.mult, s.type)
+        if (hit(s.from, a, s.mult, s.type) && s.status) applyStatus(s.from, a, s.type, s.status)
         s.life = 0
       }
     }
@@ -1576,9 +1688,9 @@ function openNear(x: number, y: number) {
 }
 /** What the guest needs to draw this moment (positions are whole pixels). */
 function snapshot(): Snap {
-  const flags = (a: Actor) => (a.moving ? 1 : 0) | (a.hop > 0 ? 2 : 0) | (a.hurt > 0 ? 4 : 0) | (a.dead ? 8 : 0) | (a.sleep > 0 ? 16 : 0) | (a.dash > 0 ? 32 : 0) | (a.lunge > 0.1 ? 64 : 0) | (a.guard > 0 ? 128 : 0) | (a.wind > 0 ? (a.windMult > 1.35 ? 2048 : 256) : 0) | (a.brace > 0 ? 512 : 0) | (a.hide > 0 ? 1024 : 0)
+  const flags = (a: Actor) => (a.moving ? 1 : 0) | (a.hop > 0 ? 2 : 0) | (a.hurt > 0 ? 4 : 0) | (a.dead ? 8 : 0) | (a.sleep > 0 ? 16 : 0) | (a.dash > 0 ? 32 : 0) | (a.lunge > 0.1 ? 64 : 0) | (a.guard > 0 ? 128 : 0) | (a.wind > 0 ? (a.windMult > 1.35 ? 2048 : 256) : 0) | (a.brace > 0 ? 512 : 0) | (a.hide > 0 ? 1024 : 0) | (a.burn > 0 ? 4096 : 0) | (a.poison > 0 ? 8192 : 0) | (a.para > 0 ? 16384 : 0) | (a.slow > 0 ? 32768 : 0) | (a.frozen > 0 ? 65536 : 0)
   return {
-    a: [...party, ...foes].map((a) => [a.id, a.side === 'you' ? 1 : 0, a.dex, Math.round(a.x), Math.round(a.y), a.dir, Math.round(a.hp), Math.round(a.maxHp), flags(a), a.level, a.boss ? 1 : a.mini ? 2 : 0, a.name, +a.fade.toFixed(2), +a.cd1.toFixed(1), +a.cd2.toFixed(1), a.awake ? 1 : 0]),
+    a: [...party, ...foes].map((a) => [a.id, a.side === 'you' ? 1 : 0, a.dex, Math.round(a.x), Math.round(a.y), a.dir, Math.round(a.hp), Math.round(a.maxHp), flags(a), a.level, a.boss ? 1 : a.mini ? 2 : 0, a.name, +a.fade.toFixed(2), a.side === 'you' ? +a.pp.toFixed(2) : +a.cd1.toFixed(1), +a.cd2.toFixed(1), a.awake ? 1 : 0]),
     s: shots.map((x) => [Math.round(x.x), Math.round(x.y), x.type]),
     w: warnings.map((w) => [WKINDS.indexOf(w.kind), Math.round(w.x), Math.round(w.y), w.r, Math.round(w.x2 ?? 0), Math.round(w.y2 ?? 0), +w.t.toFixed(2), w.at, w.col, w.r0 ?? 0]),
     r: rings.filter((r) => r.t < 0.5).map((r) => [Math.round(r.x), Math.round(r.y), r.max, r.col, +r.t.toFixed(2)]),
@@ -1850,8 +1962,14 @@ function applySnap(raw: Snap) {
     a.brace = fl & 512 ? 0.1 : 0
     a.hide = fl & 1024 ? 0.1 : 0
     a.fade = fade
-    a.cd1 = cd1
+    if (you) a.pp = cd1
+    else a.cd1 = cd1
     a.cd2 = cd2
+    a.burn = fl & 4096 ? 0.1 : 0
+    a.poison = fl & 8192 ? 0.1 : 0
+    a.para = fl & 16384 ? 0.1 : 0
+    a.slow = fl & 32768 ? 0.1 : 0
+    a.frozen = fl & 65536 ? 0.1 : 0
     a.awake = !!awake
     seen.add(id)
   }
@@ -1961,7 +2079,7 @@ function drawActor(g: CanvasRenderingContext2D, a: Actor, cx: number, cy: number
   g.globalAlpha = a.hide > 0 ? 0.14 : 1 - a.fade * 0.85
   g.fillStyle = 'rgba(0,0,0,0.35)'
   g.fillRect(Math.round(x - 6), Math.round(y - 1), 12, 2)
-  if (a.hurt > 0 || a.dash > 0 || a.guard > 0 || a.wind > 0 || a.brace > 0) {
+  if (a.hurt > 0 || a.dash > 0 || a.guard > 0 || a.wind > 0 || a.brace > 0 || a.frozen > 0) {
     scratch.width = anim.w
     scratch.height = anim.h
     const sg = scratch.getContext('2d')!
@@ -1972,7 +2090,9 @@ function drawActor(g: CanvasRenderingContext2D, a: Actor, cx: number, cy: number
         ? 'rgba(255,255,255,0.8)'
         : a.dash > 0
           ? 'rgba(200,230,255,0.5)'
-          : a.brace > 0
+          : a.frozen > 0
+            ? 'rgba(180,235,255,0.6)'
+            : a.brace > 0
             ? 'rgba(150,175,225,0.45)'
             : a.wind > 0
               ? a.windMult > 1.35
@@ -1982,6 +2102,16 @@ function drawActor(g: CanvasRenderingContext2D, a: Actor, cx: number, cy: number
     sg.fillRect(0, 0, anim.w, anim.h)
     g.drawImage(scratch, Math.round(x - anim.ax), Math.round(y - anim.ay))
   } else drawFrame(g, anim, f, a.dir, x, y)
+  // a status shows as a small mark over its head, in the status's colour, pulsing slowly
+  if (a.side === 'foe' && !a.dead) {
+    const marks = [a.burn > 0 && '#ff9a50', a.poison > 0 && '#c070e8', a.para > 0 && '#ffe040', (a.slow > 0 || a.frozen > 0) && '#80c8ff'].filter(Boolean) as string[]
+    const top = Math.round(y - anim.ay - 3)
+    marks.forEach((c, i) => {
+      g.globalAlpha = 0.65 + 0.35 * Math.sin(a.t * 3 + i)
+      g.fillStyle = c
+      g.fillRect(Math.round(x - marks.length * 2 + i * 4), top, 3, 3)
+    })
+  }
   g.globalAlpha = 1
   return { anim, f }
 }
@@ -2345,7 +2475,7 @@ function renderHud() {
   const near = nearest(me, foes.filter((f) => f.awake), 120)
   const t1 = near ? bestType(me, near) : (me.types[0] ?? 'normal')
   const two = second(me)
-  const key = party.map((p) => `${Math.round(p.hp)}:${p.dead}`).join() + `|${lead}|${boss?.hp}:${boss?.awake}|${Math.ceil(me.cd1)}:${Math.ceil(me.cd2)}:${Math.ceil(me.dashCd * 4)}|${two?.id}:${Math.ceil(two?.cd2 ?? 0)}|${it.oran}${it.sitrus}${it.seed}${it.elixir}|${run.floor}|${t1}`
+  const key = party.map((p) => `${Math.round(p.hp)}:${p.dead}`).join() + `|${lead}|${boss?.hp}:${boss?.awake}|${Math.floor(me.pp * 4)}:${Math.ceil(me.dashCd * 4)}|${two?.id}:${Math.floor((two?.pp ?? 0) * 4)}|${it.oran}${it.sitrus}${it.seed}${it.elixir}|${run.floor}|${t1}`
   if (key === hudKey) return
   hudKey = key
   const t = me.types[0] ?? 'normal'
@@ -2355,12 +2485,15 @@ function renderHud() {
   const bossEl = hud.querySelector<HTMLElement>('.dg-boss')!
   bossEl.hidden = !boss || !boss.awake || boss.dead
   if (boss) bossEl.innerHTML = `<p>${boss.name} <span style="color:#707070">Lv${boss.level}</span></p><span class="hp"><i class="${hpClass(boss.hp / boss.maxHp)}" style="width:${(boss.hp / boss.maxHp) * 100}%"></i></span>`
-  const cd = (v: number, max: number) => `<i style="width:${Math.max(0, Math.min(1, 1 - v / max)) * 100}%"></i>`
+  // the shared charge: three pips, the next one filling; a move you can't afford is dimmed
+  const pips = (a: Actor) =>
+    `<span class="dg-pips">${[0, 1, 2].map((i) => `<i class="${a.pp >= i + 1 ? 'full' : ''}"${a.pp >= i + 1 || a.pp < i ? '' : ` style="--fill:${Math.round((a.pp - i) * 100)}%"`}></i>`).join('')}</span>`
+  const word = (type: string) => `<span style="color:${STATUS_INK[statusOf(type)]}">${STATUS_WORD[statusOf(type)]}</span>`
   hud.querySelector('.dg-moves')!.innerHTML = `
-    <div class="dg-panel dg-move"><p><b>Auto</b></p><p>${MOVES[t] ?? 'Tackle'}</p></div>
-    <div class="dg-panel dg-move"><p><b>1</b></p><p>${STRONG[t1] ?? 'Body Slam'}</p>${cd(me.cd1, 4)}</div>
-    <div class="dg-panel dg-move"><p><b>2</b></p><p>${BURST[t] ?? 'Hyper Voice'}</p>${cd(me.cd2, 9)}</div>
-    <div class="dg-panel dg-move${two ? '' : ' off'}"><p><b>3</b> ${two ? two.name : ''}</p><p>${two ? BURST[two.types[0]] ?? 'Hyper Voice' : 'None left'}</p>${two ? cd(two.cd2, 9) : ''}</div>`
+    <div class="dg-panel dg-move"><p><b>Charge</b></p>${pips(me)}</div>
+    <div class="dg-panel dg-move${me.pp >= 1 ? '' : ' off'}"><p><b>1</b> ${word(t1)}</p><p>${STRONG[t1] ?? 'Body Slam'}</p></div>
+    <div class="dg-panel dg-move${me.pp >= 2 ? '' : ' off'}"><p><b>2</b> ${word(t)}</p><p>${BURST[t] ?? 'Hyper Voice'}</p></div>
+    <div class="dg-panel dg-move${two && two.pp >= 2 ? '' : ' off'}"><p><b>3</b> ${two ? two.name : ''}</p><p>${two ? BURST[two.types[0]] ?? 'Hyper Voice' : 'None left'}</p>${two ? pips(two) : ''}</div>`
   const mod = map.modifier ? `<p class="dg-dim">${{ fog: 'Fog', flooded: 'Flooded', restless: 'Restless', echo: 'Echo', rich: 'Rich' }[map.modifier]}</p>` : ''
   hud.querySelector('.dg-floor')!.innerHTML = `<p>${map === hand ? 'Boss floor' : `B${run.floor}`}</p>${mod}<p class="dg-dim">${run.charged ? 'Lantern lit' : 'No charge'}</p>`
   hud.querySelector('.dg-items')!.innerHTML = `<p><b>Q</b> Berries ${it.oran}${it.sitrus ? ` +${it.sitrus}` : ''}</p><p><b>E</b> Elixirs ${it.elixir}</p><p class="dg-dim">Seeds ${it.seed}</p>`
@@ -2523,26 +2656,27 @@ function act(me: Actor, k: string) {
   if (k === 'q') useBerry()
   if (k === 'e') useElixir()
   if (k === 'f') pray(me)
-  if (k === '1' && me.cd1 <= 0) {
+  // moves 1 and 2 spend the same charge: one pip for a strong move, two for a burst
+  if (k === '1' && me.pp >= 1 && me.gcd <= 0) {
     const t = nearest(me, foes, reach1(me))
     if (t) strong(me, t)
   }
-  if (k === '2' && me.cd2 <= 0) {
-    me.cd2 = 9
-    burst(me, 1.5, 44, BURST[me.types[0]] ?? 'Hyper Voice')
-  }
-  // 3: your second Pokémon's burst, wherever it stands (D-F2)
+  if (k === '2' && me.pp >= 2 && me.gcd <= 0) spendBurst(me)
+  // 3: your second Pokémon's burst, wherever it stands, from its own charge (D-F2)
   const two = k === '3' ? second(me) : undefined
-  if (two && two.cd2 <= 0 && two.sleep <= 0) {
-    two.cd2 = 9
-    burst(two, 1.5, 44, BURST[two.types[0]] ?? 'Hyper Voice')
-  }
+  if (two && two.pp >= 2 && two.gcd <= 0 && two.sleep <= 0) spendBurst(two)
+}
+function spendBurst(a: Actor) {
+  a.pp -= 2
+  a.gcd = 0.5
+  burst(a, 1.5, 44, BURST[a.types[0]] ?? 'Hyper Voice')
 }
 /** Move 1's reach: a shot for ranged types, a blow for melee ones. */
 const reach1 = (a: Actor) => (ranged(a) ? 90 : 30)
 function strong(a: Actor, t: Actor) {
-  a.cd1 = 4
-  attack(a, t, 2.2, STRONG[bestType(a, t)])
+  a.pp -= 1
+  a.gcd = 0.5
+  attack(a, t, 2.2, STRONG[bestType(a, t)], 1)
 }
 /** The first other living Pokémon of the same player as `me` (its own on the host, a guest's for a guest). */
 function second(me: Actor): Actor | undefined {
@@ -2598,7 +2732,7 @@ async function boot() {
   manifest = mf
   game = new Game((roster as { species: Roster }).species)
   // the island's Sounds setting; no music down here
-  initAudio({ sounds: () => game.save.settings.sound !== false })
+  initAudio({ sounds: () => game.save.settings.sound !== false, volume: () => game.save.settings.volume ?? 1 })
   hud.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).closest('button')) click()
   }, true)

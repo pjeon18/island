@@ -1,5 +1,20 @@
 # Validation
 
+## Landmarks, small window, volume, move choices (2026-11-12)
+- **Landmarks:**
+  - Island shots with and without Pokémon show both ruins on grass, with shadows. The hut reads as a broken Pokémon Center (doorway, red roof slabs, Poké Ball sign).
+  - Tapping the hut showed what it takes, and "See progress" opened Landmarks. Tapping the lighthouse said it comes after the hut.
+- **Small window at 480×360:** every menu page was checked for anything past the menu's edge, and nothing was.
+  - Sub-tabs sit beside the close button.
+  - The Box shows four columns.
+- **Grass:** the fix (one clock for the frame timer) is from reading the code. The small window can't be opened in the Claude pane, so it isn't checked there.
+- **Move choices (test arena, Pier Hollow B1, party Lv26):**
+  - Rooms of 3 or 4 last about 4 to 6.5 seconds and cost about 9% to 27% of the party's health.
+  - Burn and slow were seen on enemies during fights.
+  - Before tuning, rooms with fliers cost 46% to 60%, so fliers now circle at 36 px (was 46) and dive at 1.1× (was 1.3×).
+  - Bots that only use move 1, only bursts, or bursts when two enemies are close all finish. Fliers favour move 1 and packs favour bursts.
+- **Not checked:** hand play, sleep, freeze, paralysis and poison in a fight (no party with those types was tested), and the volume buttons by ear.
+
 ## Sound and music (2026-11-12)
 - **The files.** The music loop's seam differs from its start by encoder noise only (about 23 dB below the music), and its level holds steady through the crossfade (−17 to −27 dB a second, with no dip).
 - **In Chrome:**

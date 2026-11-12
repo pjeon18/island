@@ -164,4 +164,5 @@ This is a free, non-commercial fan project with no affiliation.
 # Audio credits
 
 - Sound effects: Case Portman Audio, Cute & Cozy UI Audio (free sample), https://caseportman.itch.io/cute-cozy-ui-sfx. Royalty-free with attribution.
+- Music: Mayra (mayragandra), Free Ambient Music (Loop), https://mayragandra.itch.io/freeambientmusic. Free for any project with credit; looped by crossfading its end into its start.
 - Pokémon cries: Pokémon Showdown.
