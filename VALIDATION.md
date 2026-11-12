@@ -1,5 +1,18 @@
 # Validation
 
+## Sound and music (2026-11-12)
+- **The files.** The music loop's seam differs from its start by encoder noise only (about 23 dB below the music), and its level holds steady through the crossfade (−17 to −27 dB a second, with no dip).
+- **In Chrome:**
+  - After one real click, the context ran, the sprite and music loaded, and the encoder delay measured 0 (Chrome trims AAC's delay).
+  - The music faded in to 0.32. Music off faded it to 0, and on brought it back.
+  - Opening More played only the open sound (the plain click was replaced). Settings played the tab sound, the Music button the click, and closing the menu the close sound.
+  - In the dungeon, Esc played the pause sound, and there was no music.
+- **Not checked:**
+  - how it sounds, by ear (levels are set from measured loudness);
+  - Safari;
+  - the small window;
+  - the desktop app.
+
 ## Enemy roles (2026-11-12)
 - **Arena runs in the browser.** A scripted party of Charizard, Pidgeot and Vaporeon fought rooms of 3 or 4 real floor enemies in an open room, stepped by hand.
   - Before the roles, a B1 room at Lv30 lasted 2 seconds and cost 1% of the party's health.

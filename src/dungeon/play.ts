@@ -23,6 +23,7 @@
 // Opened as dungeon.html?id=<map>&gate=<island> from the island, or
 // ?map=play from the editor's Play test (one floor, nothing is saved then).
 import './play.css'
+import { click, initAudio, sfx } from '../audio'
 import { effectiveness, MOVES } from '../battle'
 import { BALLS, Ball, DEEP, Game, ISLANDS, IslandId, Roster, SAVE_KEY, loadSave } from '../game'
 import { Light, applyLighting, normalMapFor } from '../lighting'
@@ -1209,6 +1210,7 @@ function updateThings() {
       const r = Math.random()
       const got: keyof Items | null = r < 0.3 ? 'oran' : r < 0.5 ? 'elixir' : r < 0.6 ? 'seed' : r < 0.65 ? 'sitrus' : null
       if (got) run.items[got]++
+      if (got) sfx('coin')
       toast(got ? `Found ${ITEM_NAME[got]}.` : 'The pot was empty.')
     } else {
       // a chest opens if anyone in the room lit a charge; each player rolls loot on their own charge
@@ -1221,6 +1223,7 @@ function updateThings() {
         continue
       }
       th.open = true
+      sfx(th.big ? 'unlock' : 'coin')
       if (mode === 'host' && guests.size) net?.sendEvent({ kind: 'chest', big: !!th.big })
       if (run.charged) {
         const lines = lootChest(!!th.big)
@@ -2387,6 +2390,7 @@ addEventListener('pagehide', () => {
 function end(win: boolean) {
   if (state === 'won' || state === 'lost') return
   state = win ? 'won' : 'lost'
+  sfx(win ? 'success' : 'fail')
   if (mode === 'host' && guests.size) net?.sendEvent({ kind: 'end', win })
   const found = run.found.length ? `<p class="dg-dim">Found: ${run.found.join(' ')}</p>` : ''
   // the deep floors (L10): the boss is already beaten, so the special catch still waits, win or lose
@@ -2558,6 +2562,7 @@ function pause() {
     return
   }
   state = 'paused'
+  sfx('pause')
   message('<p>Paused.</p><p class="dg-dim">Leaving keeps your run where it is.</p>', [
     { label: 'Resume', gold: true, run: resume },
     { label: 'Leave the dungeon', run: home },
@@ -2566,6 +2571,7 @@ function pause() {
 function resume() {
   hud.querySelector('.dg-msg')?.remove()
   state = 'play'
+  sfx('start')
 }
 function closeMenu() {
   hud.querySelector('.dg-msg')?.remove()
@@ -2591,6 +2597,11 @@ async function boot() {
   const [mf, roster] = await Promise.all([loadManifest(), fetch(`${BASE}data/roster.json?v=${__BUILD__}`).then((r) => r.json())])
   manifest = mf
   game = new Game((roster as { species: Roster }).species)
+  // the island's Sounds setting; no music down here
+  initAudio({ sounds: () => game.save.settings.sound !== false })
+  hud.addEventListener('click', (e) => {
+    if ((e.target as HTMLElement).closest('button')) click()
+  }, true)
   if (mode === 'guest') return bootGuest()
   const id = params.get('id') ?? 'test'
   hand = test ? JSON.parse(localStorage.getItem('island-dungeon-play') ?? 'null') : params.get('id') ? await (await fetch(`${BASE}dungeons/${id}.json?v=${__BUILD__}`)).json() : null

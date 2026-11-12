@@ -14,6 +14,7 @@ import { Tour, blackScreen, liftBlack, runPrologue } from './tutorial'
 import { Hud, fmtMinutes, hudScale } from './hud'
 import { H, W, seaCss, seaEdge, useIsland, useSeason } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
+import { audioState, initAudio, listenIn, sfx, syncMusic, wantsMusic, type SfxName } from './audio'
 import { NEST, Scene, lightAt, nightness } from './scene'
 import { Manifest, Species, loadManifest, loadSpecies } from './sprites'
 
@@ -608,6 +609,7 @@ function finishCatch(c: Creature, w: Wild, caught: boolean) {
   hud.holdParty = false
   scene.markWild = !game.inSession
   const name = game.name(w.dex)
+  sfx(caught ? 'confirm' : 'cancel')
   if (!caught) {
     c.hold(false)
     if (lastFled) {
@@ -642,7 +644,10 @@ canvas.addEventListener('click', (e) => {
   if (f) {
     const got = game.collectFind(f.id)
     syncFinds()
-    if (got) hud.toast(got.kind === 'stone' && got.item ? `${aStone(got.item).replace(/^a/, 'A')}!` : FIND_TEXT[got.kind](got.n))
+    if (got) {
+      sfx('coin')
+      hud.toast(got.kind === 'stone' && got.item ? `${aStone(got.item).replace(/^a/, 'A')}!` : FIND_TEXT[got.kind](got.n))
+    }
     hud.refreshSheet()
     return
   }
@@ -861,6 +866,7 @@ async function offerTrade(friendId: string, monId: string) {
   const r = await cloud.tradeOffer(friendId, mon)
   if (r !== 'ok') return hud.toast(r === 'already offered' ? 'You already have an offer waiting for them.' : r === 'too many' ? 'That is enough trades for today.' : r)
   game.giveAway('mon', monId)
+  sfx('give')
   hud.toast(`${game.name(mon.dex)} is waiting at the pier for your friend's answer.`)
   game.note('friend', `Offered ${game.name(mon.dex)} in a trade.`, { dex: mon.dex })
   hudTrades = await cloud.trades()
@@ -915,6 +921,7 @@ async function sendGift(friendId: string, friendName: string, kind: cloud.GiftKi
     const r = await cloud.sendGift(friendId, kind, payload)
     if (r !== 'ok') return hud.toast(r)
     game.giveAway(kind, ref)
+    sfx('give')
     hud.toast(`Sent to ${friendName}.`)
     hud.refreshSheet()
   }
@@ -1001,6 +1008,11 @@ async function bootVisit(v: cloud.FriendScene & { id: string }) {
   new ResizeObserver(fitVisit).observe(canvas)
   fitVisit()
   startLoop()
+}
+
+/** A sound for a moment the game makes on its own: quiet while you focus. */
+const calm = (n: SfxName) => {
+  if (!game.inSession) sfx(n)
 }
 
 // ---------- petting ----------
@@ -1116,6 +1128,7 @@ function stepEvolution(dt: number) {
       e.c.setSpecies(species.get(e.to)!)
       publishParty()
       hud.dismiss()
+      calm('success')
       hud.say({ dex: e.to, emotion: 'Happy', text: `${from} evolved into ${game.name(e.to)}.`, auto: 5000 })
       game.note('evolve', `${from} evolved into ${game.name(e.to)}.`, { dex: e.to })
     }
@@ -1184,6 +1197,7 @@ function onGame(e: GameEvent) {
   tour?.onEvent(e)
   switch (e.type) {
     case 'sessionStart':
+      sfx('start')
       hud.toast('Session started.')
       void refreshFriends()
       cancelCatch()
@@ -1192,6 +1206,7 @@ function onGame(e: GameEvent) {
       void cloud.sessionBegin()
       break
     case 'sessionEnd':
+      if (e.complete) sfx('success')
       hud.clearQueue((d) => d.tag === 'checkin')
       void cloud.sessionEnd()
       game.note('focus', `Focused for ${fmtMinutes(e.minutes)}.${e.complete ? ` ${e.berries === 2 ? 'Two berries' : 'A berry'} ripened.` : ''}`, { n: e.minutes, dex: lead() })
@@ -1224,6 +1239,7 @@ function onGame(e: GameEvent) {
       break
     case 'milestone': {
       // a Pokédex milestone (L5)
+      calm('unlock')
       const isl = ISLANDS.find((i) => i.id === e.island)!.name
       const what = e.reward === 'egg' ? 'Here is an egg.' : e.reward === 'slot' ? 'There is room for one more decoration now.' : e.reward === 'togepi' ? 'Here is my own egg. It came from very far away.' : e.reward === 'statue' ? 'Here is a Pokédex statue for the island.' : e.reward === 'shells' ? 'Here are 200 shells.' : `Here is a ${decorDef(e.reward)?.name.toLowerCase() ?? 'decoration'} for the island.`
       game.note('other', `${isl}'s Pokédex reached ${e.pct}%.`)
@@ -1262,6 +1278,7 @@ function onGame(e: GameEvent) {
       spawnNext = { x: NEST.x, y: NEST.y }
       break
     case 'hatch':
+      calm('confirm')
       syncNest()
       hud.say({ dex: e.mon.dex, emotion: 'Happy', text: `An egg hatched. It is ${game.name(e.mon)}!`, auto: 5000 })
       game.note('hatch', `An egg hatched into ${game.name(e.mon)}.`, { dex: e.mon.dex })
@@ -1302,6 +1319,7 @@ function onGame(e: GameEvent) {
       break
     case 'restored': {
       // a landmark rebuilt (L1): Wooper tells a little more of the story
+      calm('unlock')
       const r = RESTORE.find((x) => x.id === e.id)!
       syncLandmarks()
       game.note('other', `Restored ${({ hut: 'the Pokémon Center hut', lighthouse: 'the lighthouse', pier: 'the old pier' } as Record<string, string>)[r.id]}.`)
@@ -1381,6 +1399,7 @@ function onGame(e: GameEvent) {
       }
       break
     case 'ask':
+      sfx('warn')
       hud.say({
         dex: lead(),
         text: 'Still studying?',
@@ -1389,6 +1408,7 @@ function onGame(e: GameEvent) {
       })
       break
     case 'away': {
+      sfx('pause')
       void cloud.sessionEnd()
       if (hud.busy && hud.currentTag === 'checkin') hud.dismiss()
       hud.clearQueue((d) => d.tag === 'checkin')
@@ -1403,6 +1423,7 @@ function onGame(e: GameEvent) {
       break
     }
     case 'back':
+      sfx('start')
       void cloud.sessionBegin()
       if (hud.busy && hud.currentTag === 'checkin') hud.dismiss()
       hud.toast('Welcome back.')
@@ -1508,6 +1529,7 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden && !clockOwner && 'locks' in navigator) takeClock(true)
 })
 setInterval(() => {
+  if (game) wantsMusic(clockOwner)
   if (clockOwner) game?.beat()
   if (game && scene.weather !== game.weather) scene.weather = game.weather
   if (game) syncNest()
@@ -1572,6 +1594,7 @@ async function popOut() {
   // carry the page's styles and fonts into the new window
   for (const node of document.head.querySelectorAll('style, link[rel="stylesheet"], link[rel="preconnect"]')) pip.document.head.append(node.cloneNode(true))
   pip.document.body.className = 'pip-body'
+  listenIn(pip.document)
   const marker = document.createComment('island')
   win.before(marker)
   pip.document.body.append(win)
@@ -1852,11 +1875,15 @@ async function boot() {
     const [m] = await Promise.all([loadManifest()])
     manifest = m
     void cloud.initCloud() // signed in, so you can leave marks on the island you visit
+    initAudio({ sounds: () => true, music: () => true })
+    wantsMusic(true)
     return bootVisit(visitData)
   }
   const [m, roster] = await Promise.all([loadManifest(), fetch(import.meta.env.BASE_URL + `data/roster.json?v=${__BUILD__}`).then((r) => r.json())])
   manifest = m
   game = new Game((roster as { species: Roster }).species)
+  initAudio({ sounds: () => game.save.settings.sound !== false, music: () => game.save.settings.music !== false })
+  wantsMusic(clockOwner)
   // fire types light up the dark around them
   for (const [k, sp] of Object.entries((roster as { species: Roster }).species)) if (sp.types?.includes('fire')) scene.glowDex.add(k.padStart(4, '0'))
   scene.hour = clockHour()
@@ -1909,6 +1936,7 @@ async function boot() {
         const d = decorDef(id)
         if (!d || game.inSession || game.save.decor.owned.includes(id)) return
         if (!game.spendShells(d.price)) return hud.toast('Not enough shells.')
+        sfx('buy')
         game.save.decor.owned.push(id)
         const slot = freeSlotAfter()
         if (slot) game.save.decor.slots[slot] = id
@@ -1971,6 +1999,12 @@ async function boot() {
         game.persist()
         hud.refreshSheet()
       },
+      toggleMusic: () => {
+        game.save.settings.music = game.save.settings.music === false
+        game.persist()
+        syncMusic()
+        hud.refreshSheet()
+      },
       cheats: () => hud.toggleCheats(CHEATS, cheat),
       visit: (id) => void visitFriend(id),
       inviteDungeon: (id) => void inviteDungeon(id),
@@ -2007,6 +2041,7 @@ async function boot() {
       },
       buyFood: (id, n) => {
         if (!game.buyFood(id, n)) hud.toast(game.inSession ? 'The shop opens between sessions.' : 'Not enough shells.')
+        else sfx('buy')
         hud.refreshSheet()
       },
       setBait: (id) => {
@@ -2015,7 +2050,10 @@ async function boot() {
       },
       buyBall: (b, n) => {
         if (!game.buyBall(b, n)) hud.toast(game.inSession ? 'The shop opens between sessions.' : 'Not enough shells.')
-        else hud.toast(`${n === 1 ? 'A' : n} ${BALLS.find((x) => x.id === b)!.name}${n === 1 ? '' : 's'}.`)
+        else {
+          sfx('buy')
+          hud.toast(`${n === 1 ? 'A' : n} ${BALLS.find((x) => x.id === b)!.name}${n === 1 ? '' : 's'}.`)
+        }
       },
       popOut: popoutMode ? undefined : popOut,
       quit: tauri ? () => void invoke?.('plugin:window|close', { label: 'main' }) : undefined,
@@ -2122,10 +2160,11 @@ function creditsHtml() {
   const rows = Object.values(manifest.species)
     .map((s) => `<li><strong>${s.name}</strong> ${names(s.credits.sprite)} / ${names(s.credits.portrait)}</li>`)
     .join('')
-  return `<p>PMD Sprite Repository, CC BY-NC 4.0. Cries and page sprites: Pokémon Showdown. Data and item icons: PokéAPI. Sprite / portrait artists:</p><ul>${rows}</ul>`
+  return `<p>PMD Sprite Repository, CC BY-NC 4.0. Cries and page sprites: Pokémon Showdown. Data and item icons: PokéAPI. Sound effects: Case Portman Audio (Cute & Cozy UI Audio). Sprite / portrait artists:</p><ul>${rows}</ul>`
 }
 
 window.__island = {
+  audio: audioState,
   get game() {
     return game
   },

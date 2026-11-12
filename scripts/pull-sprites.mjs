@@ -150,5 +150,7 @@ for (const [dex, name] of SPECIES) {
 }
 
 await fs.writeFile(path.join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 1))
+// sound (added 2026-11-12; the audio is built by scripts/build-audio.mjs)
+md.push('', '# Audio credits', '', '- Sound effects: Case Portman Audio, Cute & Cozy UI Audio (free sample), https://caseportman.itch.io/cute-cozy-ui-sfx. Royalty-free with attribution.', '- Pokémon cries: Pokémon Showdown.')
 await fs.writeFile(path.join(ROOT, 'CREDITS.md'), md.join('\n') + '\n')
 console.log('wrote manifest.json and CREDITS.md')

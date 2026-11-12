@@ -4,6 +4,7 @@
 // you choose (befriend, feed, stones, party, decorations, friends) lives in
 // the sheet, and the sheet's choices only unlock between sessions.
 import type { CloudState, Friend, FriendRequest, Me, Trade } from './cloud'
+import { click, sfx } from './audio'
 import { CATALOG, SLOTS, decorDef } from './decor'
 import { BALLS, DESTINATIONS, RESTORE, STONES, berryExp, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
 
@@ -115,6 +116,7 @@ export interface HudHandlers {
   cheats?: () => void
   pet: (id: string) => void
   toggleSound: () => void
+  toggleMusic: () => void
   visit: (id: string) => void
   /** Host a co-op dungeon and invite this friend into it. */
   inviteDungeon?: (id: string) => void
@@ -219,6 +221,10 @@ export class Hud {
     this.toastEl = this.el.querySelector('.hud-toast')!
     this.sheet = this.el.querySelector('.hud-sheet')!
 
+    // every button in the window clicks softly, unless what it does makes its own sound
+    this.el.addEventListener('click', (e) => {
+      if ((e.target as HTMLElement).closest('button')) click()
+    }, true)
     this.party.addEventListener('click', () => this.openSheet('mons'))
     this.dialogEl.addEventListener('click', (e) => {
       if (!(e.target as HTMLElement).closest('button')) this.advance()
@@ -376,7 +382,10 @@ export class Hud {
   /** Advance a waiting line (a click on the text box, or Space/Enter). */
   advance() {
     const d = this.current
-    if (d?.wait && !d.actions?.length) this.dismiss()
+    if (d?.wait && !d.actions?.length) {
+      sfx('blip')
+      this.dismiss()
+    }
   }
   get busy() {
     return !!this.current
@@ -395,6 +404,8 @@ export class Hud {
     const d = this.queue.shift()
     if (!d) return
     this.current = d
+    // someone starts to speak: a soft chirp, but never while you focus
+    if (d.dex && !this.game.inSession) sfx('speak')
     const img = this.dialogEl.querySelector<HTMLImageElement>('.hud-portrait')!
     if (d.dex) {
       img.hidden = false
@@ -544,6 +555,7 @@ export class Hud {
     this.el.querySelectorAll<HTMLElement>('.strip-tab').forEach((b) => b.classList.toggle('on', !this.sheet.hidden && b.dataset.openTab === this.tab))
   }
   openSheet(tab: Tab) {
+    sfx(this.sheet.hidden ? 'open' : 'tab')
     this.el.querySelector<HTMLElement>('.hud-cheats')!.hidden = true
     if (tab !== 'mons' || !this.openMon) this.hideSummary()
     if (tab === 'log' && (this.tab !== 'log' || this.sheet.hidden)) {
@@ -560,6 +572,7 @@ export class Hud {
     if (tab === 'friends') void this.loadFriends()
   }
   closeSheet() {
+    if (!this.sheet.hidden) sfx('close')
     this.sheet.hidden = true
     this.markStrip()
   }
@@ -1029,7 +1042,7 @@ export class Hud {
     const view = this.subOf('more')
     if (view === 'credits') return `<div class="credits-body">${this.credits()}</div>`
     if (view === 'settings')
-      return `<p class="row-title">Sound</p><button class="px-btn small" data-act="sound">Cries ${g.save.settings.sound === false ? 'off' : 'on'}</button>
+      return `<p class="row-title">Sound</p><button class="px-btn small" data-act="sound">Sounds ${g.save.settings.sound === false ? 'off' : 'on'}</button> <button class="px-btn small" data-act="music">Music ${g.save.settings.music === false ? 'off' : 'on'}</button>
       ${this.h.popOut ? `<p class="row-title">Window</p><button class="px-btn small" data-act="popout">Pop out</button>` : ''}
       ${this.h.quit ? `<p class="row-title">Window</p><button class="px-btn small" data-act="quit">Close</button>` : ''}
       ${this.h.cheats ? `<p class="row-title">Testing</p><button class="px-btn small" data-act="cheats">Cheats</button> <span class="hint">or press \`</span>` : ''}`
@@ -1054,6 +1067,7 @@ export class Hud {
     if (tab) return this.openSheet(tab as Tab)
     const subAt = at('sub')
     if (subAt) {
+      sfx('tab')
       this.sub[this.tab] = subAt
       return this.renderSheet()
     }
@@ -1088,6 +1102,7 @@ export class Hud {
     if (act === 'challenge') return this.h.challenge()
     if (act === 'cheats') return this.h.cheats?.()
     if (act === 'sound') return this.h.toggleSound()
+    if (act === 'music') return this.h.toggleMusic()
     if (act === 'popout') {
       this.closeSheet()
       return this.h.popOut?.()

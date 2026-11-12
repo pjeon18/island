@@ -160,3 +160,8 @@ This is a free, non-commercial fan project with no affiliation.
 - **Leafeon** (#470): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), baronessfaron; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), baronessfaron
 - **Glaceon** (#471): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, baronessfaron; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, PhillipsYoung (https://twitter.com/PhilliYoung196)
 - **Froslass** (#478): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, baronessfaron
+
+# Audio credits
+
+- Sound effects: Case Portman Audio, Cute & Cozy UI Audio (free sample), https://caseportman.itch.io/cute-cozy-ui-sfx. Royalty-free with attribution.
+- Pokémon cries: Pokémon Showdown.

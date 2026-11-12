@@ -246,7 +246,7 @@ export interface Save {
   mons: Mon[]
   session: Session | null
   days: Record<string, number> // local date → focused minutes
-  settings: { length: number | null; detector: boolean; sound?: boolean }
+  settings: { length: number | null; detector: boolean; sound?: boolean; music?: boolean }
   seen: number[] // species that have visited or that you have raised
   caught: number[] // species you have owned
   shells: number
