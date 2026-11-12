@@ -33,6 +33,7 @@ export class Creature {
   anchor?: { x: number; y: number; r: number } // helpers stay near their job; r 0 = stand still
   glowOut = false // fade the white glow away (a hatchling)
   white = 0 // 0..1, the evolution glow
+  shiny = false // drawn in its other colours, with a sparkle now and then (L5)
   private next?: State
 
   constructor(public sp: Species, x: number, y: number, private island: IslandLayout, private rand: () => number) {
@@ -276,7 +277,20 @@ export class Creature {
     const dir = this.state === 'sleep' || this.state === 'lay' ? (a.rows === 1 ? 0 : this.dir) : this.dir
     const f = frameAt(a, t, loop)
     if (this.white <= 0) {
+      if (this.shiny) g.filter = 'hue-rotate(150deg) saturate(1.15)'
       drawFrame(g, a, f, dir, this.x, this.y)
+      if (this.shiny) {
+        g.filter = 'none'
+        // a small sparkle every few seconds, soft and brief
+        const k = (this.t % 6) / 6
+        if (k < 0.1) {
+          const sx = Math.round(this.x + 5)
+          const sy = Math.round(this.y - a.ay + 4 - k * 30)
+          g.fillStyle = 'rgba(255, 250, 200, 0.9)'
+          g.fillRect(sx, sy - 1, 1, 3)
+          g.fillRect(sx - 1, sy, 3, 1)
+        }
+      }
       return
     }
     // evolution: the sprite fills with soft white light, then the new form fades back in

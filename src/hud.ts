@@ -145,6 +145,7 @@ export interface CatchOpts {
   onBall: (b: Ball) => void
   onThrow: () => void
   onRun: () => void
+  shiny?: boolean
 }
 
 const fmtClock = (sec: number) => {
@@ -434,7 +435,7 @@ export class Hud {
     this.closeSheet()
     const balls = BALLS.map((b) => `<button class="ball-pick${o.ball === b.id ? ' on' : ''}" data-c="${b.id}" ${o.balls[b.id] ? '' : 'disabled'} title="${b.name}">${icon(b.id)}<span>×${o.balls[b.id]}</span></button>`).join('')
     this.catchEl.innerHTML = `
-      <div class="catch-head"><img class="catch-face" src="${portraitUrl(o.dex)}" alt="" /><p>Wild ${o.name}<br /><span class="hint">Lv${o.level}</span></p></div>
+      <div class="catch-head"><img class="catch-face" src="${portraitUrl(o.dex)}" alt="" /><p>${o.shiny ? '<span class="shiny-mark">Shiny</span> ' : 'Wild '}${o.name}<br /><span class="hint">Lv${o.level}</span></p></div>
       <div class="catch-balls">${balls}</div>
       <div class="catch-actions"><button class="px-btn primary" data-c="throw">Throw</button><button class="px-btn" data-c="run">Run</button></div>`
     this.catchEl.hidden = false
@@ -472,7 +473,7 @@ export class Hud {
     const need = expToNext(m.level)
     el.innerHTML = `
       <div class="sum-head"><img class="sum-face" src="${portraitUrl(m.dex, 'Happy')}" alt="" onerror="this.src='${portraitUrl(m.dex)}'" />
-        <div class="sum-id"><p>${esc(g.name(m))} <span class="hint">Lv${m.level}</span></p><p class="sum-types">${types}</p></div>
+        <div class="sum-id"><p>${esc(g.name(m))} <span class="hint">Lv${m.level}</span>${m.shiny ? ' <span class="shiny-mark">Shiny</span>' : ''}</p><p class="sum-types">${types}</p></div>
         <button class="close-x" data-s="close" aria-label="Close"></button></div>
       <p class="sum-line"><span class="hint">EXP</span><span class="thin wide"><i style="width:${Math.round((m.exp / need) * 100)}%"></i></span><span class="hint">${need - m.exp} to Lv${m.level + 1}</span></p>
       <p class="sum-line hint">${roleText}. ${fmtMinutes(m.focusedMin)} together.</p>
@@ -630,7 +631,7 @@ export class Hud {
       const box = s.mons.filter((m) => g.roleOf(m.id) === 'box')
       if (!box.length) return `<p class="hint">The box is empty.</p>`
       const picked = box.find((m) => m.id === this.openMon)
-      const grid = box.map((m) => `<button class="box-cell${m.id === this.openMon ? ' on' : ''}" data-open="${m.id}" title="${esc(g.name(m))}"><img src="${portraitUrl(m.dex)}" alt="" /><span>Lv${m.level}</span></button>`).join('')
+      const grid = box.map((m) => `<button class="box-cell${m.id === this.openMon ? ' on' : ''}" data-open="${m.id}" title="${esc(g.name(m))}"><img src="${portraitUrl(m.dex)}" alt=""${m.shiny ? ' class="shiny-img"' : ''} /><span>Lv${m.level}${m.shiny ? '*' : ''}</span></button>`).join('')
       return locked + `<div class="box-grid">${grid}</div>` + (picked ? this.monRow(picked) : `<p class="hint">Tap one for its choices.</p>`)
     }
     if (view === 'eggs')
@@ -748,7 +749,7 @@ export class Hud {
       .map((d) => {
         const cls = caught.has(d) ? 'caught' : seen.has(d) ? 'seen' : 'unseen'
         if (caught.has(d)) seen.add(d)
-        return `<button class="dex-cell ${cls}${this.dexPick === d ? ' on' : ''}" data-dex="${d}" aria-label="${seen.has(d) ? g.name(d) : 'Unknown'}">${seen.has(d) ? `<img src="${portraitUrl(d)}" alt="" />` : `<span>${d}</span>`}</button>`
+        return `<button class="dex-cell ${cls}${this.dexPick === d ? ' on' : ''}" data-dex="${d}" aria-label="${seen.has(d) ? g.name(d) : 'Unknown'}">${seen.has(d) ? `<img src="${portraitUrl(d)}" alt="" />` : `<span>${d}</span>`}${g.save.shinies?.includes(d) ? '<i class="dex-shiny"></i>' : ''}</button>`
       })
       .join('')
     let caption = ''
@@ -802,10 +803,10 @@ export class Hud {
     const g = this.game
     const d = g.save.decor
     const placed = new Set(Object.values(d.slots).filter(Boolean) as string[])
-    const open = SLOTS.filter((s) => g.hoursOk(s.minHours))
+    const open = SLOTS.filter((s) => g.slotOpen(s))
     const free = open.filter((s) => !d.slots[s.id]).length
     const locked = g.inSession
-    const rows = CATALOG.filter((item) => !item.frost || g.frostOpen).map((item) => {
+    const rows = CATALOG.filter((item) => (!item.frost || g.frostOpen) && (!item.gift || g.save.decor.owned.includes(item.id))).map((item) => {
       const owned = d.owned.includes(item.id)
       const act = !owned
         ? `<button class="px-btn small${g.save.shells >= item.price ? ' primary' : ''}" data-buy="${item.id}" ${g.save.shells < item.price || locked ? 'disabled' : ''}>${icon('shoal-shell', 'ico-s')}${item.price}</button>`

@@ -10,6 +10,7 @@ export interface DecorDef {
   price: number // shells = focused minutes
   blurb: string
   frost?: boolean // sold once Frost Isle is open
+  gift?: boolean // never sold: a Pokédex milestone gives it
 }
 
 // Price bands follow Studdy's ECONOMY.md, re-anchored on shells:
@@ -34,10 +35,11 @@ export const CATALOG: DecorDef[] = [
   { id: 'lightningrod', name: 'Lightning rod', price: 180, blurb: 'A copper rod that hums in a storm.' },
   { id: 'batroost', name: 'Bat roost', price: 200, blurb: 'A little wooden box for sleeping by day.' },
   { id: 'mudpatch', name: 'Mud patch', price: 120, blurb: 'Warm mud, good for rolling in.', frost: true },
+  { id: 'statue', name: 'Pokédex statue', price: 0, blurb: 'For finishing an island’s Pokédex.', gift: true },
 ]
 
 /** Ground points on the grassy top where a decoration can stand. */
-export const SLOTS: { id: string; x: number; y: number; minHours?: number }[] = [
+export const SLOTS: { id: string; x: number; y: number; minHours?: number; milestone?: number }[] = [
   { id: 'a', ...onIsland(98, 70) },
   { id: 'b', ...onIsland(134, 63) },
   { id: 'c', ...onIsland(182, 88) },
@@ -47,6 +49,8 @@ export const SLOTS: { id: string; x: number; y: number; minHours?: number }[] = 
   // the island grows: two more spots after 3 focused hours
   { id: 'g', ...onIsland(188, 76), minHours: 3 },
   { id: 'h', ...onIsland(58, 100), minHours: 3 },
+  // a Pokédex milestone (75%) opens one more (L5)
+  { id: 'i', ...onIsland(130, 114), milestone: 1 },
 ]
 
 export interface DecorArt {
@@ -432,7 +436,22 @@ function mudpatch(): DecorArt {
   return { img: p.toCanvas(), ax: 10, ay: 8, r: 0 }
 }
 
-const PAINTERS: Record<string, () => DecorArt> = { flowers, stones, mushrooms, sign, bench, umbrella, lantern, campfire, windmill, snowman, icecarving, aurora, leafpile, rockpool, lightningrod, batroost, mudpatch }
+function statue(): DecorArt {
+  const p = new Pix(14, 22)
+  // a stone plinth with a Poké Ball on top
+  for (let y = 12; y < 22; y++) for (let x = 2; x < 12; x++) p.set(x, y, y === 12 ? PAL.stoneLight : x > 9 ? PAL.stoneDark : PAL.stone)
+  for (let y = 1; y < 12; y++)
+    for (let x = 1; x < 13; x++) {
+      const d = ((x - 7) / 5.5) ** 2 + ((y - 6.5) / 5.5) ** 2
+      if (d >= 1) continue
+      p.set(x, y, y === 6 || y === 7 ? PAL.stoneDark : y < 6 ? (x < 6 && y < 4 ? hex('#ff9aa0') : hex('#e2525c')) : hex('#f4f0e8'))
+    }
+  for (let y = 5; y < 9; y++) for (let x = 5; x < 9; x++) p.set(x, y, hex('#f4f0e8'))
+  outline(p, PAL.stoneDark)
+  return { img: p.toCanvas(), ax: 7, ay: 21, r: 5 }
+}
+
+const PAINTERS: Record<string, () => DecorArt> = { statue,  flowers, stones, mushrooms, sign, bench, umbrella, lantern, campfire, windmill, snowman, icecarving, aurora, leafpile, rockpool, lightningrod, batroost, mudpatch }
 const cache = new Map<string, DecorArt>()
 export function decorArt(id: string) {
   let a = cache.get(id)

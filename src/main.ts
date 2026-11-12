@@ -258,6 +258,7 @@ async function syncParty(initial = false) {
   }
   applyAnchors()
   syncSleep(true)
+  syncShiny()
 }
 
 /** Helpers stay near their work: the Day Care by the nest, the bush, the campfire, the end of the pier. */
@@ -392,7 +393,19 @@ async function runVisit(rareMult = 1) {
 // ---------- passers-by, finds and catching (GAME_DESIGN.md stage 1) ----------
 const wildCreature = (id: string) => scene.creatures.find((c) => c.wildId === id && c.state !== 'gone')
 /** Put a waiting Pokémon on the island; `arrive` walks it in from the tall grass or up the pier. */
+/** Shinies (L5) draw in their other colours: party, box-born and waiting wild ones alike. */
+function syncShiny() {
+  for (const c of scene.creatures) {
+    const m = c.monId ? game.mon(c.monId) : undefined
+    const w = c.wildId ? game.save.wild.find((x) => x.id === c.wildId) : undefined
+    c.shiny = !!(m?.shiny || w?.shiny)
+  }
+}
 async function spawnWild(w: Wild, arrive: boolean) {
+  await placeWild(w, arrive)
+  syncShiny()
+}
+async function placeWild(w: Wild, arrive: boolean) {
   if (wildCreature(w.id)) return
   const sp = await ensure(w.dex)
   if (wildCreature(w.id) || !game.save.wild.some((x) => x.id === w.id)) return
@@ -508,6 +521,7 @@ function showCatchUI(w: Wild) {
     dex: w.dex,
     name: game.name(w.dex),
     level: w.level,
+    shiny: w.shiny,
     ball: catchBall,
     balls: { ...game.save.balls },
     onBall: (b) => {
@@ -997,7 +1011,7 @@ function decorSlotOf(id: string) {
   return Object.entries(game.save.decor.slots).find(([, v]) => v === id)?.[0]
 }
 function freeSlotAfter(from?: string) {
-  const ids = SLOTS.filter((s) => game.hoursOk(s.minHours)).map((s) => s.id)
+  const ids = SLOTS.filter((s) => game.slotOpen(s)).map((s) => s.id)
   const start = from ? ids.indexOf(from) + 1 : 0
   for (let i = 0; i < ids.length; i++) {
     const id = ids[(start + i) % ids.length]
@@ -1051,9 +1065,17 @@ function onGame(e: GameEvent) {
       break
     case 'passer':
       void spawnWild(e.wild, true)
-      hud.toast(`${game.name(e.wild.dex)} came by.`)
-      game.note('visit', `A wild ${game.name(e.wild.dex)} came by.`, { dex: e.wild.dex })
+      hud.toast(e.wild.shiny ? `A shiny ${game.name(e.wild.dex)} came by!` : `${game.name(e.wild.dex)} came by.`)
+      game.note('visit', e.wild.shiny ? `A shiny ${game.name(e.wild.dex)} came by.` : `A wild ${game.name(e.wild.dex)} came by.`, { dex: e.wild.dex })
       break
+    case 'milestone': {
+      // a Pokédex milestone (L5)
+      const isl = ISLANDS.find((i) => i.id === e.island)!.name
+      const what = e.reward === 'egg' ? 'Here is an egg.' : e.reward === 'slot' ? 'There is room for one more decoration now.' : e.reward === 'togepi' ? 'Here is my own egg. It came from very far away.' : e.reward === 'statue' ? 'Here is a Pokédex statue for the island.' : e.reward === 'shells' ? 'Here are 200 shells.' : `Here is a ${decorDef(e.reward)?.name.toLowerCase() ?? 'decoration'} for the island.`
+      game.note('other', `${isl}'s Pokédex reached ${e.pct}%.`)
+      hud.say({ dex: GUIDE_DEX, emotion: 'Happy', text: `${isl}'s Pokédex is ${e.pct === 100 ? 'complete' : `${e.pct}% full`}! ${what}`, wait: true })
+      break
+    }
     case 'wildLeave':
       for (const id of e.ids) {
         const c = wildCreature(id)
@@ -1457,7 +1479,7 @@ function buildEndgame() {
   s.days['2000-01-01'] = 36 * 60
   for (let i = 0; i < 6; i++) s.days[dayKey(Date.now() - i * 864e5)] = 60
   s.habitats = ['pond', 'rocks', 'grass', 'cave']
-  s.decor.owned = CATALOG.map((c) => c.id)
+  s.decor.owned = CATALOG.filter((c) => !c.gift).map((c) => c.id)
   const pick = ['flowers', 'bench', 'campfire', 'umbrella', 'lantern', 'windmill', 'sign', 'mushrooms']
   SLOTS.forEach((sl, i) => (s.decor.slots[sl.id] = pick[i] ?? null))
   s.shells = 450

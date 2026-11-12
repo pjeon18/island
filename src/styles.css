@@ -383,3 +383,9 @@ html:has(.float), body:has(.float) { background: transparent; }
 .landmark { padding: 2px 0 6px; border-bottom: 2px solid #dde8f0; }
 .landmark .stat-rows p.ok b { color: #2f8a3a; }
 .landmark.done .row-title { color: var(--fr-soft); }
+
+/* shinies (L5): a gold word, the other colours in portraits, a gold corner in the Pokédex */
+.shiny-mark { color: #c89020; }
+.shiny-img { filter: hue-rotate(150deg) saturate(1.15); }
+.dex-cell { position: relative; }
+.dex-shiny { position: absolute; right: 1px; top: 1px; width: 4px; height: 4px; background: #f0c040; box-shadow: 0 0 0 1px #a87818; }

@@ -42,6 +42,7 @@ export interface Mon {
   noEvolve?: boolean // you stopped its evolution; it waits until you allow it
   heldItem?: string // a stone given in a break; it evolves during the next session
   home?: IslandId // for a helper: the island it works on (shown there only)
+  shiny?: boolean
 }
 
 export type SessionState = 'running' | 'asking' | 'away'
@@ -70,6 +71,7 @@ export interface Wild {
   level: number
   tries: number // failed throws make the next one a little likelier
   guide?: boolean // the tutorial's first catch: it always works
+  shiny?: boolean // about 1 in 150 in a clean hour-long session (L5)
 }
 export type Ball = 'poke-ball' | 'great-ball' | 'ultra-ball'
 export type FindKind = 'shells' | 'berry' | 'poke-ball' | 'star-piece' | 'stone'
@@ -251,6 +253,9 @@ export interface Save {
   parties: Partial<Record<IslandId, string[]>> // other islands' residents while you are away from them
   upgrades: string[] // island upgrades bought with Star Pieces (UPGRADES)
   restored?: string[] // landmarks restored (RESTORE, docs/CONTENT_PLAN.md L1)
+  dexPaid?: string[] // Pokédex milestones already paid, as `${island}:${percent}` (L5)
+  extraSlots?: number // decoration spots from Pokédex milestones (decor.ts SLOTS milestone)
+  shinies?: number[] // species you have caught shiny
   togetherMin?: number // focused minutes with a friend; they count twice toward restoration
   lanterns: number // Lantern charges: one per finished session of 30+ minutes, up to LANTERN_MAX; a charged dungeon run opens chests
   deepTries: Record<string, number> // failed throws at each dungeon's special Pokémon (each makes the next likelier)
@@ -347,6 +352,11 @@ export const WILD_MAX = 4 // at most this many wait on the island at once (revie
 export const PASSERS_PER_DAY = 24
 export const FIND_EVERY = 9 * 60
 export const WEATHER_EVERY = 15 * 60
+export const SHINY_ODDS = 1 / 150
+/** Each island's Pokédex pays out at these shares (L5). */
+export const DEX_MILESTONES = [25, 50, 75, 100]
+/** A 25% milestone gives the first of these you don't own yet (decor.ts CATALOG ids). */
+const MILESTONE_DECOR = ['windmill', 'lantern', 'umbrella', 'bench', 'rockpool', 'batroost', 'lightningrod', 'sign', 'mushrooms', 'flowers']
 export const FRIENDLY_VISIT_CHANCE = 0.25 // the old visitor, now a minor extra after a full session
 export const BALLS: { id: Ball; name: string; price: number; mult: number }[] = [
   { id: 'poke-ball', name: 'Poké Ball', price: 8, mult: 1 },
@@ -477,6 +487,7 @@ export type GameEvent =
   | { type: 'sail'; to: IslandId }
   | { type: 'guardian'; island: IslandId; win: boolean }
   | { type: 'restored'; id: string }
+  | { type: 'milestone'; island: IslandId; pct: number; reward: string } // reward: a decoration id, 'egg', 'slot', 'togepi', 'statue' or 'shells'
 
 export class Game {
   save: Save
@@ -558,8 +569,48 @@ export class Game {
   }
   private mark(dex: number, caught: boolean) {
     if (!this.save.seen.includes(dex)) this.save.seen.push(dex)
-    if (caught && !this.save.caught.includes(dex)) this.save.caught.push(dex)
+    if (caught && !this.save.caught.includes(dex)) {
+      this.save.caught.push(dex)
+      this.checkMilestones()
+    }
+  }  /**
+   * Pokédex milestones (L5): at 25% a decoration, 50% an egg, 75% a decoration spot, and 100%
+   * Wooper's Togepi egg on Home or a Pokédex statue elsewhere. Each is paid once.
+   */
+  checkMilestones() {
+    const s = this.save
+    for (const isl of ISLANDS) {
+      const share = this.dexOf(isl.id).share * 100
+      for (const pct of DEX_MILESTONES) {
+        const key = `${isl.id}:${pct}`
+        if (share < pct || s.dexPaid?.includes(key)) continue
+        s.dexPaid = [...(s.dexPaid ?? []), key]
+        let reward = ''
+        if (pct === 25) {
+          const free = MILESTONE_DECOR.find((d) => !s.decor.owned.includes(d))
+          if (free) s.decor.owned.push(free)
+          else s.shells += 200
+          reward = free ?? 'shells'
+        } else if (pct === 50) {
+          const dex = this.randomEggDex(true)
+          if (!this.addEgg(dex, 'gift')) s.eggQueue.push(dex)
+          reward = 'egg'
+        } else if (pct === 75) {
+          s.extraSlots = (s.extraSlots ?? 0) + 1
+          reward = 'slot'
+        } else if (isl.id === 'home') {
+          if (!this.addEgg(175, 'gift')) s.eggQueue.push(175)
+          reward = 'togepi'
+        } else {
+          if (!s.decor.owned.includes('statue')) s.decor.owned.push('statue')
+          reward = 'statue'
+        }
+        this.persist()
+        this.emit({ type: 'milestone', island: isl.id, pct, reward })
+      }
+    }
   }
+
 
   addMon(dex: number, level: number): Mon {
     const m: Mon = { id: Math.random().toString(36).slice(2, 10), dex, level, exp: 0, focusedMin: 0, metAt: this.now() }
@@ -1076,6 +1127,10 @@ export class Game {
   hoursOk(minHours?: number) {
     return !minHours || this.totalHours() >= minHours
   }
+  /** Is this decoration spot open: enough hours, and (for a milestone spot) the Pokédex milestone paid? */
+  slotOpen(sl: { minHours?: number; milestone?: number }) {
+    return this.hoursOk(sl.minHours) && (!sl.milestone || (this.save.extraSlots ?? 0) >= sl.milestone)
+  }
 
   /** After its dungeon is cleared, the guardian joins you (called by the dungeon page). */
   guardianJoins() {
@@ -1379,6 +1434,8 @@ export class Game {
       this.emit({ type: 'wildLeave', ids: [bumped.id] })
     }
     const w: Wild = { id: Math.random().toString(36).slice(2, 10), dex, level, tries: 0 }
+    // a shiny now and then, only in a clean hour-long session (L5)
+    if (lure.long && lure.clean && Math.random() < SHINY_ODDS) w.shiny = true
     this.save.wild.push(w)
     this.persist()
     this.emit({ type: 'passer', wild: w })
@@ -1538,6 +1595,11 @@ export class Game {
     this.save.wild = this.save.wild.filter((x) => x !== w)
     const newSpecies = !this.save.caught.includes(w.dex)
     const mon = this.addMon(w.dex, w.level)
+    if (w.shiny) {
+      mon.shiny = true
+      if (!this.save.shinies?.includes(w.dex)) this.save.shinies = [...(this.save.shinies ?? []), w.dex]
+      this.persist()
+    }
     const star = this.newSpeciesStar(newSpecies)
     this.emit({ type: 'caught', wild: w, mon, newSpecies, star })
     return { caught, shakes: 3, mon }
