@@ -57,7 +57,9 @@ declare global {
     turnstile?: { render: (el: HTMLElement, o: Record<string, unknown>) => string; remove: (id: string) => void }
   }
 }
+let captchaError = '' // Turnstile's last error code (110200: this domain is not on the widget's list)
 async function captcha(): Promise<string | undefined> {
+  captchaError = ''
   if (!turnstileSiteKey) return undefined
   if (!window.turnstile) {
     await new Promise<void>((res) => {
@@ -90,7 +92,10 @@ async function captcha(): Promise<string | undefined> {
         sitekey: turnstileSiteKey,
         appearance: 'interaction-only',
         callback: (t: string) => finish(t),
-        'error-callback': () => finish(undefined),
+        'error-callback': (code?: string) => {
+          captchaError = String(code ?? 'unknown')
+          finish(undefined)
+        },
         'expired-callback': () => finish(undefined),
       })
       setTimeout(() => finish(undefined), 25000)
@@ -136,6 +141,11 @@ async function loadMe() {
 export async function signIn(email: string) {
   if (!supa) return 'The online service is not set up in this build.'
   const captchaToken = await captcha()
+  // without a token the server refuses anyway, so say what happened in plain words
+  if (turnstileSiteKey && !captchaToken)
+    return captchaError.startsWith('1102')
+      ? 'Sign-in is blocked on this website for now. It needs a setting changed on our side.'
+      : 'The sign-in check did not finish. Wait a moment and try again.'
   const { error } = await supa.auth.signInWithOtp({
     email,
     options: { emailRedirectTo: location.origin + location.pathname, captchaToken, shouldCreateUser: true },

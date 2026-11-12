@@ -280,11 +280,14 @@ export class Scene {
    */
   private separate(dt: number) {
     const cs = this.creatures.filter((c) => c.state !== 'gone' && !c.hidden)
-    const MIN = 12
+    // how far apart two must stand grows with their size (Paul, 2026-11-12: Venusaur and
+    // Charizard overlapped at the old fixed 12 px)
+    const body = (c: Creature) => [6, 8, 12][c.sp.meta.shadowSize] ?? 8
     for (let i = 0; i < cs.length; i++)
       for (let j = i + 1; j < cs.length; j++) {
         const a = cs[i]
         const b = cs[j]
+        const MIN = body(a) + body(b)
         let dx = b.x - a.x
         let dy = (b.y - a.y) * 1.7
         let d = Math.hypot(dx, dy)

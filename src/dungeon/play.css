@@ -61,3 +61,17 @@ html, body { margin: 0; height: 100%; background: #07080a; overflow: hidden; }
 .dg-pips i.full { background: var(--gold); }
 .dg-pips i[style]::after { content: ''; position: absolute; inset: 0; width: var(--fill); background: #8a7a40; }
 .dg-move .dg-pips i { position: relative; bottom: auto; left: auto; }
+/* message panels (2026-11-12): the gold button takes a whole row, the others share the next row
+   evenly; facts are label-and-value rows; choices are Yes/No switches */
+.dg-msg .dg-row { display: flex; flex-wrap: wrap; justify-content: stretch; gap: 6px; }
+.dg-msg .dg-row .dg-btn { flex: 1 1 0; text-align: center; white-space: nowrap; }
+.dg-msg .dg-row .dg-btn.gold { flex-basis: 100%; padding: 8px 9px; }
+.dg-kvs { display: flex; flex-direction: column; }
+.dg-kv { display: flex; align-items: center; justify-content: space-between; gap: 8px; min-height: 22px; border-bottom: 1px solid #e2e8f0; }
+.dg-kv:last-child { border-bottom: 0; }
+.dg-kv span { color: var(--soft); }
+.dg-kv b { font-weight: 400; text-align: right; }
+.dg-seg { display: inline-flex; gap: 2px; padding: 2px; background: #1c2a48; border: 2px solid #0e1628; }
+.dg-seg .dg-btn { padding: 4px 6px; border: 0; box-shadow: none; background: #34466e; color: #e8eef8; }
+.dg-seg .dg-btn.on { background: var(--gold); color: #483010; }
+

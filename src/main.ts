@@ -210,13 +210,24 @@ let adopt: { dex: number; c: Creature } | null = null
 const evolving = new Set<string>()
 
 let spawnNext: { x: number; y: number } | null = null // a hatchling appears at the nest
-const ISLAND_CAP = 14 // 6 residents, helpers, up to 4 waiting and friends' visitors (the island is drawn bigger now)
+// Room on the island, counted in bodies: a big Pokémon (Venusaur, Charizard) takes one and a half.
+// Paul, 2026-11-12: 14 was "too many, too cluttered". The party always shows; waiting wild ones
+// and friends' visitors come next; helpers fill what is left (the rest work off-island).
+const ISLAND_CAP = 9
+const bodyOf = (dex: number) => ((manifest.species[dex4(dex)]?.shadowSize ?? 1) >= 2 ? 1.5 : 1)
 async function syncParty(initial = false) {
-  // at most ISLAND_CAP Pokémon on the island: the party first, then helpers in the room left
-  // after waiting wild ones and friends' visitors (the rest keep working off-island)
-  const others = game.save.wild.length + scene.creatures.filter((c) => c.visitor && c.state !== 'leave').length
-  const room = Math.max(0, ISLAND_CAP - game.party.length - others)
-  const want = [...game.party, ...game.helpersHere.slice(0, room)]
+  let room =
+    ISLAND_CAP -
+    game.party.reduce((n, m) => n + bodyOf(m.dex), 0) -
+    game.save.wild.reduce((n, w) => n + bodyOf(w.dex), 0) -
+    scene.creatures.filter((c) => c.visitor && c.state !== 'leave').length
+  const helpers = game.helpersHere.filter((m) => {
+    const b = bodyOf(m.dex)
+    if (room < b) return false
+    room -= b
+    return true
+  })
+  const want = [...game.party, ...helpers]
   const ids = new Set(want.map((m) => m.id))
   // members who left the party walk off down the dock
   for (const c of scene.creatures) {

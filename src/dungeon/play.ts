@@ -2801,11 +2801,22 @@ async function boot() {
     const charges = latest().lanterns ?? 0
     const berries = kept ? 0 : Math.min(2, game.save.berries)
     let light = !!kept?.charged || charges > 0
-    const lanternLine = () =>
-      kept?.charged ? 'Your Lantern is still lit, so chests open.' : charges ? `Lantern charges: ${charges}. A lit charge opens chests.` : 'No Lantern charge: chests stay shut. Finish a 30-minute session to light one.'
-    const toggle = !kept?.charged && charges > 0 && !test ? `<button class="dg-btn dg-toggle" data-light>${'Light a charge: Yes'}</button>` : ''
-    const intro = `<p>${hand.name}</p><p class="dg-dim">${test ? 'One floor (test play).' : `Three floors, then ${boss ? `${game.name(boss.dex!)} (Lv${boss.level})` : 'the deepest floor'}. Levels about ${Math.min(...lv) - 6} to ${Math.max(...lv)}.`}</p><p class="dg-dim">${lanternLine()}</p>${toggle}`
-    const enter = (bring: boolean) => {
+    let bring = berries > 0
+    // (Paul, 2026-11-12: the old entrance was "weird, unclear, too many buttons and uneven".) The
+    // facts are label-and-value rows, the two choices are Yes/No switches on their rows, and there
+    // is one Enter.
+    const yesNo = (attr: string, on: boolean) =>
+      `<span class="dg-seg"><button class="dg-btn${on ? ' on' : ''}" data-${attr}="1">Yes</button><button class="dg-btn${on ? '' : ' on'}" data-${attr}="0">No</button></span>`
+    const row = (label: string, value: string) => `<div class="dg-kv"><span>${label}</span><b>${value}</b></div>`
+    const lantern = kept?.charged
+      ? row('Lantern', 'Still lit')
+      : charges && !test
+        ? row(`Light a charge (${charges} left)`, yesNo('light', light))
+        : row('Lantern', 'None')
+    const intro = `<p>${hand.name}</p><div class="dg-kvs">${row('Floors', test ? '1, a test' : `3, then ${boss ? `${game.name(boss.dex!)} Lv${boss.level}` : 'the deepest'}`)}${row('Levels', `${Math.min(...lv) - 6} to ${Math.max(...lv)}`)}${lantern}${berries ? row(`Bring ${berries} Oran Berr${berries === 1 ? 'y' : 'ies'}`, yesNo('bring', bring)) : ''}</div>${
+      !kept?.charged && !charges && !test ? '<p class="dg-dim">Chests stay shut without a lit charge. A finished 30-minute session lights one.</p>' : ''
+    }`
+    const enter = () => {
       if (starting) return // one Enter only, even if the lobby redraws (review 2 D12)
       starting = true
       coop = mode === 'host' && guests.size > 0
@@ -2827,27 +2838,22 @@ async function boot() {
       hud.querySelectorAll('.dg-msg').forEach((m) => m.remove())
       void start(r)
     }
-    const enterButtons = [
-      ...(berries ? [{ label: `Enter with ${berries} Oran Berr${berries === 1 ? 'y' : 'ies'}`, gold: true, run: () => enter(true) }] : []),
-      { label: 'Enter', gold: !berries, run: () => enter(false) },
-    ]
+    const enterButtons = [{ label: 'Enter', gold: true, run: enter }]
+    // the switches flip in place; they never close the panel
     const wire = () => {
-      const t = hud.querySelector<HTMLButtonElement>('[data-light]')
-      if (!t) return
-      t.textContent = light ? 'Light a charge: Yes' : 'Light a charge: No'
-      t.onclick = (e) => {
-        e.stopPropagation()
-        light = !light
-        t.textContent = light ? 'Light a charge: Yes' : 'Light a charge: No'
-      }
+      for (const [attr, set] of [['light', (v: boolean) => (light = v)], ['bring', (v: boolean) => (bring = v)]] as const)
+        hud.querySelectorAll<HTMLButtonElement>(`[data-${attr}]`).forEach((b) => {
+          b.onclick = (e) => {
+            e.stopPropagation()
+            const v = b.dataset[attr] === '1'
+            set(v)
+            b.parentElement!.querySelectorAll('button').forEach((x) => x.classList.toggle('on', x === b))
+          }
+        })
     }
     if (mode === 'host') hostLobby(id, intro, enterButtons, wire)
     else {
-      message(intro, [
-        ...enterButtons,
-        ...(test || kept ? [] : [{ label: 'Play with a friend', run: () => friendMenu(id) }]),
-        { label: 'Back to the island', run: home },
-      ])
+      message(intro, [...enterButtons, ...(test || kept ? [] : [{ label: 'With a friend', run: () => friendMenu(id) }]), { label: 'Back', run: home }])
       wire()
     }
   }
@@ -2855,7 +2861,7 @@ async function boot() {
     message(`<p>${hand.name}</p><p class="dg-dim">Your run is waiting on ${floorLabel(saved.floor)}.</p>`, [
       { label: 'Continue', gold: true, run: () => void start(saved!) },
       { label: 'Start over', run: () => (clearRun(), entrance(saved!)) },
-      { label: 'Back to the island', run: home },
+      { label: 'Back', run: home },
     ])
   else entrance()
   startLoop()
@@ -2931,7 +2937,7 @@ function hostLobby(id: string, intro: string, enterButtons: { label: string; gol
     const who = [...guests.values()].map((g) => g.team.map((m) => `${m.name} (Lv${m.level})`).join(' and '))
     const waiting = `<p class="dg-dim">Room <b class="dg-room">${roomCode}</b>. ${guests.size < MAX_GUESTS ? 'More friends can still join.' : 'The room is full.'}</p>`
     if (guests.size) {
-      message(`${intro}<p>${guests.size === 1 ? 'A friend' : `${guests.size} friends`} joined: ${who.join(', ')}.</p>${waiting}`, [...enterButtons, { label: 'Back to the island', run: home }])
+      message(`${intro}<p>${guests.size === 1 ? 'A friend' : `${guests.size} friends`} joined: ${who.join(', ')}.</p>${waiting}`, [...enterButtons, { label: 'Back', run: home }])
       wire()
     } else
       message(`<p>Room <b class="dg-room">${roomCode}</b></p><p class="dg-dim">Ask a friend to open a dungeon door, choose Play with a friend, then Join a room, and type ${roomCode}. Or invite them from your Friends list.</p><p class="dg-dim">Waiting for them…</p>`, [
