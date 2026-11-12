@@ -51,3 +51,5 @@ html, body { margin: 0; height: 100%; background: #07080a; overflow: hidden; }
 /* co-op: the room code */
 .dg-room { font-weight: 400; color: var(--gold-edge); letter-spacing: 2px; }
 .dg-code { font: 16px/1 'Press Start 2P', monospace; width: 6.5ch; padding: 6px 8px; text-transform: uppercase; letter-spacing: 3px; border: 2px solid var(--edge); background: #fff; color: var(--ink); }
+/* the entrance's Lantern choice: a toggle inside the message, it doesn't close it */
+.dg-msg .dg-toggle { align-self: flex-start; margin: 2px 0 4px; }

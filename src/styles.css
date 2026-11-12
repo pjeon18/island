@@ -136,7 +136,10 @@ body { -webkit-font-smoothing: none; }
 
 /* sub-tabs inside a menu, and the compact rows that live in them */
 .subtabs { margin: 2px 8px 4px; flex-wrap: wrap; align-self: flex-start; }
-.subtabs .seg { padding: 4px 6px; }
+.subtabs .seg { padding: 4px 5px; white-space: nowrap; }
+/* review 2: five tabs with counts wrapped "Bag" at 1280 px; the narrowest still fits on one line */
+.subtabs:has(.seg:nth-child(5)) { flex-wrap: nowrap; }
+.subtabs:has(.seg:nth-child(5)) .seg { padding: 4px 4px; }
 .job-row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; line-height: 1.5; border-bottom: 2px solid #dde8f0; }
 .job-row span:last-child { text-align: right; }
 .bag-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin: 4px 0; }
@@ -209,7 +212,8 @@ body { -webkit-font-smoothing: none; }
 .mon-row.open { background: var(--fr-tint); }
 .mon-head { appearance: none; display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 4px; background: none; border: 0; text-align: left; cursor: pointer; font: inherit; position: relative; }
 .mon-head img { width: 40px; height: 40px; flex: none; }
-.mon-row.open .mon-head::before { content: ''; position: absolute; left: -7px; top: 50%; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 4px solid var(--fr-ink); transform: translateY(-50%); }
+.mon-row.open .mon-head { padding-left: 8px; }
+.mon-row.open .mon-head::before { content: ''; position: absolute; left: 2px; top: 50%; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 4px solid var(--fr-ink); transform: translateY(-50%); }
 .mon-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
 .mon-main p { margin: 0; }
 .mon-main strong { font-weight: 400; }

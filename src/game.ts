@@ -93,8 +93,8 @@ export const ISLANDS: {
   dungeon: string // the gate dungeon (public/dungeons/<id>.json); the guardian is its boss
   unlock?: { from: IslandId; share: number; hours: number }
 }[] = [
-  { id: 'home', name: 'Home Island', guardian: { dex: 143, level: 30, where: 'asleep at the bottom of Pier Hollow' }, dungeon: 'pier-hollow' },
-  { id: 'frost', name: 'Frost Isle', guardian: { dex: 131, level: 48, where: 'resting at the bottom of Glacier Grotto' }, dungeon: 'glacier-grotto', unlock: { from: 'home', share: 0.7, hours: 20 } },
+  { id: 'home', name: 'Home Island', guardian: { dex: 143, level: 36, where: 'asleep at the bottom of Pier Hollow' }, dungeon: 'pier-hollow' },
+  { id: 'frost', name: 'Frost Isle', guardian: { dex: 131, level: 58, where: 'resting at the bottom of Glacier Grotto' }, dungeon: 'glacier-grotto', unlock: { from: 'home', share: 0.7, hours: 20 } },
 ]
 /** The island grows with your total focused hours. */
 export const GROWTH: { hours: number; text: string }[] = [
@@ -121,13 +121,14 @@ export type JobId = 'bush' | 'dig' | 'lookout' | 'campfire'
 /** One Pokémon per job. Interval in focused minutes at level 1; stronger Pokémon work faster. */
 export const JOBS: { id: JobId; name: string; types: string[]; every: number; floor: number; needsDecor?: string; does: string }[] = [
   { id: 'bush', name: 'Berry bush', types: ['water'], every: 30, floor: 12, does: 'An extra Oran Berry' },
-  { id: 'dig', name: 'Digging', types: ['ground', 'rock'], every: 24, floor: 10, does: 'An extra find' },
+  { id: 'dig', name: 'Digging', types: ['ground', 'rock'], every: 24, floor: 16, does: 'An extra find' },
   { id: 'lookout', name: 'Lookout', types: ['flying'], every: 40, floor: 18, does: 'An extra passer-by' },
-  { id: 'campfire', name: 'Campfire', types: ['fire'], every: 10, floor: 6, needsDecor: 'campfire', does: '3 extra shells' },
+  // review 2 B5: dig and campfire floors raised (10 → 16, 6 → 10) so focus stays the main income
+  { id: 'campfire', name: 'Campfire', types: ['fire'], every: 14, floor: 10, needsDecor: 'campfire', does: '3 extra shells' },
 ]
 export const jobEvery = (job: (typeof JOBS)[number], level: number) => Math.max(job.floor, Math.round(job.every - level / 2))
 export const EGG_MAX = 3
-export const DAYCARE_EVERY = 45 // focused minutes with two Pokémon in the Day Care → an egg
+export const DAYCARE_EVERY = 90 // focused minutes with two Pokémon in the Day Care → an egg (review 2 B9: was 45)
 export const EXPEDITIONS = [
   { id: 'short', name: 'Short trip', minutes: 30 },
   { id: 'long', name: 'Long trip', minutes: 90 },
@@ -281,7 +282,9 @@ export const FLEE_AFTER = 3 // break-frees before a rare Pokémon or starter run
 export const IDLE_THRESHOLD = 10 * 60 // idle detector threshold
 export const OPEN_VISIT_EVERY = 30 * 60
 export const EXP_PER_MIN = 2 // (Paul, 2026-11-11) with a steeper level cost, below
-export const BERRY_EXP = 20 // a berry is still worth ten focused minutes
+export const BERRY_EXP = 20 // the least a berry gives: ten focused minutes
+/** Review 2 B11: a berry gives a quarter of the next level's cost, at least BERRY_EXP, so it still matters past Lv30. */
+export const berryExp = (level: number) => Math.max(BERRY_EXP, Math.round(expToNext(level) / 4))
 export const BERRIES_MAX = 9 // the bush holds this many
 export const BOND_FOR_FRIENDSHIP = 10 * 60 // focused minutes together
 export const VISITS_PER_DAY = 12
@@ -305,7 +308,8 @@ export const BALLS: { id: Ball; name: string; price: number; mult: number }[] = 
 ]
 const CATCH_BASE: Record<Rarity, number> = { common: 0.7, uncommon: 0.5, rare: 0.35, starter: 0.3, deep: 0.25 }
 
-const KEY = 'island-save-v1'
+export const SAVE_KEY = 'island-save-v1'
+const KEY = SAVE_KEY
 
 /** EXP to go from `level` to the next: L + L²/25. About 10 hours to Lv36 at 2 EXP a minute; early levels come fast. */
 export const expToNext = (level: number) => level + Math.round((level * level) / 25)
@@ -404,7 +408,7 @@ export type GameEvent =
   | { type: 'partyChanged' }
   | { type: 'minute'; n: number }
   | { type: 'stone'; item: string; streak: number }
-  | { type: 'fed'; mon: Mon; levels: number }
+  | { type: 'fed'; mon: Mon; levels: number; exp: number }
   | { type: 'retract'; minutes: number }
   | { type: 'passer'; wild: Wild }
   | { type: 'wildLeave'; ids: string[] }
@@ -675,15 +679,16 @@ export class Game {
   }
 
   // ---------- break-time choices ----------
-  /** Give a berry: 10 EXP to any Pokémon, party or box. Only between sessions. */
+  /** Give a berry (berryExp) to any Pokémon, party or box. Only between sessions. */
   feed(id: string) {
     const m = this.mon(id)
     if (!m || this.save.session || this.save.berries <= 0) return false
     this.save.berries--
     const before = m.level
-    this.addExp(m, BERRY_EXP)
+    const exp = berryExp(m.level)
+    this.addExp(m, exp)
     this.persist()
-    this.emit({ type: 'fed', mon: m, levels: m.level - before })
+    this.emit({ type: 'fed', mon: m, levels: m.level - before, exp })
     return true
   }
   /** Give a stone; the evolution happens during the next focus session. */
@@ -883,7 +888,7 @@ export class Game {
     if (sp.needs) notes.push(`Needs ${HABITATS.find((h) => h.id === sp.needs)!.name.toLowerCase()}.`)
     if (sp.time === 'night') notes.push('Night only.')
     if (sp.time === 'morning') notes.push('Likes mornings.')
-    if (sp.rarity === 'rare' || sp.rarity === 'starter') notes.push('Only in 50-minute sessions.')
+    if (sp.rarity === 'rare' || sp.rarity === 'starter') notes.push('Comes in 50-minute sessions, or rarely in shorter ones on a 3-day streak.')
     const food = FOODS.filter((f) => f.types.some((t) => sp.types?.includes(t))).map((f) => f.name)
     if (food.length) notes.push(`Likes ${food.join(' or ')}.`)
     const decor = Object.entries(DECOR_LOVES).filter(([, ds]) => ds.includes(dex)).map(([id]) => decorName(id).toLowerCase())
@@ -962,10 +967,10 @@ export class Game {
   }
 
   // ---------- gifts (stage 5) ----------
-  /** Can this be sent? A Pokémon must not be the last in the party or away on an expedition. */
+  /** Can this be sent? Never your partner, the last in the party, or one away on an expedition. */
   canGiveMon(id: string) {
     const r = this.roleOf(id)
-    return !this.save.session && r !== 'expedition' && !(r === 'party' && this.save.party.length <= 1)
+    return !this.save.session && !this.isPartner(id) && r !== 'expedition' && !(r === 'party' && this.save.party.length <= 1)
   }
   /** Remove what was sent, once the server has accepted it. */
   giveAway(kind: 'mon' | 'egg' | 'item', ref: string, n = 1) {
@@ -1164,7 +1169,7 @@ export class Game {
     const m = this.mon(ex.id)
     this.save.expedition = null
     if (!m) return
-    const haul: Haul = { shells: ex.long ? 40 + m.level : 10 + Math.floor(m.level / 2), items: [] }
+    const haul: Haul = { shells: ex.long ? 40 + Math.floor(m.level / 4) : 10 + Math.floor(m.level / 2), items: [] } // review 2 B5
     const pick = () => {
       const r = rand()
       if (r < 0.35) return { kind: 'berry' as const, n: 1 }
@@ -1280,8 +1285,9 @@ export class Game {
   /** A party Pokémon digs something up. */
   dig(rand = Math.random, by?: string) {
     if (this.save.finds.length >= 6) return null
+    // an egg has its own 3% roll (review 2 G1: it used to share r > 0.97, which swallowed the stone band)
+    if (rand() < 0.03 && this.save.eggs.length < this.eggMax) return this.addEgg(this.randomEggDex(false), 'find') && null
     const r = rand()
-    if (r > 0.97 && this.save.eggs.length < this.eggMax) return this.addEgg(this.randomEggDex(false), 'find') && null
     // review 2026-11-11: fewer Star Pieces (10% -> 4%), and a 2% chance of an evolution stone
     const f: Find =
       r < 0.58
@@ -1336,14 +1342,17 @@ export class Game {
     this.persist()
     return true
   }
-  /** Odds of catching a dungeon's special Pokémon with this ball (it rises 8% for each miss there). */
-  deepChance(dungeon: string, ball: Ball, quality = 0.5) {
+  /**
+   * Odds of catching a dungeon's special Pokémon with this ball (it rises 8% for each miss there).
+   * There is no ring to aim at, so the throw counts as a good one (review 2: an Ultra Ball is 65%).
+   */
+  deepChance(dungeon: string, ball: Ball, quality = 1) {
     const tries = this.save.deepTries[dungeon] ?? 0
     const mult = BALLS.find((b) => b.id === ball)?.mult ?? 1
     return Math.min(0.97, (CATCH_BASE.deep + tries * 0.08) * mult * (0.7 + 0.6 * quality))
   }
   /** One throw at the special Pokémon after a charged clear. */
-  throwDeep(dungeon: string, dex: number, ball: Ball, quality = 0.5, rand = Math.random) {
+  throwDeep(dungeon: string, dex: number, ball: Ball, quality = 1, rand = Math.random) {
     if (this.save.balls[ball] <= 0) return null
     this.save.balls[ball]--
     const caught = rand() < this.deepChance(dungeon, ball, quality)
@@ -1488,6 +1497,7 @@ export class Game {
     const morning = lure.hour >= 5 && lure.hour < 10
     const likes = (types: string[] | undefined, want: string[]) => !!types && types.some((t) => want.includes(t))
     const bait = FOODS.find((f) => f.id === lure.bait)
+    const streakRare = this.streak() >= 3
     const table: { dex: number; w: number; rarity: Rarity }[] = []
     for (const [k, s] of Object.entries(this.roster)) {
       if (s.stage !== 1 || !s.rarity || s.guardian) continue
@@ -1498,9 +1508,14 @@ export class Game {
       if (s.needs && !lure.habitats.includes(s.needs)) continue
       // by day, night species only come near the stone lantern, at a fifth of their odds
       if (s.time === 'night' && !night && !lure.decor.includes('lantern')) continue
-      if ((s.rarity === 'rare' || s.rarity === 'starter') && !lure.long) continue
+      // rare ones and other starters: 50-minute sessions, or (review 2 B8) shorter ones on a
+      // 3-day streak at about a quarter of the 50-minute odds, so light players are not locked out
+      // (RARE_50 / 6 measured: 6.7% of short-session visitors against 26.7% in 50-minute ones)
+      const scarce = s.rarity === 'rare' || s.rarity === 'starter'
+      if (scarce && !lure.long && !streakRare) continue
       // base odds per visit in a long session: rare about 4%, each other starter about 2%
       let w = s.rarity === 'common' ? 10 : s.rarity === 'uncommon' ? 5 * Math.sqrt(boost) : s.rarity === 'rare' ? 4 * boost : 2 * boost
+      if (scarce && !lure.long) w *= RARE_50 / 6
       if (caughtLines.has(s.line)) w *= 0.5
       if (likes(s.types, WEATHER_TYPES[lure.weather])) w *= 2.5
       if (bait && likes(s.types, bait.types)) w *= 3

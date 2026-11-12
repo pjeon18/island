@@ -51,4 +51,4 @@ The Pokédex holds every species on the island, 45 in all, and tracks which you 
 - A starter from level 5 reaches its first evolution (level 16) in about 1 hour 50 minutes of focus, and its final form (level 36) in about 10 hours.
 - A Caterpie visitor evolves twice within its first hour on the island.
 - Ten focused hours earns 600 shells. Decorations cost 40 to 400 shells.
-- Twelve 25-minute sessions, about five hours of focus, earn 12 berries, worth 120 EXP of directed growth.
+- Twelve 25-minute sessions, about five hours of focus, earn 12 berries. Each is worth at least 20 EXP, or a quarter of the next level's cost once that is more (`berryExp`).

@@ -5,7 +5,7 @@
 // the sheet, and the sheet's choices only unlock between sessions.
 import type { CloudState, Friend, FriendRequest, Me } from './cloud'
 import { CATALOG, SLOTS, decorDef } from './decor'
-import { BALLS, BERRY_EXP, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
+import { BALLS, berryExp, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
 
 const BASE = import.meta.env.BASE_URL
 export const portraitUrl = (dex: number, emo = 'Normal') => `${BASE}sprites/${String(dex).padStart(4, '0')}/${emo}.png`
@@ -182,6 +182,9 @@ export class Hud {
   private friendsCache: { friends: Friend[]; requests: FriendRequest[]; error?: string } | null = null
   private lastFocusKey = ''
   private lastPartyKey = ''
+  private lastSheetKey = ''
+  /** True while a catch is playing: the party chips wait for the ball to stop wobbling (review 2 G4). */
+  holdParty = false
   private catchEl!: HTMLElement
   private catchOpts: CatchOpts | null = null
 
@@ -325,7 +328,7 @@ export class Hud {
 
     if (this.summaryId) this.renderSummary()
     const pk = g.party.map((m) => `${m.id}:${m.dex}:${m.level}:${m.exp}`).join('|')
-    if (pk !== this.lastPartyKey) {
+    if (pk !== this.lastPartyKey && !this.holdParty) {
       this.lastPartyKey = pk
       this.party.classList.toggle('many', g.party.length > 3)
       this.party.innerHTML = g.party
@@ -335,7 +338,12 @@ export class Hud {
         })
         .join('')
       this.party.setAttribute('aria-label', `Your party: ${g.party.map((m) => `${g.name(m)}, level ${m.level}`).join('; ')}. Open your Pokémon.`)
-      if (!this.sheet.hidden && this.tab !== 'friends') this.renderSheet()
+      // EXP alone changes every focused minute; re-rendering the open menu for it reset focus and hover
+      const sk = g.party.map((m) => `${m.id}:${m.dex}:${m.level}`).join('|')
+      if (sk !== this.lastSheetKey) {
+        this.lastSheetKey = sk
+        if (!this.sheet.hidden && this.tab !== 'friends') this.renderSheet()
+      }
     }
   }
 
@@ -368,6 +376,10 @@ export class Hud {
   }
   get currentTag() {
     return this.current?.tag
+  }
+  /** Is a line with this tag showing or waiting? */
+  hasTag(tag: string) {
+    return this.current?.tag === tag || this.queue.some((d) => d.tag === tag)
   }
   get currentText() {
     return this.current?.text ?? ''
@@ -608,7 +620,7 @@ export class Hud {
         const who = s.jobs[j.id] && g.mon(s.jobs[j.id]!)
         return `<div class="job-row"><span>${j.name}</span><span class="hint">${who ? `${g.name(who)}, every ${jobEvery(j, who.level)} min` : `${j.types.map((t) => t[0].toUpperCase() + t.slice(1)).join(' or ')}${j.needsDecor ? ', campfire' : ''}`}</span></div>`
       }).join('')
-      return locked + `<div class="job-row"><span>Day Care</span><span class="hint">${dc}/2${dc === 2 ? `, egg every ${DAYCARE_EVERY} min` : ''}</span></div>${jobs}` + (helpers.length ? helpers.map((m) => this.monRow(m)).join('') : `<p class="hint">Nobody is helping yet. Pick one in Box or Party.</p>`)
+      return locked + `<div class="job-row"><span>Day Care</span><span class="hint">${dc} of 2${dc === 2 ? `, egg every ${DAYCARE_EVERY} min` : ''}</span></div>${jobs}` + (helpers.length ? helpers.map((m) => this.monRow(m)).join('') : `<p class="hint">Nobody is helping yet. Pick one in Box or Party.</p>`)
     }
     if (view === 'box') {
       const box = s.mons.filter((m) => g.roleOf(m.id) === 'box')
@@ -694,7 +706,7 @@ export class Hud {
         <div class="mon-detail">
           <p class="hint">${this.evoText(m)}</p>
           <div class="row-actions">
-            ${btn(`data-feed="${m.id}"`, `${icon('oran-berry', 'ico-s')}Feed +${BERRY_EXP} EXP`, locked || s.berries <= 0, true)}
+            ${btn(`data-feed="${m.id}"`, `${icon('oran-berry', 'ico-s')}Feed +${berryExp(m.level)} EXP`, locked || s.berries <= 0, true)}
             ${usable.length && !m.heldItem ? btn(`data-stones="${m.id}"`, 'Give a stone', locked) : ''}
             ${m.heldItem ? btn(`data-take="${m.id}"`, 'Take stone', locked) : ''}
             ${m.noEvolve ? btn(`data-allow="${m.id}"`, 'Let it evolve') : ''}

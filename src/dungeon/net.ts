@@ -25,6 +25,8 @@ export interface TeamMon {
 export interface Hello {
   name: string
   team: TeamMon[]
+  v: string // the build: different builds would quietly generate different floors
+  charged: boolean // the guest lit a Lantern charge, so chests open for them too
 }
 /** host -> guest: the run, and which actors are yours */
 export interface Start {
@@ -48,7 +50,7 @@ export interface Input {
 export type Snap = Record<string, unknown>
 /** host -> guest: things that happen once */
 export interface Event {
-  kind: 'floor' | 'chest' | 'end' | 'toast'
+  kind: 'floor' | 'chest' | 'end' | 'toast' | 'refuse' // refuse: text is 'full', 'version' or 'started'
   floor?: number
   big?: boolean
   win?: boolean
@@ -87,9 +89,9 @@ export function connectRoom(code: string) {
     },
     sendHello: (h: Hello) => send('hello', h),
     sendStart: (s: Start, to?: string) => send('start', s, to),
-    sendInput: (i: Input) => send('input', i),
+    sendInput: (i: Input, to?: string) => send('input', i, to),
     sendSnap: (s: Snap) => send('snap', s),
-    sendEvent: (e: Event) => send('event', e),
+    sendEvent: (e: Event, to?: string) => send('event', e, to),
     onHello: (cb: (h: Hello, peer: string) => void) => on('hello', cb),
     onStart: (cb: (s: Start, peer: string) => void) => on('start', cb),
     onInput: (cb: (i: Input, peer: string) => void) => on('input', cb),

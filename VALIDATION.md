@@ -1,5 +1,30 @@
 # Validation
 
+## Review 2: bugs and balance (2026-11-12)
+- Island, in the browser at 1280×800:
+  - 20,000 finds gave about 2% stones, 3.8% Star Pieces and 2.7% eggs; before, stones never came.
+  - The partner can't be picked as a gift.
+  - Short sessions: no rare visitors without a streak. With a 3-day streak they made 6.9% of visitors, against 26.4% in 50-minute sessions.
+  - The Pokémon sub-tabs (Party, Helpers 3, Box 16, Eggs, Bag) sit on one line, and the open-row arrow sits inside the window. Feed shows a berry's level-scaled EXP.
+- Dungeon, solo (stepped by hand; the hidden pane runs no animation frames):
+  - The entrance's "Light a charge" toggle flips without closing the message.
+  - A chest and a pot opened, the tab reloaded, and Continue kept both open with the same items and Lantern count.
+  - Start over kept the lit charge and the 2 brought berries without spending another.
+  - Stairs healed a Pokémon at 20% to 70%. Three pots appeared on the boss floor. Snorlax is Lv36.
+  - Snorlax stood still through its 0.9 s burst warning and its 1 s Body Slam warning, then charged 120 px down the warned lane.
+- Co-op, a host and two guests in the same pane:
+  - Each brought two Pokémon. Enemies had 2× HP for 6 Pokémon.
+  - The host's Tab cycled only its own two Pokémon.
+  - A guest with a lit charge walked onto a chest the host could not open (the host had no charge). It opened, and only that guest got loot; the other guest was told to light a charge.
+  - Closing one guest's tab: the host kept the run and the other guest played on (it used to end the other guest's run).
+  - The host's Esc opened a menu while the game kept running.
+  - A guest was told "You're in" once the host had it, and "The host left the room" when the host left the lobby.
+- Not checked:
+  - The "room full", "already started" and "different versions" refusals end to end: the late tab never reached the host here.
+  - A hidden host's catch-up speed, a guest switching to its second Pokémon, and a frozen guest rejoining.
+  - The editor's play test leaving a real run alone.
+  - The special catch surviving a closed tab.
+
 ## Dungeon invites and four players (2026-11-11)
 - `island_stage7.sql` on PGlite with Studdy stubbed (`npm run test:sql7`), 20 checks passed: invites only between friends, bad codes and dungeon ids refused, a new invite replaces the old, the invitee sees only the newest and can clear it, others and signed-out callers see nothing, invites expire after ten minutes; gifts of evolved, legendary or deep species are refused, two stones at once are refused, and a second stone within a week is refused.
 - Three tabs (a host and two guests) in room MULT: both hellos reached the host, each player brought one Pokémon, enemy HP doubled for three players, and both guests drew the run and controlled their own Pokémon.

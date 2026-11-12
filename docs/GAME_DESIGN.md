@@ -135,7 +135,7 @@ These were chosen while building stage 2, since the interview left them open.
 - **Eggs:**
   - Up to 3 at a time. They warm with focused minutes: 40 for a common species, 75 for uncommon, 120 for rare or a starter.
   - They hatch at level 1 in the nest east of the windmill, into the party if there is room, otherwise the box.
-  - They come from the Day Care (every 45 focused minutes with two Pokémon there, as one parent's first stage), from 3% of finds, from streak milestones of 7 days or more, and from long expeditions (25% plus level/200). Gifts from friends come in stage 5.
+  - They come from the Day Care (every 90 focused minutes with two Pokémon there, as one parent's first stage), from 3% of finds, from streak milestones of 7 days or more, and from long expeditions (25% plus level/200). Gifts from friends come in stage 5.
 - **Jobs** (one Pokémon each; stronger ones work faster, each interval is minus level/2 down to a floor):
 
   | Job | Types | Every | Reward |

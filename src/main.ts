@@ -5,7 +5,7 @@ import './styles.css'
 import { Creature } from './creature'
 import * as cloud from './cloud'
 import { CATALOG, SLOTS, decorDef } from './decor'
-import { BALLS, BERRY_EXP, Ball, FOODS, Find, Game, GameEvent, dayKey, HABITATS, Haul, ISLANDS, JOBS, Mon, RARE_50, Role, Roster, STONES, Weather, Wild, aStone, loadSave, stoneName } from './game'
+import { BALLS, Ball, FOODS, Find, Game, GameEvent, dayKey, HABITATS, Haul, ISLANDS, JOBS, Mon, RARE_50, Role, Roster, STONES, Weather, Wild, aStone, loadSave, stoneName } from './game'
 import { HABITAT_SPOTS } from './habitats'
 import { CatchAnim } from './catch'
 import { Intro } from './intro'
@@ -518,6 +518,7 @@ function throwNow() {
   const id = c.wildId!
   const dex = game.save.wild.find((x) => x.id === id)?.dex
   adopt = dex ? { dex, c } : null // if it is caught into the party, this creature becomes the party member
+  hud.holdParty = true // review 2 G4: the chips wait for the ball to stop wobbling
   const res = game.throwBall(id, catchBall, catching.quality)
   if (adopt?.c === c) adopt = null
   if (!res) return cancelCatch()
@@ -531,11 +532,13 @@ function cancelCatch() {
   if (!catching) return
   catching.c.hold(false)
   catching = null
+  hud.holdParty = false
   hud.hideCatch()
   scene.markWild = !game.inSession
 }
 function finishCatch(c: Creature, w: Wild, caught: boolean) {
   catching = null
+  hud.holdParty = false
   scene.markWild = !game.inSession
   const name = game.name(w.dex)
   if (!caught) {
@@ -1138,7 +1141,7 @@ function onGame(e: GameEvent) {
       hud.toast(
         e.levels
           ? `${game.name(e.mon)} grew to level ${e.mon.level}.`
-          : `${game.name(e.mon)} gained ${BERRY_EXP} EXP.`,
+          : `${game.name(e.mon)} gained ${e.exp} EXP.`,
       )
       {
         const c = scene.byMon(e.mon.id)
@@ -1286,11 +1289,16 @@ function takeClock(steal: boolean) {
     .request('island-clock', { steal }, () => ((clockOwner = true), new Promise<void>(() => {})))
     .catch(() => {
       clockOwner = false
-      hud?.toast('The island is in its own window.')
+      if (!document.hidden) hud?.toast('The island is in its own window.')
       takeClock(false)
     })
 }
 if ('locks' in navigator) takeClock(popoutMode && !floatMode)
+// review 2 G3: a hidden tab can keep the lock while the browser throttles it, so a window
+// that comes into view takes the clock back
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden && !clockOwner && 'locks' in navigator) takeClock(true)
+})
 setInterval(() => {
   if (clockOwner) game?.beat()
   if (game && scene.weather !== game.weather) scene.weather = game.weather
@@ -1446,7 +1454,7 @@ function buildEndgame() {
     if (m) g.assign(m.id, role as Role)
   g.addEgg(25, 'find')
   s.log = []
-  for (const [kind, text] of [['focus', 'Focused for 50 minutes. Two berries ripened.'], ['visit', 'A wild Eevee came by.'], ['catch', 'Caught Eevee.'], ['level', 'Charizard reached level 38.']] as const) g.note(kind, text)
+  for (const [kind, text, n] of [['focus', 'Focused for 50 minutes. Two berries ripened.', 50], ['visit', 'A wild Eevee came by.', 1], ['catch', 'Caught Eevee.', 1], ['level', 'Charizard reached level 38.', 1]] as const) g.note(kind, text, { n })
   s.logSeen = 0
   g.persist()
 }
@@ -1654,8 +1662,10 @@ async function boot() {
         // a paused session ends as it is; an Open one counts as complete only after 25 minutes (game.ts)
         if (s.state !== 'running') return game.endSession(false)
         if (!s.length) return game.endSession(true)
+        if (hud.hasTag('endnow')) return // one "End now?" at a time
         hud.say({
           dex: lead(),
+          tag: 'endnow',
           text: 'End now? You keep your minutes. The berry only ripens after a full session.',
           actions: [
             { label: 'End session', run: () => game.endSession(false) },

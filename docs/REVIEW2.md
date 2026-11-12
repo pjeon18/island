@@ -48,6 +48,8 @@ The dungeon and co-op review found real bugs, including an exploit that hands ou
 
 ## 2. Confirmed bugs
 
+All fixed on 2026-11-12 (Paul: "Fix them all"). VALIDATION.md has what was checked.
+
 ### Game
 
 - **G1. Finds never give a stone (confirmed).**
@@ -119,6 +121,8 @@ The dungeon and co-op review found real bugs, including an exploit that hands ou
   - A dungeon room code of the wrong length returns to the menu without saying why.
 
 ## 3. Balance
+
+On 2026-11-12 Paul chose B1, B2, B3, B4, B5, B7, B8, B9, B10 and B11, and they are built. B12 stays as it is. B6 waits for the restoration projects (L1). Two changes from the text below: a berry gives a quarter of the next level's cost, because 1% would always have been the 20 EXP minimum; and with three or four players everyone brings two Pokémon.
 
 ### Pacing now
 
