@@ -1,5 +1,7 @@
 # Content build plan (2026-11-12)
 
+**Status:** everything below is built (commits b6d66ea to bec6f56, plus the dungeon pass). Not built: the tide going out mid-session. The dungeon numbers changed from this plan after measuring (see CLAUDE.md).
+
 Paul picked these from `docs/REVIEW2.md` sections 5 and 6, plus one change of his own. This file is the order and the concrete numbers I'm building to. Every number here is a first pass that Paul can change.
 
 ## Done first

@@ -10,8 +10,15 @@
 // so a run can be left and picked up at the next break. A miniboss guards the
 // stairs on B2 and B3. Traps show only in the light. Pots hold healing for this
 // run; chests hold loot for the island, but only open on a run lit by a Lantern
-// charge (one per finished 25-minute session). Dungeons give no EXP and no shells.
+// charge (one per finished session of 30 minutes or more). Dungeons give no EXP and no shells.
 // After a charged clear, a special Pokémon may appear for one throw.
+//
+// Content pass (2026-11-12, docs/REVIEW2.md section 6): bosses have twice the HP and
+// open each phase with a guarded beat, a shake and their signature move; Lapras has
+// its own kit. Auto-attack hits only awake enemies, so rooms can be sneaked past.
+// Melee types hit harder and lunge; followers use move 1; 3 fires your second
+// Pokémon's burst. Generated floors carry a modifier and may hold a special room.
+// After a gate's first clear, a charged run can go deeper (B5 to B7).
 //
 // Opened as dungeon.html?id=<map>&gate=<island> from the island, or
 // ?map=play from the editor's Play test (one floor, nothing is saved then).
@@ -21,7 +28,7 @@ import { BALLS, Ball, DEEP, Game, ISLANDS, IslandId, Roster, SAVE_KEY, loadSave 
 import { Light, applyLighting, normalMapFor } from '../lighting'
 import { Species, dirFrom, drawFrame, frameAt, loadManifest, loadSpecies } from '../sprites'
 import { generateFloor } from './gen'
-import { DungeonMap, Entity, TILE, TrapKind, bakeMap, walkableTile } from './map'
+import { DungeonMap, Entity, Modifier, T, TILE, TrapKind, bakeMap, walkableTile } from './map'
 import { type Event as NetEvent, type Hello, type Input, type Net, type Snap, type Start, type TeamMon, connectRoom, makeRoomCode } from './net'
 
 const VW = 320
@@ -31,6 +38,22 @@ const params = new URLSearchParams(location.search)
 const portrait = (dex: number) => `${BASE}sprites/${String(dex).padStart(4, '0')}/Normal.png`
 const RUN_KEY = 'island-dungeon-run'
 const FLOORS = 4 // three generated floors, then the hand-made boss floor
+const DEEP_LAST = FLOORS + 3 // after a gate's first clear, a charged run can go on to B5 to B7
+const LAPRAS = 131 // Glacier Grotto's guardian has its own kit
+const ARCANINE = 59 // and Ember Crater's
+/** The arrival line for each floor modifier. */
+const MOD_LINE: Record<Modifier, string> = {
+  fog: 'Fog: your light reaches less far.',
+  flooded: 'Flooded: the water slows everyone down.',
+  restless: 'Restless: everything here is awake.',
+  echo: 'Echo: an alarm wakes the whole floor.',
+  rich: 'Rich: there is an extra chest.',
+}
+// a run item, weighted like pots (Oran most often)
+function rollItem(): 'oran' | 'sitrus' | 'seed' | 'elixir' {
+  const r = Math.random() * 0.65
+  return r < 0.3 ? 'oran' : r < 0.5 ? 'elixir' : r < 0.6 ? 'seed' : 'sitrus'
+}
 
 // type flavour: which types shoot, and the names and colours of their moves
 const RANGED = new Set(['fire', 'water', 'electric', 'grass', 'ice', 'psychic', 'ghost', 'poison', 'dragon', 'fairy'])
@@ -83,8 +106,15 @@ interface Actor {
   owner?: string // co-op: the guest's peer id for the guest's Pokémon
   reviveT: number // co-op: seconds a partner has stood beside this fainted one
   still: number // seconds left winding up a warned attack (it stands still, so the warning is honest)
-  charge?: { dx: number; dy: number; left: number } // a Body Slam: it runs down the warned lane
+  charge?: { dx: number; dy: number; left: number; speed?: number } // a Body Slam or Extreme Speed: it runs down the warned lane
   stuck: number // a follower's seconds far from its lead without getting closer
+  guard: number // a boss's seconds of invulnerability as a new phase opens
+  lunge: number // a melee attack's short lunge (drawn only)
+  roam?: boolean // Restless: awake, but not chasing until someone comes near
+  house?: boolean // one of a monster house's sleepers
+  alt: number // which move of its kit a boss or miniboss uses next
+  svx: number // momentum on slick ice
+  svy: number
   tx?: number // guest: where the host says it is (drawn easing toward it)
   ty?: number
 }
@@ -108,10 +138,11 @@ interface Pop {
 }
 /** A telegraphed attack: a warning shape, then it lands. */
 interface Warning {
-  kind: 'circle' | 'lane'
+  kind: 'circle' | 'lane' | 'ring' | 'safe' // ring: hits between r0 and r; safe: hurts everyone outside it
   x: number
   y: number
   r: number // circle radius, or lane half-width
+  r0?: number // a ring's inner radius
   x2?: number
   y2?: number
   t: number
@@ -127,6 +158,7 @@ interface Trap {
   cd: number
   hitThisCycle: Set<number>
   used: boolean
+  dir?: 'h' | 'v' // boulders
 }
 interface Thing {
   kind: 'pot' | 'chest'
@@ -149,6 +181,8 @@ interface Run {
   opened?: string[] // pots and chests already opened (Thing.key)
   brought?: number // island berries brought in (Start over keeps them)
   deep?: number // a cleared run's special Pokémon, waiting for its one throw
+  deepLevel?: number // the deep floors' level (the strongest party Pokémon's level minus 5)
+  over?: boolean // the run has ended and only the special catch is left
 }
 
 // ---------- page ----------
@@ -167,6 +201,15 @@ const ncv = document.createElement('canvas')
 ncv.width = VW
 ncv.height = VH
 const ng = ncv.getContext('2d', { willReadFrequently: true })!
+// a dark room is lit a second time with no ambient light, then laid over its own rectangle
+const dcv = document.createElement('canvas')
+dcv.width = VW
+dcv.height = VH
+const dfg = dcv.getContext('2d', { willReadFrequently: true })!
+const dncv = document.createElement('canvas')
+dncv.width = VW
+dncv.height = VH
+const dng = dncv.getContext('2d', { willReadFrequently: true })!
 let hs = 1
 function fit() {
   const s = Math.max(1, Math.floor(Math.min(innerWidth / VW, innerHeight / VH)))
@@ -257,19 +300,30 @@ addEventListener('storage', (e) => {
   if (game && e.key === SAVE_KEY) game.save = loadSave()
 })
 
-// a boss has 2.5 times a turn-based guardian's HP: in real time a whole party hits it at once.
-// A miniboss has five times a normal enemy's.
+// a boss has five times a turn-based guardian's HP: in real time a whole party hits it at once,
+// and it should last long enough to show all three phases (D-F3, about 40 seconds).
+// A miniboss has eight times a normal enemy's HP and full attack (about 15 seconds).
+const BOSS_HP = 19
+const MINI_HP = 30
 const statsFor = (level: number, boss: boolean, mini = false) =>
-  boss ? { hp: Math.round((60 + level * 10) * 2.5), atk: (10 + level * 2.2) * 0.75 } : mini ? { hp: (20 + level * 3) * 5, atk: (8 + level * 2) * 0.7 } : { hp: 20 + level * 3, atk: 8 + level * 2 }
+  boss ? { hp: Math.round((60 + level * 10) * BOSS_HP), atk: (10 + level * 2.2) * 0.75 } : mini ? { hp: (20 + level * 3) * MINI_HP, atk: 8 + level * 2 } : { hp: 20 + level * 3, atk: 8 + level * 2 }
 
 // your Pokémon are outnumbered on every floor, so they take more to bring down
 const PARTY_HP = 1.6
+// melee types stand in harm's way for 20 px of reach against 74, so they hit harder and take more (D-F2)
+const MELEE_ATK = 1.4
+const MELEE_HP = 1.2
+const shoots = (types: string[]) => types.some((t) => RANGED.has(t))
 function makeActor(side: Actor['side'], dex: number, level: number, sp: Species, types: string[], name: string, x: number, y: number, boss = false, mini = false): Actor {
   const st = statsFor(level, boss, mini)
-  if (side === 'you') st.hp = Math.round(st.hp * PARTY_HP)
+  if (side === 'you') {
+    st.hp = Math.round(st.hp * PARTY_HP * (shoots(types) ? 1 : MELEE_HP))
+    if (!shoots(types)) st.atk *= MELEE_ATK
+  }
   return {
     id: nextId++, side, dex, name, level, types, sp, x, y, dir: 0, hp: st.hp, maxHp: st.hp, atk: st.atk, cd: Math.random() * 0.6, cd1: 0, cd2: boss ? 4 : mini ? 3 : 0, moving: false,
     t: Math.random() * 3, hurt: 0, hop: 0, awake: false, boss, mini, dead: false, fade: 0, sleep: 0, dash: 0, dashCd: 0, dashDir: [0, 1], phase: 1, summoned: false, reviveT: 0, still: 0, stuck: 0,
+    guard: 0, lunge: 0, alt: 0, svx: 0, svy: 0,
   }
 }
 
@@ -287,6 +341,43 @@ function move(a: Actor, dx: number, dy: number) {
   if (dx || dy) a.dir = dirFrom(dx, dy)
   if (canStand(a.x + dx, a.y)) a.x += dx
   if (canStand(a.x, a.y + dy)) a.y += dy
+}
+// ---------- the floor underfoot: slick ice and shallow water ----------
+const slick = new Map<number, number>() // tile → when it melts (Infinity for an ice patch)
+const tileOf = (x: number, y: number) => Math.floor(y / TILE) * map.w + Math.floor(x / TILE)
+const onSlick = (a: { x: number; y: number }) => (slick.get(tileOf(a.x, a.y)) ?? -1) > time
+function inWet(a: { x: number; y: number }) {
+  const tx = Math.floor(a.x / TILE)
+  const ty = Math.floor(a.y / TILE)
+  return !!map.wet?.some((r) => tx >= r.x && tx < r.x + r.w && ty >= r.y && ty < r.y + r.h)
+}
+/**
+ * Walk by (dx, dy) this frame. Shallow water slows everyone; on slick ice you keep
+ * sliding the way you were going and turn slowly. Call it with 0, 0 when standing.
+ */
+function walk(a: Actor, dx: number, dy: number, dt: number) {
+  if (dt <= 0) return
+  if (inWet(a)) {
+    dx *= 0.6
+    dy *= 0.6
+  }
+  if (onSlick(a)) {
+    const k = Math.min(1, dt * 1.5)
+    a.svx += (dx / dt - a.svx) * k
+    a.svy += (dy / dt - a.svy) * k
+    if (Math.hypot(a.svx, a.svy) < 2) return
+    const bx = a.x
+    const by = a.y
+    const d = a.dir
+    move(a, a.svx * dt, a.svy * dt)
+    if (!dx && !dy) a.dir = d // sliding doesn't turn you
+    if (a.x === bx) a.svx = 0
+    if (a.y === by) a.svy = 0
+  } else {
+    a.svx = dx / dt
+    a.svy = dy / dt
+    if (dx || dy) move(a, dx, dy)
+  }
 }
 // a shared path map toward the leads (yours and every guest's), rebuilt four times a second:
 // anyone chasing a lead (followers, and enemies chasing the party) walks downhill on it instead of into walls
@@ -354,8 +445,8 @@ function seek(a: Actor, tx: number, ty: number, speed: number, dt: number, useFi
     gy = by * TILE + TILE / 2 + 2
   }
   const d = Math.hypot(gx - a.x, gy - a.y)
-  if (d < 1) return
-  move(a, ((gx - a.x) / d) * speed * dt, ((gy - a.y) / d) * speed * dt)
+  if (d < 1) return walk(a, 0, 0, dt)
+  walk(a, ((gx - a.x) / d) * speed * dt, ((gy - a.y) / d) * speed * dt, dt)
 }
 const alive = (xs: Actor[]) => xs.filter((a) => !a.dead)
 const dist = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(a.x - b.x, a.y - b.y)
@@ -378,17 +469,21 @@ const ranged = (a: Actor) => a.types.some((t) => RANGED.has(t))
 const range = (a: Actor) => (a.boss ? 26 : a.mini ? 22 : ranged(a) ? 74 : 20)
 const bestType = (a: Actor, d: Actor) => a.types.reduce((b, t) => (effectiveness(t, d.types) > effectiveness(b, d.types) ? t : b), a.types[0] ?? 'normal')
 function hit(from: Actor, to: Actor, mult: number, type: string) {
-  if (to.dead || to.dash > 0) return
+  if (to.dead || to.dash > 0 || to.guard > 0) return
   const eff = effectiveness(type, to.types)
   const dmg = Math.max(1, Math.round(from.atk * 0.5 * mult * (eff || 0.25) * (0.9 + Math.random() * 0.2)))
   hurt(to, dmg, eff > 1 ? '#ffe040' : eff < 1 ? '#c8c8c8' : '#ffffff')
   if (eff > 1 && Math.random() < 0.5) toast("It's super effective!", true)
 }
 function hurt(to: Actor, dmg: number, col = '#ffffff') {
-  if (to.dead) return
+  if (to.dead || to.guard > 0) return
+  // a boss can't skip a phase: one hit takes it at most into the next one (D-F3)
+  const floor = to.boss ? (to.hp / to.maxHp > 0.66 ? Math.floor(to.maxHp * 0.33) + 1 : to.hp / to.maxHp > 0.33 ? 1 : 0) : 0
+  dmg = Math.max(0, Math.min(dmg, to.hp - floor))
   to.hp = Math.max(0, to.hp - dmg)
   to.hurt = 0.22
   to.awake = true
+  to.roam = false
   to.sleep = 0
   pops.push({ x: to.x + (Math.random() - 0.5) * 6, y: to.y - 24, text: String(dmg), t: 0, col })
   if (to.hp === 0) faint(to)
@@ -396,6 +491,7 @@ function hurt(to: Actor, dmg: number, col = '#ffffff') {
 function attack(a: Actor, target: Actor, mult = 1, label?: string) {
   const type = bestType(a, target)
   a.hop = 0.3
+  if (!ranged(a) && !a.boss && !a.mini) a.lunge = 0.2
   a.dir = dirFrom(target.x - a.x, target.y - a.y)
   if (label) pops.push({ x: a.x, y: a.y - 30, text: label, t: 0, col: COL[type] ?? '#fff' })
   if (ranged(a) && !a.boss && !a.mini) {
@@ -413,6 +509,11 @@ const rings: { x: number; y: number; r: number; max: number; col: string; t: num
 function warn(w: Omit<Warning, 't'>) {
   warnings.push({ ...w, t: 0 })
 }
+/** Is p inside a drawn warning ellipse (the same shape render() draws: r wide, 0.6 r tall)? */
+const inOval = (p: { x: number; y: number }, x: number, y: number, r: number) => ((p.x - x) / r) ** 2 + ((p.y - y) / (r * 0.6)) ** 2 < 1
+// sim-time timers (the Perish Song's beats)
+let timers: { at: number; fn: () => void }[] = []
+const later = (sec: number, fn: () => void) => timers.push({ at: time + sec, fn })
 function faint(a: Actor) {
   a.dead = true
   if (a.side === 'you') {
@@ -431,6 +532,13 @@ function faint(a: Actor) {
       const next = party.findIndex((p) => !p.dead && isMine(p))
       if (next >= 0) lead = next
     }
+  } else if (!a.boss && !a.mini && Math.random() < 0.12) {
+    // a fainted enemy sometimes leaves a run item behind (D-F1)
+    const got = rollItem()
+    run.items[got]++
+    pops.push({ x: a.x, y: a.y - 30, text: ITEM_SHORT[got], t: 0, col: '#a8f0a8' })
+    hudKey = ''
+    saveRun()
   } else if (a.boss || a.mini) {
     if (a.boss) bossDown = true
     toast(a.boss ? `${a.name} was defeated! The way out is open.` : `${a.name} was defeated! The stairs are open.`)
@@ -440,72 +548,242 @@ function faint(a: Actor) {
 }
 
 // ---------- bosses and minibosses ----------
-function bossBrain(f: Actor, t: Actor, dt: number) {
+// review 2 D2: every warned attack lands exactly where it was drawn, and a boss stands still
+// while it winds up (Actor.still, captured coordinates), so stepping out of a warning always works.
+// D-F3: each new phase opens with a guarded beat (Actor.guard), a shake and its signature
+// move: the first move of the phase's list below. The lists cycle after that.
+type BossMove = 'burst' | 'slam' | 'rocks' | 'ring' | 'icelane' | 'perish' | 'flame' | 'speed' | 'pools'
+const KITS: Record<'snorlax' | 'lapras' | 'arcanine', BossMove[][]> = {
+  snorlax: [['burst'], ['slam'], ['rocks', 'rocks', 'burst']],
+  lapras: [['ring'], ['icelane', 'ring'], ['perish', 'icelane', 'ring']],
+  arcanine: [['flame'], ['speed', 'flame'], ['pools', 'speed', 'flame']],
+}
+const kitOf = (f: Actor) => KITS[f.dex === LAPRAS ? 'lapras' : f.dex === ARCANINE ? 'arcanine' : 'snorlax']
+/** A boss's phase, checked every frame it is awake: at two thirds and one third. */
+function bossPhase(f: Actor) {
   const hpk = f.hp / f.maxHp
-  // phases at two thirds and one third
   const phase = hpk > 0.66 ? 1 : hpk > 0.33 ? 2 : 3
-  if (phase !== f.phase) {
-    f.phase = phase
-    shake = 0.6
-    toast(phase === 2 ? `${f.name} is getting serious!` : `${f.name} is furious!`)
-    if (phase === 3 && !f.summoned) summon(f, 2)
-  }
-  f.cd2 -= 0 // (cd2 is already counted down in update)
-  if (f.cd2 > 0) return
+  if (phase <= f.phase) return
+  f.phase = phase
+  f.guard = 0.8
+  f.alt = 0
+  f.cd2 = 0 // the signature move comes at once
+  f.charge = undefined
+  shake = 0.6
+  toast(phase === 2 ? `${f.name} is getting serious!` : `${f.name} is furious!`)
+  if (phase === 3 && !f.summoned) summon(f, 2)
+}
+function bossBrain(f: Actor, t: Actor) {
+  if (f.cd2 > 0 || f.still > 0 || f.charge) return
+  const list = kitOf(f)[f.phase - 1]
+  const mv = list[f.alt++ % list.length]
+  f.cd2 = bossMove(f, t, mv)
+}
+/** Start one warned move; returns the cooldown before the next. */
+function bossMove(f: Actor, t: Actor, mv: BossMove): number {
   const col = COL[f.types[0]] ?? '#fff'
-  // review 2 D2: every warned attack lands exactly where it was drawn, and the boss stands
-  // still while it winds up, so stepping out of the warning always works
   const x0 = f.x
   const y0 = f.y
-  if (phase === 1 || (phase === 3 && Math.random() < 0.3)) {
-    // a burst around it, warned first
-    f.cd2 = 7
+  const d = dist(f, t) || 1
+  const ux = (t.x - f.x) / d
+  const uy = (t.y - f.y) / d
+  if (mv === 'burst') {
     f.still = 0.9
-    warn({ kind: 'circle', x: x0, y: y0, r: 48, at: 0.9, col, land: () => burst(f, 1.2, 48, BURST[f.types[0]] ?? 'Hyper Voice', { x: x0, y: y0 }) })
-  } else if (phase === 2) {
-    // Body Slam down a lane toward the lead: the whole lane is hit, then it charges down it
-    f.cd2 = 6
-    f.still = 1.0
-    const d = dist(f, t) || 1
-    const ux = (t.x - f.x) / d
-    const uy = (t.y - f.y) / d
-    const x2 = x0 + ux * 120
-    const y2 = y0 + uy * 120
-    warn({
-      kind: 'lane', x: x0, y: y0, x2, y2, r: 11, at: 1.0, col,
-      land: () => {
-        pops.push({ x: x0, y: y0 - 34, text: 'Body Slam', t: 0, col: '#f0f0f0' })
-        for (const p of party) if (!p.dead && distToSeg(p, { x: x0, y: y0 }, { x: x2, y: y2 }) < 13) hit(f, p, 2, f.types[0] ?? 'normal')
-        f.charge = { dx: ux, dy: uy, left: 120 }
-        shake = 0.3
-      },
-    })
-  } else {
+    warn({ kind: 'circle', x: x0, y: y0, r: 48, at: 0.9, col, land: () => warnedBurst(f, 1.2, 48, BURST[f.types[0]] ?? 'Hyper Voice', x0, y0) })
+    return 7
+  }
+  if (mv === 'slam') {
+    slam(f, ux, uy, 120, 11, 1.0, 2, 'Body Slam')
+    return 6
+  }
+  if (mv === 'rocks') {
     // rocks fall where the party stands
-    f.cd2 = 5
     for (const p of alive(party)) {
       const x = p.x + (Math.random() - 0.5) * 16
       const y = p.y + (Math.random() - 0.5) * 10
       warn({ kind: 'circle', x, y, r: 15, at: 1.0, col: '#c8a868', land: () => {
         rings.push({ x, y: y - 4, r: 0, max: 15, col: '#c8a868', t: 0 })
-        for (const q of party) if (!q.dead && Math.hypot(q.x - x, q.y - y) < 15) hit(f, q, 1.8, 'rock')
+        for (const q of party) if (!q.dead && inOval(q, x, y, 15)) hit(f, q, 1.8, 'rock')
         shake = Math.max(shake, 0.15)
       } })
     }
+    return 5
   }
+  if (mv === 'ring') {
+    // a ring of water bursts out around it: right beside it, or well away, is safe
+    f.still = 1.0
+    warn({ kind: 'ring', x: x0, y: y0, r0: 22, r: 66, at: 1.0, col: '#4aa8ff', land: () => {
+      pops.push({ x: x0, y: y0 - 34, text: 'Water Pulse', t: 0, col: '#4aa8ff' })
+      rings.push({ x: x0, y: y0 - 4, r: 0, max: 66, col: '#4aa8ff', t: 0 })
+      for (const p of party) if (!p.dead && inOval(p, x0, y0, 66) && !inOval(p, x0, y0, 22)) hit(f, p, 1.4, 'water')
+    } })
+    return 6
+  }
+  if (mv === 'flame') {
+    // Flamethrower down a lane toward the lead
+    f.still = 0.9
+    const x2 = x0 + ux * 130
+    const y2 = y0 + uy * 130
+    warn({ kind: 'lane', x: x0, y: y0, x2, y2, r: 10, at: 0.9, col: '#ff8a3a', land: () => {
+      pops.push({ x: x0, y: y0 - 34, text: 'Flamethrower', t: 0, col: '#ff8a3a' })
+      for (const p of party) if (!p.dead && distToSeg(p, { x: x0, y: y0 }, { x: x2, y: y2 }) < 12) hit(f, p, 1.7, 'fire')
+    } })
+    return 5
+  }
+  if (mv === 'speed') {
+    // Extreme Speed: a warned line across the room, then it runs the whole of it in a blink
+    let len = 24
+    while (len < 240 && canStand(x0 + ux * (len + 8), y0 + uy * (len + 8))) len += 8
+    slam(f, ux, uy, len, 12, 0.9, 2.2, 'Extreme Speed', 520)
+    return 5.5
+  }
+  if (mv === 'pools') {
+    // fire falls where the party stands and burns there for a few seconds
+    for (const p of alive(party)) {
+      const x = p.x + (Math.random() - 0.5) * 14
+      const y = p.y + (Math.random() - 0.5) * 8
+      warn({ kind: 'circle', x, y, r: 16, at: 1.0, col: '#ff6a2a', land: () => {
+        rings.push({ x, y: y - 4, r: 0, max: 16, col: '#ff8a3a', t: 0 })
+        for (const q of party) if (!q.dead && inOval(q, x, y, 16)) hit(f, q, 1.3, 'fire')
+        firePools.push({ x, y, r: 16, until: time + 4, tick: 0, from: f })
+      } })
+    }
+    return 6
+  }
+  if (mv === 'icelane') {
+    // Ice Beam down a lane; the lane stays slick for a few seconds
+    f.still = 1.0
+    const x2 = x0 + ux * 140
+    const y2 = y0 + uy * 140
+    warn({ kind: 'lane', x: x0, y: y0, x2, y2, r: 11, at: 1.0, col: '#9ae8ff', land: () => {
+      pops.push({ x: x0, y: y0 - 34, text: 'Ice Beam', t: 0, col: '#9ae8ff' })
+      for (const p of party) if (!p.dead && distToSeg(p, { x: x0, y: y0 }, { x: x2, y: y2 }) < 13) hit(f, p, 1.6, 'ice')
+      freezeLane(x0, y0, x2, y2, 5)
+    } })
+    return 5.5
+  }
+  // Perish Song: three warned beats, then everyone outside the safe ring is badly hurt
+  f.still = 3.2
+  const safe = safeSpot(f)
+  toast(`${f.name} sings Perish Song. Stand in the ring.`)
+  for (const [k, n] of [[0, '3'], [1, '2'], [2, '1']] as [number, string][]) later(k, () => !f.dead && pops.push({ x: f.x, y: f.y - 36, text: n, t: 0, col: '#d8c8ff' }))
+  warn({ kind: 'safe', x: safe.x, y: safe.y, r: 20, at: 3.0, col: '#a8f0a8', land: () => {
+    if (f.dead) return
+    pops.push({ x: f.x, y: f.y - 36, text: 'Perish Song', t: 0, col: '#d8c8ff' })
+    for (const p of party) if (!p.dead && !inOval(p, safe.x, safe.y, 20)) hurt(p, Math.round(p.maxHp * 0.45), '#d8c8ff')
+    shake = Math.max(shake, 0.3)
+  } })
+  return 4.5
 }
-function miniBrain(f: Actor) {
-  if (!f.summoned && f.hp / f.maxHp < 0.5) {
-    summon(f, 1)
-    toast(`${f.name} called for help!`)
-  }
-  if (f.cd2 > 0) return
-  f.cd2 = 6
-  f.still = 0.8
-  const col = COL[f.types[0]] ?? '#fff'
+/** A warned burst at the captured spot, hitting exactly the drawn ellipse. */
+function warnedBurst(f: Actor, mult: number, r: number, label: string, x: number, y: number) {
+  const type = f.types[0] ?? 'normal'
+  pops.push({ x, y: y - 30, text: label, t: 0, col: COL[type] ?? '#fff' })
+  rings.push({ x, y: y - 4, r: 0, max: r, col: COL[type] ?? '#fff', t: 0 })
+  for (const p of party) if (!p.dead && inOval(p, x, y, r)) hit(f, p, mult, bestType(f, p))
+}
+/** A charge down a warned lane: the whole lane is hit, then it runs down it. */
+function slam(f: Actor, ux: number, uy: number, len: number, w: number, at: number, mult: number, label: string, speed = 260) {
+  f.still = at
   const x0 = f.x
   const y0 = f.y
-  warn({ kind: 'circle', x: x0, y: y0, r: 40, at: 0.8, col, land: () => burst(f, 0.9, 40, STRONG[f.types[0]] ?? 'Body Slam', { x: x0, y: y0 }) })
+  const x2 = x0 + ux * len
+  const y2 = y0 + uy * len
+  warn({
+    kind: 'lane', x: x0, y: y0, x2, y2, r: w, at, col: COL[f.types[0]] ?? '#fff',
+    land: () => {
+      pops.push({ x: x0, y: y0 - 34, text: label, t: 0, col: '#f0f0f0' })
+      for (const p of party) if (!p.dead && distToSeg(p, { x: x0, y: y0 }, { x: x2, y: y2 }) < w + 2) hit(f, p, mult, f.types[0] ?? 'normal')
+      f.charge = { dx: ux, dy: uy, left: len, speed }
+      shake = Math.max(shake, 0.3)
+    },
+  })
+}
+// Arcanine's fire pools: they burn for a few seconds; standing in one hurts twice a second
+let firePools: { x: number; y: number; r: number; until: number; tick: number; from: Actor }[] = []
+function updatePools(dt: number) {
+  for (const fp of firePools) {
+    fp.tick -= dt
+    if (fp.tick > 0) continue
+    fp.tick = 0.5
+    for (const p of party) if (!p.dead && p.dash <= 0 && inOval(p, fp.x, fp.y, fp.r)) hurt(p, Math.max(1, Math.round(p.maxHp * 0.05)), '#ffb070')
+  }
+  firePools = firePools.filter((fp) => fp.until > time)
+}
+/** Where a follower standing in a warning should step to (null when it stands clear). */
+function escapeFrom(p: Actor): { x: number; y: number } | null {
+  for (const fp of firePools)
+    if (inOval(p, fp.x, fp.y, fp.r + 3)) {
+      const d = Math.hypot(p.x - fp.x, (p.y - fp.y) / 0.6) || 1
+      return { x: fp.x + ((p.x - fp.x) / d) * (fp.r + 12), y: fp.y + ((p.y - fp.y) / 0.6 / d) * (fp.r + 12) * 0.6 }
+    }
+  for (const w of warnings) {
+    if (w.kind === 'safe') continue
+    if (w.kind === 'lane') {
+      const ax = w.x2! - w.x
+      const ay = w.y2! - w.y
+      const k = Math.max(0, Math.min(1, ((p.x - w.x) * ax + (p.y - w.y) * ay) / (ax * ax + ay * ay || 1)))
+      const cx = w.x + ax * k
+      const cy = w.y + ay * k
+      if (Math.hypot(p.x - cx, p.y - cy) > w.r + 4) continue
+      const len = Math.hypot(ax, ay) || 1
+      let nx = -ay / len
+      let ny = ax / len
+      if ((p.x - cx) * nx + (p.y - cy) * ny < 0) (nx = -nx), (ny = -ny)
+      return { x: cx + nx * (w.r + 12), y: cy + ny * (w.r + 12) }
+    }
+    if (!inOval(p, w.x, w.y, w.r + 4)) continue
+    if (w.kind === 'ring' && inOval(p, w.x, w.y, Math.max(1, (w.r0 ?? 0) - 4))) continue // inside a ring's calm middle
+    const d = Math.hypot(p.x - w.x, (p.y - w.y) / 0.6) || 1
+    const ux = (p.x - w.x) / d
+    const uy = (p.y - w.y) / 0.6 / d
+    return { x: w.x + ux * (w.r + 12), y: w.y + uy * (w.r + 12) * 0.6 }
+  }
+  return null
+}
+/** Open ground 56 to 90 px from the boss for the Perish Song's safe ring. */
+function safeSpot(f: Actor) {
+  for (let i = 0; i < 40; i++) {
+    const a = Math.random() * Math.PI * 2
+    const r = 56 + Math.random() * 34
+    const x = f.x + Math.cos(a) * r
+    const y = f.y + Math.sin(a) * r * 0.7
+    if (canStand(x, y) && canStand(x - 10, y) && canStand(x + 10, y)) return { x, y }
+  }
+  return openNear(f.x, f.y + 60)
+}
+/** Leave slick ice on the open tiles along a lane for some seconds. */
+function freezeLane(x0: number, y0: number, x2: number, y2: number, sec: number) {
+  for (let s = 0; s <= 1; s += 0.04) {
+    const x = x0 + (x2 - x0) * s
+    const y = y0 + (y2 - y0) * s
+    for (const [dx, dy] of [[0, 0], [8, 0], [-8, 0], [0, 6], [0, -6]]) {
+      const tx = Math.floor((x + dx) / TILE)
+      const ty = Math.floor((y + dy) / TILE)
+      if (!walkableTile(baked.at(tx, ty))) continue
+      const k = ty * map.w + tx
+      const was = slick.get(k) ?? -1
+      if (was !== Infinity) slick.set(k, Math.max(was, time + sec))
+    }
+  }
+}
+function miniBrain(f: Actor, t: Actor) {
+  if (!f.summoned && f.hp / f.maxHp < 0.5) {
+    summon(f, 2)
+    toast(`${f.name} called for help!`)
+  }
+  if (f.cd2 > 0 || f.still > 0 || f.charge) return
+  f.cd2 = 5
+  // two warned moves in turn: a burst around it, then a charge down a lane
+  if (f.alt++ % 2 === 0) {
+    f.still = 0.8
+    const x0 = f.x
+    const y0 = f.y
+    warn({ kind: 'circle', x: x0, y: y0, r: 40, at: 0.8, col: COL[f.types[0]] ?? '#fff', land: () => warnedBurst(f, 0.9, 40, STRONG[f.types[0]] ?? 'Body Slam', x0, y0) })
+  } else {
+    const d = dist(f, t) || 1
+    slam(f, (t.x - f.x) / d, (t.y - f.y) / d, 90, 10, 0.8, 1.4, 'Take Down')
+  }
 }
 function summon(f: Actor, n: number) {
   f.summoned = true
@@ -561,11 +839,197 @@ function updateTraps(dt: number) {
       }
     } else if (tr.kind === 'alarm' && !tr.used && ls.some((l) => Math.hypot(l.x - tr.x, l.y - tr.y) < 9)) {
       tr.used = true
-      for (const f of foes) if (!f.dead && dist(f, tr) < 150) f.awake = true
-      toast('An alarm! Everything nearby woke up.')
+      const echo = map.modifier === 'echo'
+      for (const f of foes)
+        if (!f.dead && (echo || dist(f, tr) < 150)) {
+          f.awake = true
+          f.roam = false
+        }
+      toast(echo ? 'An alarm! The whole floor woke up.' : 'An alarm! Everything nearby woke up.')
       rings.push({ x: tr.x, y: tr.y, r: 0, max: 60, col: '#ff6060', t: 0 })
+    } else if (tr.kind === 'boulders' && tr.cd <= 0) {
+      // a plate: a boulder rolls down a warned line across the room, toward whoever stepped on it
+      const l = ls.find((l) => Math.hypot(l.x - tr.x, l.y - tr.y) < 9)
+      if (!l) continue
+      tr.cd = 6
+      const ends = boulderLine(tr)
+      const [a, b] = Math.hypot(ends[0].x - l.x, ends[0].y - l.y) > Math.hypot(ends[1].x - l.x, ends[1].y - l.y) ? ends : [ends[1], ends[0]]
+      warn({ kind: 'lane', x: a.x, y: a.y, x2: b.x, y2: b.y, r: 8, at: 1.1, col: '#c8b088', land: () => {
+        const d = Math.hypot(b.x - a.x, b.y - a.y) || 1
+        boulders.push({ x: a.x, y: a.y, dx: (b.x - a.x) / d, dy: (b.y - a.y) / d, left: d, hit: new Set(), spin: 0 })
+      } })
     }
   }
+  // rolling boulders: anyone they pass over is hurt once (a dash goes through)
+  for (const bo of boulders) {
+    const step = Math.min(bo.left, 200 * dt)
+    bo.x += bo.dx * step
+    bo.y += bo.dy * step
+    bo.left -= step
+    bo.spin += step
+    for (const a of [...party, ...foes])
+      if (!a.dead && a.dash <= 0 && !bo.hit.has(a.id) && Math.hypot(a.x - bo.x, a.y - bo.y) < 10) {
+        bo.hit.add(a.id)
+        hurt(a, Math.max(1, Math.round(a.maxHp * 0.15)), '#e8d8b8')
+      }
+  }
+  boulders = boulders.filter((b) => b.left > 0)
+}
+let boulders: { x: number; y: number; dx: number; dy: number; left: number; hit: Set<number>; spin: number }[] = []
+/** A boulder plate's line: from wall to wall through it, along its direction (at most 10 tiles a side). */
+function boulderLine(tr: Trap) {
+  const tx = Math.floor(tr.x / TILE)
+  const ty = Math.floor((tr.y - 2) / TILE)
+  const [ux, uy] = tr.dir === 'v' ? [0, 1] : [1, 0]
+  const reach = (s: number) => {
+    let k = 0
+    while (k < 10 && walkableTile(baked.at(tx + ux * s * (k + 1), ty + uy * s * (k + 1)))) k++
+    return k
+  }
+  const lo = reach(-1)
+  const hi = reach(1)
+  const c = (k: number) => ({ x: (tx + ux * k) * TILE + 8, y: (ty + uy * k) * TILE + 10 })
+  return [c(-lo), c(hi)]
+}
+
+// ---------- special rooms: the monster house's doors, the vault's gate and lever, the shrine ----------
+interface Block {
+  tiles: number[]
+  closed: Set<number> // which of its tiles are shut right now
+  kind: 'door' | 'gate'
+  t: number // seconds since it last changed (drawn rising or sinking)
+}
+let blocks: Block[] = []
+let lever: { x: number; y: number; on: boolean } | null = null
+let shrine: { x: number; y: number; used: boolean; told: boolean } | null = null
+let house: { tripped: boolean; done: boolean } | null = null
+const blockAt = new Map<number, T>() // the tile under a shut door or gate, to put back
+function setShut(b: Block, i: number, shut: boolean) {
+  if (shut === b.closed.has(i)) return
+  if (shut) {
+    blockAt.set(i, baked.tiles[i] as T)
+    baked.tiles[i] = T.Wall
+    b.closed.add(i)
+  } else {
+    baked.tiles[i] = blockAt.get(i) ?? T.Floor
+    b.closed.delete(i)
+  }
+  b.t = 0
+  fieldAt = -1
+}
+const special = () => map.special
+const insideRoom = (a: { x: number; y: number }, pad = 0) => {
+  const sp = special()
+  if (!sp) return false
+  const tx = a.x / TILE
+  const ty = a.y / TILE
+  return tx >= sp.x + pad && tx < sp.x + sp.w - pad && ty >= sp.y + pad && ty < sp.y + sp.h - pad
+}
+/** Build the floor's extras from its map (host and guest alike, so both draw the same). */
+function floorExtras(n: number) {
+  slick.clear()
+  boulders = []
+  firePools = []
+  blocks = []
+  blockAt.clear()
+  timers = []
+  traps = map.entities
+    .filter((e) => e.kind === 'trap')
+    .map((e) => ({ kind: e.trap ?? 'spikes', x: e.x * TILE + 8, y: e.y * TILE + 10, t: e.phase ?? Math.random() * SPIKE_CYCLE, cd: 0, hitThisCycle: new Set<number>(), used: false, dir: e.dir }))
+  // an ice patch is three tiles by two of slick floor
+  for (const tr of traps)
+    if (tr.kind === 'ice') {
+      const tx = Math.floor(tr.x / TILE)
+      const ty = Math.floor((tr.y - 2) / TILE)
+      for (let y = ty; y <= ty + 1; y++) for (let x = tx - 1; x <= tx + 1; x++) if (baked.at(x, y) === T.Floor) slick.set(y * map.w + x, Infinity)
+    }
+  const sp = map.special
+  const done = (k: string) => !!run.opened?.includes(`${n}:${k}`)
+  if (sp?.gate) {
+    const b: Block = { tiles: sp.gate, closed: new Set(), kind: 'gate', t: 1 }
+    blocks.push(b)
+    if (!done('lever')) for (const i of sp.gate) setShut(b, i, true)
+    b.t = 1 // shut from the start: drawn whole, not rising
+  }
+  if (sp?.doors) blocks.push({ tiles: sp.doors, closed: new Set(), kind: 'door', t: 1 })
+  const lv = map.entities.find((e) => e.kind === 'lever')
+  lever = lv ? { x: lv.x * TILE + 8, y: lv.y * TILE + 10, on: done('lever') } : null
+  const sh = map.entities.find((e) => e.kind === 'shrine')
+  shrine = sh ? { x: sh.x * TILE + 8, y: sh.y * TILE + 10, used: done('shrine'), told: false } : null
+  house = sp?.kind === 'house' ? { tripped: false, done: false } : null
+}
+/** Host: the monster house, the lever and the shrine. */
+function updateRoom(dt: number) {
+  for (const b of blocks) b.t += dt
+  const ls = leads().filter((l) => !l.dead)
+  if (house && !house.done) {
+    const hs = foes.filter((f) => f.house && !f.dead)
+    // when one wakes (or, on a Restless floor, notices you), they all do
+    if (!house.tripped && hs.some((f) => f.awake && !f.roam)) {
+      house.tripped = true
+      for (const f of hs) {
+        f.awake = true
+        f.roam = false
+        f.sleep = 0
+      }
+      toast("It's a monster house!")
+    }
+    const inside = hs.filter((f) => insideRoom(f))
+    const door = blocks.find((b) => b.kind === 'door')
+    if (house.tripped && door) {
+      if (!inside.length) {
+        // all down (or none left in the room): the doors open for good
+        house.done = true
+        const wasShut = door.closed.size > 0
+        for (const i of door.tiles) setShut(door, i, false)
+        if (wasShut) toast('The doors opened.')
+      } else if (ls.some((l) => insideRoom(l, 1))) {
+        if (!door.closed.size) {
+          // the doors shut with everyone inside: bring the party's stragglers in beside their lead
+          const L = ls.find((l) => insideRoom(l, 1))!
+          for (const p of party)
+            if (!p.dead && !insideRoom(p) && !ls.includes(p)) {
+              const spot = openNear(L.x, L.y)
+              p.x = spot.x
+              p.y = spot.y
+            }
+          toast('The doors slammed shut!')
+          shake = Math.max(shake, 0.2)
+        }
+        // a doorway shuts once nobody stands in it
+        for (const i of door.tiles) if (![...party, ...foes].some((a) => !a.dead && tileOf(a.x, a.y) === i)) setShut(door, i, true)
+      }
+    }
+  }
+  if (lever && !lever.on && ls.some((l) => Math.hypot(l.x - lever!.x, l.y - lever!.y) < 9)) {
+    lever.on = true
+    const gate = blocks.find((b) => b.kind === 'gate')
+    if (gate) for (const i of gate.tiles) setShut(gate, i, false)
+    toast('The lever opened a gate somewhere in this room.')
+    ;(run.opened ??= []).push(`${run.floor}:lever`)
+    saveRun()
+  }
+  if (shrine && !shrine.used) {
+    const near = ls.some((l) => Math.hypot(l.x - shrine!.x, l.y - shrine!.y) < 12)
+    if (near && !shrine.told) {
+      shrine.told = true
+      toast(run.items.oran >= 2 ? 'A shrine. Press F to trade 2 Oran Berries for a Reviver Seed.' : 'A shrine. It asks for 2 Oran Berries.')
+    }
+    if (!near) shrine.told = false
+  }
+}
+/** F at the shrine: 2 Oran Berries for a Reviver Seed, once. */
+function pray(me: Actor) {
+  if (!shrine || shrine.used || Math.hypot(me.x - shrine.x, me.y - shrine.y) > 14) return
+  if (run.items.oran < 2) return toast('The shrine asks for 2 Oran Berries.')
+  run.items.oran -= 2
+  run.items.seed++
+  shrine.used = true
+  pops.push({ x: shrine.x, y: shrine.y - 26, text: 'Reviver Seed', t: 0, col: '#a8f0a8' })
+  toast('The shrine took 2 Oran Berries and gave a Reviver Seed.')
+  ;(run.opened ??= []).push(`${run.floor}:shrine`)
+  hudKey = ''
+  saveRun()
 }
 function updateThings() {
   // any lead opens them: yours or a friend's (review 2 D6)
@@ -604,6 +1068,7 @@ function updateThings() {
 }
 let sealedToast = -10
 const ITEM_NAME: Record<keyof Items, string> = { oran: 'an Oran Berry', sitrus: 'a Sitrus Berry', seed: 'a Reviver Seed', elixir: 'a Max Elixir' }
+const ITEM_SHORT: Record<keyof Items, string> = { oran: 'Oran Berry', sitrus: 'Sitrus Berry', seed: 'Reviver Seed', elixir: 'Max Elixir' }
 /** Loot for the island, worth roughly what the session that lit the charge paid (no shells, no EXP). */
 // review 2 B3, B4: chests poured out Ultra Balls and Star Pieces. A miniboss's chest now gives a
 // Great Ball (10% a Star Piece); only the boss's gives an Ultra Ball, half the time (25% a Star Piece).
@@ -624,6 +1089,10 @@ function lootChest(big: boolean): string[] {
       const st = game.pickStone()
       s.bag[st] = (s.bag[st] ?? 0) + 1
       out.push('An evolution stone!')
+    }
+    if (boss && Math.random() < 0.1) {
+      s.bag['razor-claw'] = (s.bag['razor-claw'] ?? 0) + 1
+      out.push('A Razor Claw!')
     }
   } else if (r < 0.4) {
     s.balls['poke-ball']++
@@ -689,8 +1158,11 @@ function update(dt: number) {
     a.dash = Math.max(0, a.dash - dt)
     a.sleep = Math.max(0, a.sleep - dt)
     a.still = Math.max(0, a.still - dt)
+    a.guard = Math.max(0, a.guard - dt)
+    a.lunge = Math.max(0, a.lunge - dt)
     if (a.dead) a.fade = Math.min(1, a.fade + dt * 1.5)
   }
+  glow = Math.max(0, glow - dt)
   if (state !== 'play') return
   const me = party[lead]
   if (time - fieldAt > 0.25) {
@@ -713,10 +1185,12 @@ function update(dt: number) {
     me.moving = !!(mx || my)
     if (me.moving) {
       const k = (64 * dt) / Math.hypot(mx, my)
-      move(me, mx * k, my * k)
+      walk(me, mx * k, my * k, dt)
       me.dashDir = [mx / Math.hypot(mx, my), my / Math.hypot(mx, my)]
-    }
+    } else walk(me, 0, 0, dt)
   }
+  // a Perish Song's safe ring: followers make for it
+  const safe = warnings.find((w) => w.kind === 'safe')
   // followers keep near their own lead and fight what is close, finding their way around walls
   const guestLeads = leads().filter((a) => a !== me)
   const anchor = viewTarget() ?? me
@@ -729,14 +1203,30 @@ function update(dt: number) {
     let tx = L.x + (i % 2 ? -14 : 14)
     let ty = L.y + 10
     let toLead = true
-    if (foe && dist(p, foe) > range(p) - 6) {
+    const out = safe ? null : escapeFrom(p)
+    if (safe) {
+      tx = safe.x + (i % 3) * 5 - 5
+      ty = safe.y
+      toLead = false
+    } else if (out) {
+      // followers step out of a warning they stand in, as you would
+      tx = out.x
+      ty = out.y
+      toLead = false
+    } else if (foe && dist(p, foe) > range(p) - 6) {
       tx = foe.x
       ty = foe.y
       toLead = false
     }
     const d = Math.hypot(tx - p.x, ty - p.y)
-    p.moving = d > (foe ? range(p) - 8 : 14)
+    p.moving = d > (safe || out ? 4 : foe ? range(p) - 8 : 14)
     if (p.moving) seek(p, tx, ty, d > 80 ? 70 : 58, dt, toLead)
+    else walk(p, 0, 0, dt)
+    // followers use move 1 when it's ready and something awake is in reach (D-F2)
+    if (p.cd1 <= 0) {
+      const t = nearest(p, foes.filter((f) => f.awake), reach1(p))
+      if (t) strong(p, t)
+    }
     // a follower stuck far behind for a few seconds is brought back beside its lead (review 2 D11)
     const far = dist(p, L)
     p.stuck = far > 120 && !foe ? p.stuck + dt : 0
@@ -747,10 +1237,11 @@ function update(dt: number) {
       p.y = spot.y
     }
   })
-  // auto-attacks for the party
+  // auto-attacks for the party: only at awake enemies, so a sleeping room can be sneaked past (D-F1)
+  const awake = foes.filter((f) => f.awake && !f.dead)
   for (const p of party) {
     if (p.dead || p.cd > 0 || p.sleep > 0) continue
-    const target = nearest(p, foes, range(p))
+    const target = nearest(p, awake, range(p))
     if (!target) continue
     p.cd = 0.8
     attack(p, target)
@@ -759,6 +1250,16 @@ function update(dt: number) {
   for (const f of foes) {
     if (f.dead) continue
     if (f.sleep > 0) continue
+    if (f.roam) {
+      // Restless: awake from the start, but it only comes for you once you're near
+      if (!nearest(f, party, 130)) {
+        f.moving = false
+        walk(f, 0, 0, dt)
+        continue
+      }
+      f.roam = false
+    }
+    if (f.boss && f.awake) bossPhase(f)
     const t = nearest(f, party, f.awake ? Infinity : f.boss ? 84 : f.mini ? 80 : 64)
     if (!f.awake && t) {
       f.awake = true
@@ -766,12 +1267,13 @@ function update(dt: number) {
     }
     if (!f.awake || !t) {
       f.moving = false
+      walk(f, 0, 0, dt)
       continue
     }
     const d = dist(f, t)
     if (f.charge) {
       // the Body Slam's run down its lane, as far as the walls allow
-      const step = Math.min(f.charge.left, 260 * dt)
+      const step = Math.min(f.charge.left, (f.charge.speed ?? 260) * dt)
       const bx = f.x
       const by = f.y
       move(f, f.charge.dx * step, f.charge.dy * step)
@@ -780,25 +1282,39 @@ function update(dt: number) {
       if (f.charge.left <= 0 || (f.x === bx && f.y === by)) f.charge = undefined
       continue
     }
-    f.moving = f.still <= 0 && d > range(f) - 4
+    f.moving = f.still <= 0 && f.guard <= 0 && d > range(f) - 4
     if (f.moving) seek(f, t.x, t.y, f.boss ? 30 : f.mini ? 36 : 44, dt, [me, ...guestLeads].some((l) => dist(t, l) < 30))
-    if (f.cd <= 0 && d <= range(f)) {
-      f.cd = f.boss ? 1.7 : f.mini ? 1.4 : 1.15
-      attack(f, t)
+    else walk(f, 0, 0, dt)
+    if (f.cd <= 0 && d <= range(f) && f.guard <= 0) {
+      // bosses last four times longer now, so their plain blows are rarer and lighter:
+      // the danger is in the warned moves, which can always be dodged (D-F3)
+      f.cd = f.boss ? 2.4 : f.mini ? 2.2 : 1.15
+      attack(f, t, f.boss || f.mini ? 0.6 : 1)
     }
-    if (f.boss && d < 160) bossBrain(f, t, dt)
-    if (f.mini && d < 120) miniBrain(f)
+    if (f.boss && d < 160) bossBrain(f, t)
+    if (f.mini && d < 120) miniBrain(f, t)
   }
-  // telegraphed attacks land
+  // telegraphed attacks land, and timed beats fire
   for (const w of warnings) {
     w.t += dt
     if (w.t >= w.at) w.land()
   }
   warnings = warnings.filter((w) => w.t < w.at)
+  const due = timers.filter((x) => x.at <= time)
+  timers = timers.filter((x) => x.at > time)
+  for (const x of due) x.fn()
   updateTraps(dt)
+  updatePools(dt)
   updateThings()
+  updateRoom(dt)
   // out of combat the party recovers a little; fainted partners wait for the stairs or a Reviver Seed
-  const fighting = alive(foes).some((f) => f.awake && party.some((p) => !p.dead && dist(p, f) < 140))
+  const fighting = alive(foes).some((f) => f.awake && !f.roam && party.some((p) => !p.dead && dist(p, f) < 140))
+  // a fight just ended: the lantern brightens for a few seconds (D-F1)
+  if (fighting) fightT += dt
+  else {
+    if (fightT > 1) glow = GLOW
+    fightT = 0
+  }
   calm = fighting ? 0 : calm + dt
   if (calm > 3) for (const p of party) if (!p.dead) p.hp = Math.min(p.maxHp, p.hp + p.maxHp * 0.015 * dt)
   if (coop) {
@@ -847,7 +1363,8 @@ function update(dt: number) {
         sealedToast = time
         toast('Something guards the stairs.')
       }
-    } else void downstairs()
+    } else if (run.floor >= DEEP_LAST) end(true)
+    else void downstairs()
   }
   // snapshots keep going to friends who went quiet too, so a frozen tab that wakes can rejoin
   if (mode === 'host' && (guests.size || gone.size) && !catchingUp && time - snapAt > 1 / 15) {
@@ -856,6 +1373,15 @@ function update(dt: number) {
     net?.sendSnap(snapshot())
   }
   renderHud()
+}
+let fightT = 0 // seconds of the current fight
+let glow = 0 // seconds left of the lantern's brighter light after a fight
+const GLOW = 3
+/** The brighter light's strength now: a half-second rise, then a slow settle. */
+const glowK = () => {
+  if (glow <= 0) return 0
+  const k = glow > GLOW - 0.5 ? (GLOW - glow) / 0.5 : glow / (GLOW - 0.5)
+  return k * k * (3 - 2 * k)
 }
 let snapAt = 0
 let snapsOut = 0
@@ -874,11 +1400,11 @@ function openNear(x: number, y: number) {
 }
 /** What the guest needs to draw this moment (positions are whole pixels). */
 function snapshot(): Snap {
-  const flags = (a: Actor) => (a.moving ? 1 : 0) | (a.hop > 0 ? 2 : 0) | (a.hurt > 0 ? 4 : 0) | (a.dead ? 8 : 0) | (a.sleep > 0 ? 16 : 0) | (a.dash > 0 ? 32 : 0)
+  const flags = (a: Actor) => (a.moving ? 1 : 0) | (a.hop > 0 ? 2 : 0) | (a.hurt > 0 ? 4 : 0) | (a.dead ? 8 : 0) | (a.sleep > 0 ? 16 : 0) | (a.dash > 0 ? 32 : 0) | (a.lunge > 0.1 ? 64 : 0) | (a.guard > 0 ? 128 : 0)
   return {
     a: [...party, ...foes].map((a) => [a.id, a.side === 'you' ? 1 : 0, a.dex, Math.round(a.x), Math.round(a.y), a.dir, Math.round(a.hp), Math.round(a.maxHp), flags(a), a.level, a.boss ? 1 : a.mini ? 2 : 0, a.name, +a.fade.toFixed(2), +a.cd1.toFixed(1), +a.cd2.toFixed(1), a.awake ? 1 : 0]),
     s: shots.map((x) => [Math.round(x.x), Math.round(x.y), x.type]),
-    w: warnings.map((w) => [w.kind === 'lane' ? 1 : 0, Math.round(w.x), Math.round(w.y), w.r, Math.round(w.x2 ?? 0), Math.round(w.y2 ?? 0), +w.t.toFixed(2), w.at, w.col]),
+    w: warnings.map((w) => [WKINDS.indexOf(w.kind), Math.round(w.x), Math.round(w.y), w.r, Math.round(w.x2 ?? 0), Math.round(w.y2 ?? 0), +w.t.toFixed(2), w.at, w.col, w.r0 ?? 0]),
     r: rings.filter((r) => r.t < 0.5).map((r) => [Math.round(r.x), Math.round(r.y), r.max, r.col, +r.t.toFixed(2)]),
     p: pops.map((p) => [Math.round(p.x), Math.round(p.y), p.text, +p.t.toFixed(2), p.col]),
     tr: traps.map((t) => [+t.t.toFixed(2), +t.cd.toFixed(1), t.used ? 1 : 0]),
@@ -887,8 +1413,17 @@ function snapshot(): Snap {
     it: run.items,
     f: run.floor,
     sh: +shake.toFixed(2),
+    // the content pass: shut doors and gates, the lever, the shrine, boulders, timed ice, the lantern's glow
+    bk: blocks.map((b) => [...b.closed]),
+    lv: lever?.on ? 1 : 0,
+    sr: shrine?.used ? 1 : 0,
+    bo: boulders.map((b) => [Math.round(b.x), Math.round(b.y), Math.round(b.spin)]),
+    sl: [...slick].filter(([, at]) => at !== Infinity && at > time).map(([k, at]) => [k, +(at - time).toFixed(1)]),
+    gl: +glow.toFixed(2),
+    fp: firePools.map((p) => [Math.round(p.x), Math.round(p.y), p.r, +(p.until - time).toFixed(1)]),
   } as unknown as Snap
 }
+const WKINDS: Warning['kind'][] = ['circle', 'lane', 'ring', 'safe']
 
 // ---------- floors and the run ----------
 function saveRun() {
@@ -905,9 +1440,9 @@ function clearRun() {
     localStorage.removeItem(RUN_KEY)
   } catch {}
 }
-/** Build floor n: generated for B1 to B3, the hand-made map for the last. */
+/** Build floor n: generated for B1 to B3, the hand-made map for B4 (the boss), generated again for the deep floors. */
 function floorMap(n: number): DungeonMap {
-  if (test || n >= FLOORS) return hand
+  if (test || n === FLOORS) return hand
   const enemies = hand.entities.filter((e) => e.kind === 'enemy' && e.dex)
   const dexes = [...new Set(enemies.map((e) => e.dex!))]
   const lo = Math.min(...enemies.map((e) => e.level ?? 10))
@@ -915,8 +1450,23 @@ function floorMap(n: number): DungeonMap {
   const stage = (d: number) => game.species(d)?.stage ?? 1
   const top = Math.max(...dexes.map(stage))
   const mini = dexes.filter((d) => stage(d) === top)
-  const base = lo - 6 + (n - 1) * 2
-  return generateFloor({ seed: run.seed, floor: n, name: hand.name, theme: hand.theme, dark: hand.dark, species: dexes, mini, levels: [base, base + 2], miniboss: n >= 2 })
+  // the deep floors (L10) are at the level the run chose when it went deeper
+  const deep = n > FLOORS ? run.deepLevel ?? lo : 0
+  const base = deep ? deep - 1 : lo - 6 + (n - 1) * 2
+  return generateFloor({ seed: run.seed, floor: n, name: hand.name, theme: hand.theme, dark: hand.dark, species: dexes, mini, levels: [base, base + 2], miniboss: n >= 2, bigChest: n === DEEP_LAST })
+}
+/** The boss's name, for the boss floor's lines. */
+const bossName = () => {
+  const b = hand.entities.find((e) => e.kind === 'boss')
+  return b?.dex ? game.name(b.dex) : 'the guardian'
+}
+/** "B2", or the boss floor by its guardian. */
+const floorLabel = (n: number) => (n === FLOORS ? `${bossName()}'s floor` : `B${n}`)
+/** The line on arriving at floor n: its name, and its modifier. */
+function arrival(n: number, extra = '') {
+  if (n === FLOORS && !test) return `${hand.name}: ${bossName()}'s floor.`
+  const mod = map.modifier ? ` ${MOD_LINE[map.modifier]}` : ''
+  return `${hand.name} B${n}.${extra}${mod}`
 }
 async function loadFloor(n: number) {
   map = floorMap(n)
@@ -937,6 +1487,14 @@ async function loadFloor(n: number) {
   })
   const mk = (e: Entity) => makeActor('foe', e.dex!, e.level ?? 10, species.get(e.dex!)!, game.species(e.dex!)?.types ?? ['normal'], game.name(e.dex!), e.x * TILE + 8, e.y * TILE + 12, e.kind === 'boss', e.kind === 'miniboss')
   foes = map.entities.filter((e) => (e.kind === 'enemy' || e.kind === 'boss' || e.kind === 'miniboss') && e.dex && species.get(e.dex)).map(mk)
+  // a monster house's sleepers; Restless: everything is up and about
+  for (const f of foes) {
+    if (map.special?.kind === 'house' && !f.boss && !f.mini && insideRoom(f)) f.house = true
+    if (map.modifier === 'restless' && !f.boss) {
+      f.awake = true
+      f.roam = true
+    }
+  }
   // co-op (review 2 B7): enemies scale with how many Pokémon came in, not how many players;
   // three is a solo party. The boss gets 15% on top, since a crowd melts it fastest.
   if (coop) {
@@ -946,8 +1504,8 @@ async function loadFloor(n: number) {
   const ex = map.entities.find((e) => e.kind === 'exit' || e.kind === 'stairs')
   exit = ex ? { x: ex.x * TILE + 8, y: ex.y * TILE + 8 } : null
   bossDown = !foes.some((f) => f.boss)
-  traps = map.entities.filter((e) => e.kind === 'trap').map((e) => ({ kind: e.trap ?? 'spikes', x: e.x * TILE + 8, y: e.y * TILE + 10, t: Math.random() * SPIKE_CYCLE, cd: 0, hitThisCycle: new Set<number>(), used: false }))
-  const spots = map.entities.filter((e) => e.kind === 'pot' || e.kind === 'chest').map((e) => ({ kind: e.kind as 'pot' | 'chest', x: e.x * TILE + 8, y: e.y * TILE + 10 }))
+  floorExtras(n)
+  const spots: { kind: 'pot' | 'chest'; x: number; y: number; big?: boolean }[] = map.entities.filter((e) => e.kind === 'pot' || e.kind === 'chest').map((e) => ({ kind: e.kind as 'pot' | 'chest', x: e.x * TILE + 8, y: e.y * TILE + 10, big: e.big }))
   // review 2 B10: the boss floor gets a few pots of its own
   if (map === hand && !test) spots.push(...bossFloorPots(start))
   things = spots.map((t, i) => {
@@ -1005,15 +1563,22 @@ async function downstairs() {
   }
   run.floor++
   saveRun()
-  if (mode === 'host' && guests.size) net?.sendEvent({ kind: 'floor', floor: run.floor })
+  if (mode === 'host' && guests.size) net?.sendEvent({ kind: 'floor', floor: run.floor, level: run.deepLevel })
   view.style.transition = 'opacity .35s ease'
   view.style.opacity = '0'
   await new Promise((r) => setTimeout(r, 380))
   if (!(await loadSafely(run.floor))) return
   view.style.opacity = '1'
-  toast(run.floor >= FLOORS ? `${hand.name}: the deepest floor.` : `${hand.name} B${run.floor}. The stairs saved your run.`)
+  toast(arrival(run.floor, run.floor === FLOORS + 1 ? ` The deep floors, at about Lv${run.deepLevel}.` : mode === 'solo' ? ' The stairs saved your run.' : ''))
   state = 'play'
   stepping = false
+}
+/** After a charged clear of a gate already beaten once: three deeper floors (L10). No EXP, no shells. */
+function goDeeper() {
+  hud.querySelectorAll('.dg-msg').forEach((m) => m.remove())
+  run.deepLevel = Math.max(1, Math.max(...party.map((p) => p.level)) - 5)
+  run.over = false
+  void downstairs()
 }
 
 // ---------- co-op: the guest ----------
@@ -1033,7 +1598,7 @@ async function guestFloor(n: number) {
   await Promise.all([...need].filter((d) => !species.has(d)).map(async (d) => species.set(d, await loadSpecies(manifest, String(d).padStart(4, '0')))))
   const ex = map.entities.find((e) => e.kind === 'exit' || e.kind === 'stairs')
   exit = ex ? { x: ex.x * TILE + 8, y: ex.y * TILE + 8 } : null
-  traps = map.entities.filter((e) => e.kind === 'trap').map((e) => ({ kind: e.trap ?? 'spikes', x: e.x * TILE + 8, y: e.y * TILE + 10, t: 0, cd: 0, hitThisCycle: new Set<number>(), used: false }))
+  floorExtras(n)
   // the host's next snapshot moves everyone (our lead included) to the new floor
   const me = actors.get(guestLeadId)
   if (me) me.tx = undefined
@@ -1047,7 +1612,7 @@ function applySnap(raw: Snap) {
   const s = raw as unknown as {
     a: [number, number, number, number, number, number, number, number, number, number, number, string, number, number, number, number][]
     s: [number, number, string][]
-    w: [number, number, number, number, number, number, number, number, string][]
+    w: [number, number, number, number, number, number, number, number, string, number][]
     r: [number, number, number, string, number][]
     p: [number, number, string, number, string][]
     tr: [number, number, number][]
@@ -1056,6 +1621,13 @@ function applySnap(raw: Snap) {
     it: Items
     f: number
     sh: number
+    bk?: number[][]
+    lv?: number
+    sr?: number
+    bo?: [number, number, number][]
+    sl?: [number, number][]
+    gl?: number
+    fp?: [number, number, number, number][]
   }
   if (!map || !run || s.f !== run.floor) return
   snapsUsed++
@@ -1095,6 +1667,8 @@ function applySnap(raw: Snap) {
     a.dead = !!(fl & 8)
     a.sleep = fl & 16 ? 0.2 : 0
     if (!mineLead && fl & 32) a.dash = 0.05
+    if (fl & 64) a.lunge = Math.max(a.lunge, 0.15)
+    a.guard = fl & 128 ? 0.1 : 0
     a.fade = fade
     a.cd1 = cd1
     a.cd2 = cd2
@@ -1107,7 +1681,7 @@ function applySnap(raw: Snap) {
   lead = Math.max(0, party.findIndex((a) => a.id === guestLeadId))
   const someone = party[0]
   shots = someone ? s.s.map(([x, y, type]) => ({ x, y, vx: 0, vy: 0, side: 'you' as const, from: someone, mult: 1, type, life: 1 })) : []
-  warnings = s.w.map(([lane, x, y, r, x2, y2, t, at, col]) => ({ kind: lane ? ('lane' as const) : ('circle' as const), x, y, r, x2, y2, t, at, col, land: () => {} }))
+  warnings = s.w.map(([k, x, y, r, x2, y2, t, at, col, r0]) => ({ kind: WKINDS[k] ?? 'circle', x, y, r, r0, x2, y2, t, at, col, land: () => {} }))
   rings.length = 0
   for (const [x, y, max, col, t] of s.r) rings.push({ x, y, r: 0, max, col, t })
   pops = s.p.map(([x, y, text, t, col]) => ({ x, y, text, t, col }))
@@ -1118,6 +1692,19 @@ function applySnap(raw: Snap) {
   bossDown = !!s.bd
   run.items = s.it
   shake = Math.max(shake, s.sh)
+  // shut doors and gates block the guest's own lead too
+  s.bk?.forEach((shut, i) => {
+    const b = blocks[i]
+    if (!b) return
+    for (const t of b.tiles) setShut(b, t, shut.includes(t))
+  })
+  if (lever) lever.on = !!s.lv
+  if (shrine) shrine.used = !!s.sr
+  boulders = (s.bo ?? []).map(([x, y, spin]) => ({ x, y, dx: 0, dy: 0, left: 0, hit: new Set<number>(), spin }))
+  for (const [k, at] of [...slick]) if (at !== Infinity) slick.delete(k)
+  for (const [k, left] of s.sl ?? []) slick.set(k, time + left)
+  glow = s.gl ?? 0
+  firePools = someone ? (s.fp ?? []).map(([x, y, r, left]) => ({ x, y, r, until: time + left, tick: 1, from: someone })) : []
 }
 let inputAt = 0
 function guestUpdate(dt: number) {
@@ -1129,6 +1716,7 @@ function guestUpdate(dt: number) {
     a.hop = Math.max(0, a.hop - dt)
     a.dash = Math.max(0, a.dash - dt)
     a.dashCd -= dt
+    a.lunge = Math.max(0, a.lunge - dt)
     if (a.id !== guestLeadId && a.tx !== undefined && a.ty !== undefined) {
       // others ease toward where the host says they are
       const k = Math.min(1, dt * 12)
@@ -1158,9 +1746,15 @@ function guestUpdate(dt: number) {
     me.moving = !!(mx || my)
     if (me.moving) {
       const k = (64 * dt) / Math.hypot(mx, my)
-      move(me, mx * k, my * k)
+      walk(me, mx * k, my * k, dt)
       me.dashDir = [mx / Math.hypot(mx, my), my / Math.hypot(mx, my)]
-    }
+    } else walk(me, 0, 0, dt)
+  }
+  // the shrine's prompt, for our own lead (the host runs the trade)
+  if (shrine && !shrine.used) {
+    const near = dist(me, shrine) < 12
+    if (near && !shrine.told) toast(run.items.oran >= 2 ? 'A shrine. Press F to trade 2 Oran Berries for a Reviver Seed.' : 'A shrine. It asks for 2 Oran Berries.')
+    shrine.told = near
   }
   // after a new floor, wait for the host to place us before sending positions again
   if (time - inputAt > 1 / 20 && me.tx !== undefined) {
@@ -1177,24 +1771,29 @@ function drawActor(g: CanvasRenderingContext2D, a: Actor, cx: number, cy: number
   const anim = a.dead || a.sleep > 0 ? A.Sleep ?? A.Idle : a.hop > 0 && A.Hop ? A.Hop : a.moving ? A.Walk : A.Idle
   const t = a.hop > 0 ? 0.3 - a.hop : a.moving ? a.t * (a.dash > 0 ? 2 : 0.8) : a.t
   const f = frameAt(anim, t, a.hop <= 0)
-  const x = a.x - cx
-  const y = a.y - cy
+  // a melee lunge: a short step toward where it faces, and back
+  const lk = a.lunge > 0 ? Math.sin((1 - a.lunge / 0.2) * Math.PI) * 5 : 0
+  const [ux, uy] = DIRV[a.dir] ?? [0, 1]
+  const x = a.x - cx + Math.round(ux * lk)
+  const y = a.y - cy + Math.round(uy * lk * 0.7)
   g.globalAlpha = 1 - a.fade * 0.85
   g.fillStyle = 'rgba(0,0,0,0.35)'
   g.fillRect(Math.round(x - 6), Math.round(y - 1), 12, 2)
-  if (a.hurt > 0 || a.dash > 0) {
+  if (a.hurt > 0 || a.dash > 0 || a.guard > 0) {
     scratch.width = anim.w
     scratch.height = anim.h
     const sg = scratch.getContext('2d')!
     drawFrame(sg, anim, f, a.dir, anim.ax, anim.ay)
     sg.globalCompositeOperation = 'source-atop'
-    sg.fillStyle = a.dash > 0 ? 'rgba(200,230,255,0.5)' : 'rgba(255,255,255,0.8)'
+    sg.fillStyle = a.hurt > 0 ? 'rgba(255,255,255,0.8)' : a.dash > 0 ? 'rgba(200,230,255,0.5)' : 'rgba(255,236,190,0.35)'
     sg.fillRect(0, 0, anim.w, anim.h)
     g.drawImage(scratch, Math.round(x - anim.ax), Math.round(y - anim.ay))
   } else drawFrame(g, anim, f, a.dir, x, y)
   g.globalAlpha = 1
   return { anim, f }
 }
+// sprite rows: 0 down, 1 down-right, 2 right … 7 down-left
+const DIRV: [number, number][] = [[0, 1], [0.7, 0.7], [1, 0], [0.7, -0.7], [0, -1], [-0.7, -0.7], [-1, 0], [-0.7, 0.7]]
 function drawTrap(g: CanvasRenderingContext2D, tr: Trap, cx: number, cy: number) {
   const x = Math.round(tr.x - cx - 6)
   const y = Math.round(tr.y - cy - 5)
@@ -1213,11 +1812,136 @@ function drawTrap(g: CanvasRenderingContext2D, tr: Trap, cx: number, cy: number)
     g.fillRect(x + 2, y + 3, 8, 5)
     g.fillStyle = tr.cd > 0 ? '#5a6a3a' : '#9ac050'
     g.fillRect(x + 4, y + 4, 4, 2)
-  } else if (!tr.used) {
+  } else if (tr.kind === 'boulders') {
+    // a cracked stone plate, with a scuff showing which way the boulder runs
+    g.fillStyle = '#4a4238'
+    g.fillRect(x, y + 1, 12, 8)
+    g.fillStyle = tr.cd > 0 ? '#5e564a' : '#7a7062'
+    g.fillRect(x + 1, y + 2, 10, 6)
+    g.fillStyle = '#4a4238'
+    if (tr.dir === 'v') g.fillRect(x + 5, y + 2, 2, 6)
+    else g.fillRect(x + 1, y + 4, 10, 2)
+  } else if (tr.kind === 'alarm' && !tr.used) {
     g.fillStyle = '#4a2a2a'
     g.fillRect(x + 1, y + 1, 10, 8)
     g.fillStyle = '#c84848'
     g.fillRect(x + 4, y + 3, 4, 4)
+  }
+}
+/** The floor underfoot, drawn before the light: shallow water, slick ice. */
+function drawGround(g: CanvasRenderingContext2D, cx: number, cy: number) {
+  const x0 = Math.floor(cx / TILE)
+  const y0 = Math.floor(cy / TILE)
+  for (const r of map.wet ?? [])
+    for (let ty = Math.max(r.y, y0); ty < Math.min(r.y + r.h, y0 + VH / TILE + 2); ty++)
+      for (let tx = Math.max(r.x, x0); tx < Math.min(r.x + r.w, x0 + VW / TILE + 2); tx++) {
+        if (!walkableTile(baked.at(tx, ty))) continue
+        const px = tx * TILE - cx
+        const py = ty * TILE - cy
+        g.fillStyle = 'rgba(58,110,170,0.42)'
+        g.fillRect(px, py, TILE, TILE)
+        // a slow glint drifting across
+        const k = (time * 0.6 + tx * 0.37 + ty * 0.71) % 3
+        g.fillStyle = 'rgba(170,210,240,0.55)'
+        if (k < 1) g.fillRect(px + 3 + Math.floor(k * 8), py + 5 + ((tx + ty) % 3) * 3, 3, 1)
+      }
+  for (const fp of firePools) {
+    // a burning patch: a dark scorch with a slow orange shimmer, fading out at the end
+    const k = Math.min(1, (fp.until - time) / 0.8)
+    const x = fp.x - cx
+    const y = fp.y - cy - 2
+    g.globalAlpha = 0.55 * k
+    g.fillStyle = '#5a1a08'
+    g.beginPath()
+    g.ellipse(x, y, fp.r, fp.r * 0.6, 0, 0, Math.PI * 2)
+    g.fill()
+    g.globalAlpha = (0.45 + 0.15 * Math.sin(time * 4 + fp.x)) * k
+    g.fillStyle = '#ff7a2a'
+    g.beginPath()
+    g.ellipse(x, y, fp.r * 0.75, fp.r * 0.45, 0, 0, Math.PI * 2)
+    g.fill()
+    g.globalAlpha = 1
+  }
+  for (const [k, at] of slick) {
+    if (at <= time) continue
+    const tx = k % map.w
+    const ty = (k - tx) / map.w
+    if (tx < x0 - 1 || ty < y0 - 1 || tx > x0 + VW / TILE + 1 || ty > y0 + VH / TILE + 1) continue
+    const px = tx * TILE - cx
+    const py = ty * TILE - cy
+    const fade = at === Infinity ? 1 : Math.min(1, (at - time) / 1.5)
+    // a cyan sheet with white streaks, so it reads on a cave floor and on an ice one
+    g.fillStyle = `rgba(120,200,250,${0.42 * fade})`
+    g.fillRect(px, py, TILE, TILE)
+    g.fillStyle = `rgba(255,255,255,${0.8 * fade})`
+    for (const [sx, sy] of [[2, 4], [3, 3], [4, 2], [9, 11], [10, 10], [11, 9], [12, 8]]) g.fillRect(px + sx, py + sy, 1, 1)
+  }
+}
+/** Shut doors and gates, the lever, the shrine and rolling boulders: drawn over traps, before the light. */
+function drawFixtures(g: CanvasRenderingContext2D, cx: number, cy: number) {
+  // shut doors (stone slabs) and gates (iron bars), rising as they close
+  for (const b of blocks)
+    for (const i of b.closed) {
+      const tx = i % map.w
+      const ty = (i - tx) / map.w
+      const px = tx * TILE - cx
+      const py = ty * TILE - cy
+      const h = Math.round(TILE * Math.min(1, b.t / 0.3))
+      const top = py + TILE - h
+      if (b.kind === 'door') {
+        g.fillStyle = '#3a3229'
+        g.fillRect(px, top, TILE, h)
+        g.fillStyle = '#5a5044'
+        g.fillRect(px + 1, top + 1, TILE - 2, h - 2)
+        g.fillStyle = '#3a3229'
+        for (let r = top + 5; r < py + TILE - 1; r += 5) g.fillRect(px + 1, r, TILE - 2, 1)
+      } else {
+        g.fillStyle = '#2e2a26'
+        g.fillRect(px, top, TILE, 2)
+        g.fillStyle = '#7a746c'
+        for (let c = 1; c < TILE; c += 4) g.fillRect(px + c, top, 2, h)
+      }
+    }
+  if (lever) {
+    const x = Math.round(lever.x - cx)
+    const y = Math.round(lever.y - cy)
+    g.fillStyle = '#3a3229'
+    g.fillRect(x - 5, y - 2, 10, 3)
+    g.fillStyle = '#8a8070'
+    const d = lever.on ? 1 : -1
+    for (let i = 0; i < 6; i++) g.fillRect(x + d * Math.floor(i / 2), y - 3 - i, 1, 1)
+    g.fillStyle = lever.on ? '#f8d060' : '#c84848'
+    g.fillRect(x + d * 3 - 1, y - 10, 3, 2)
+  }
+  if (shrine) {
+    const x = Math.round(shrine.x - cx)
+    const y = Math.round(shrine.y - cy)
+    g.fillStyle = '#4e4a44'
+    g.fillRect(x - 6, y - 4, 12, 4)
+    g.fillStyle = '#8a857c'
+    g.fillRect(x - 4, y - 12, 8, 8)
+    g.fillStyle = '#b8b2a8'
+    g.fillRect(x - 5, y - 14, 10, 2)
+    g.fillStyle = shrine.used ? '#6a6660' : '#c8f0d8'
+    g.fillRect(x - 1, y - 10, 2, 3)
+  }
+  for (const b of boulders) {
+    const x = Math.round(b.x - cx)
+    const y = Math.round(b.y - cy)
+    g.fillStyle = 'rgba(0,0,0,0.35)'
+    g.fillRect(x - 6, y - 1, 12, 2)
+    g.fillStyle = '#5a5248'
+    g.beginPath()
+    g.arc(x, y - 7, 7, 0, Math.PI * 2)
+    g.fill()
+    g.fillStyle = '#8a8274'
+    g.beginPath()
+    g.arc(x - 1, y - 8, 5, 0, Math.PI * 2)
+    g.fill()
+    // a mark that turns as it rolls
+    const a = b.spin / 7
+    g.fillStyle = '#4a4238'
+    g.fillRect(Math.round(x + Math.cos(a) * 3) - 1, Math.round(y - 7 + Math.sin(a) * 3) - 1, 2, 2)
   }
 }
 function drawThing(g: CanvasRenderingContext2D, th: Thing, cx: number, cy: number) {
@@ -1269,8 +1993,10 @@ function render() {
     for (let i = 0; i < 4; i++) fg.fillRect(ex + 2, ey + 2 + i * 3, 10 - i * 2, 2)
   }
   // traps and things are lit like the floor, so in the dark you only see them near light
+  drawGround(fg, cx, cy)
   for (const tr of traps) drawTrap(fg, tr, cx, cy)
   for (const th of things) drawThing(fg, th, cx, cy)
+  drawFixtures(fg, cx, cy)
   const bodies = [...foes, ...party].sort((a, b) => a.y - b.y)
   for (const a of bodies) {
     if (a.dead && a.fade >= 1) continue
@@ -1285,13 +2011,39 @@ function render() {
     fg.fillRect(Math.round(s.x - cx - 1), Math.round(s.y - cy - 1), 2, 2)
   }
   // light: the map's torches and crystals, a lantern the lead carries, fire types, flying fire
+  // Fog shortens every light's reach; a won fight brightens the lantern for a few seconds
+  const fog = map.modifier === 'fog' ? 0.7 : 1
+  const gk = glowK()
   const lights: Light[] = []
-  for (const l of baked.lights) if (l.x > cx - l.r && l.x < cx + VW + l.r && l.y > cy - l.r && l.y < cy + VH + l.r) lights.push({ ...l, x: l.x - cx, y: l.y - cy, power: l.power * (0.94 + 0.06 * Math.sin(time * 3 + l.x)) })
-  lights.push({ x: me.x - cx, y: me.y - cy - 10, z: 22, r: run?.charged ? 110 : 96, color: [1, 0.93, 0.82], power: 1.25 })
-  for (const a of [...party, ...foes]) if (!a.dead && a.types.includes('fire')) lights.push({ x: a.x - cx, y: a.y - cy - 8, z: 12, r: 40, color: [1, 0.6, 0.3], power: 1.1 })
-  for (const s of shots) if (s.type === 'fire' || s.type === 'electric') lights.push({ x: s.x - cx, y: s.y - cy, z: 8, r: 22, color: s.type === 'fire' ? [1, 0.6, 0.3] : [1, 0.95, 0.5], power: 1.2 })
+  for (const l of baked.lights) if (l.x > cx - l.r && l.x < cx + VW + l.r && l.y > cy - l.r && l.y < cy + VH + l.r) lights.push({ ...l, r: l.r * fog, x: l.x - cx, y: l.y - cy, power: l.power * (0.94 + 0.06 * Math.sin(time * 3 + l.x)) })
+  if (shrine && !shrine.used) lights.push({ x: shrine.x - cx, y: shrine.y - cy - 10, z: 14, r: 34, color: [0.75, 1, 0.85], power: 1.1 })
+  // only the lantern and fire light a dark room
+  const own: Light[] = [{ x: me.x - cx, y: me.y - cy - 10, z: 22, r: ((run?.charged ? 110 : 96) + 36 * gk) * (fog < 1 ? 0.65 : 1), color: [1, 0.93, 0.82], power: 1.25 + 0.35 * gk }]
+  for (const a of [...party, ...foes]) if (!a.dead && a.types.includes('fire')) own.push({ x: a.x - cx, y: a.y - cy - 8, z: 12, r: 40, color: [1, 0.6, 0.3], power: 1.1 })
+  for (const s of shots) if (s.type === 'fire') own.push({ x: s.x - cx, y: s.y - cy, z: 8, r: 22, color: [1, 0.6, 0.3], power: 1.2 })
+  for (const fp of firePools) own.push({ x: fp.x - cx, y: fp.y - cy - 4, z: 8, r: 34, color: [1, 0.5, 0.2], power: 1.0 * Math.min(1, (fp.until - time) / 0.8) })
+  for (const s of shots) if (s.type === 'electric') lights.push({ x: s.x - cx, y: s.y - cy, z: 8, r: 22, color: [1, 0.95, 0.5], power: 1.2 })
   const amb = 1 - map.dark * 0.92
-  applyLighting(fg, ng, [amb * 0.85, amb * 0.9, amb * 1.1], lights)
+  const dark = map.special?.kind === 'dark' ? map.special : null
+  const dx0 = dark ? (dark.x - 1) * TILE - cx : 0
+  const dy0 = dark ? (dark.y - 1) * TILE - cy : 0
+  const seesDark = dark && dx0 < VW && dy0 < VH && dx0 + (dark.w + 2) * TILE > 0 && dy0 + (dark.h + 2) * TILE > 0
+  if (seesDark) {
+    dfg.globalCompositeOperation = 'copy'
+    dfg.drawImage(frame, 0, 0)
+    dng.globalCompositeOperation = 'copy'
+    dng.drawImage(ncv, 0, 0)
+  }
+  applyLighting(fg, ng, [amb * 0.85, amb * 0.9, amb * 1.1], [...lights, ...own])
+  if (seesDark) {
+    applyLighting(dfg, dng, [0.02, 0.02, 0.04], own)
+    fg.save()
+    fg.beginPath()
+    fg.rect(dx0, dy0, (dark!.w + 2) * TILE, (dark!.h + 2) * TILE)
+    fg.clip()
+    fg.drawImage(dcv, 0, 0)
+    fg.restore()
+  }
   // drawn after the light, so they always read: warnings, bursts, HP bars, numbers
   for (const w of warnings) {
     const k = w.t / w.at
@@ -1306,6 +2058,26 @@ function render() {
       fg.globalAlpha = 0.9
       fg.beginPath()
       fg.ellipse(w.x - cx, w.y - cy - 2, w.r * k, w.r * k * 0.6, 0, 0, Math.PI * 2)
+      fg.stroke()
+    } else if (w.kind === 'ring') {
+      // the band between the inner and outer ellipses is hit; inside and outside are safe
+      const r0 = w.r0 ?? 0
+      fg.beginPath()
+      fg.ellipse(w.x - cx, w.y - cy - 2, w.r, w.r * 0.6, 0, 0, Math.PI * 2)
+      fg.ellipse(w.x - cx, w.y - cy - 2, r0, r0 * 0.6, 0, 0, Math.PI * 2)
+      fg.fill('evenodd')
+      fg.globalAlpha = 0.9
+      fg.beginPath()
+      fg.ellipse(w.x - cx, w.y - cy - 2, r0 + (w.r - r0) * k, (r0 + (w.r - r0) * k) * 0.6, 0, 0, Math.PI * 2)
+      fg.stroke()
+    } else if (w.kind === 'safe') {
+      // the one safe place: a steady ring that fills as the song ends
+      fg.globalAlpha = 0.18 + 0.3 * k
+      fg.beginPath()
+      fg.ellipse(w.x - cx, w.y - cy - 2, w.r, w.r * 0.6, 0, 0, Math.PI * 2)
+      fg.fill()
+      fg.globalAlpha = 0.95
+      fg.lineWidth = 2
       fg.stroke()
     } else {
       fg.lineWidth = w.r * 2
@@ -1379,7 +2151,8 @@ function renderHud() {
   // move 1 is named for the type it would really use on the nearest awake enemy
   const near = nearest(me, foes.filter((f) => f.awake), 120)
   const t1 = near ? bestType(me, near) : (me.types[0] ?? 'normal')
-  const key = party.map((p) => `${Math.round(p.hp)}:${p.dead}`).join() + `|${lead}|${boss?.hp}:${boss?.awake}|${Math.ceil(me.cd1)}:${Math.ceil(me.cd2)}:${Math.ceil(me.dashCd * 4)}|${it.oran}${it.sitrus}${it.seed}${it.elixir}|${run.floor}|${t1}`
+  const two = second(me)
+  const key = party.map((p) => `${Math.round(p.hp)}:${p.dead}`).join() + `|${lead}|${boss?.hp}:${boss?.awake}|${Math.ceil(me.cd1)}:${Math.ceil(me.cd2)}:${Math.ceil(me.dashCd * 4)}|${two?.id}:${Math.ceil(two?.cd2 ?? 0)}|${it.oran}${it.sitrus}${it.seed}${it.elixir}|${run.floor}|${t1}`
   if (key === hudKey) return
   hudKey = key
   const t = me.types[0] ?? 'normal'
@@ -1393,8 +2166,10 @@ function renderHud() {
   hud.querySelector('.dg-moves')!.innerHTML = `
     <div class="dg-panel dg-move"><p><b>Auto</b></p><p>${MOVES[t] ?? 'Tackle'}</p></div>
     <div class="dg-panel dg-move"><p><b>1</b></p><p>${STRONG[t1] ?? 'Body Slam'}</p>${cd(me.cd1, 4)}</div>
-    <div class="dg-panel dg-move"><p><b>2</b></p><p>${BURST[t] ?? 'Hyper Voice'}</p>${cd(me.cd2, 9)}</div>`
-  hud.querySelector('.dg-floor')!.innerHTML = `<p>${map === hand ? 'Deepest floor' : `B${run.floor}`}</p><p class="dg-dim">${run.charged ? 'Lantern lit' : 'No charge'}</p>`
+    <div class="dg-panel dg-move"><p><b>2</b></p><p>${BURST[t] ?? 'Hyper Voice'}</p>${cd(me.cd2, 9)}</div>
+    <div class="dg-panel dg-move${two ? '' : ' off'}"><p><b>3</b> ${two ? two.name : ''}</p><p>${two ? BURST[two.types[0]] ?? 'Hyper Voice' : 'None left'}</p>${two ? cd(two.cd2, 9) : ''}</div>`
+  const mod = map.modifier ? `<p class="dg-dim">${{ fog: 'Fog', flooded: 'Flooded', restless: 'Restless', echo: 'Echo', rich: 'Rich' }[map.modifier]}</p>` : ''
+  hud.querySelector('.dg-floor')!.innerHTML = `<p>${map === hand ? 'Boss floor' : `B${run.floor}`}</p>${mod}<p class="dg-dim">${run.charged ? 'Lantern lit' : 'No charge'}</p>`
   hud.querySelector('.dg-items')!.innerHTML = `<p><b>Q</b> Berries ${it.oran}${it.sitrus ? ` +${it.sitrus}` : ''}</p><p><b>E</b> Elixirs ${it.elixir}</p><p class="dg-dim">Seeds ${it.seed}</p>`
 }
 function message(html: string, buttons: { label: string; gold?: boolean; run: () => void }[]) {
@@ -1422,14 +2197,26 @@ addEventListener('pagehide', () => {
 function end(win: boolean) {
   if (state === 'won' || state === 'lost') return
   state = win ? 'won' : 'lost'
-  const deep = win && !test && run.charged ? DEEP[run.dungeon] : undefined
-  // the special Pokémon waits in the saved run until its one throw (closing the tab doesn't lose it)
-  if (deep?.length && mode === 'solo') {
-    run.deep = deep[Math.floor(Math.random() * deep.length)]
-    saveRun()
-  } else clearRun()
   if (mode === 'host' && guests.size) net?.sendEvent({ kind: 'end', win })
   const found = run.found.length ? `<p class="dg-dim">Found: ${run.found.join(' ')}</p>` : ''
+  // the deep floors (L10): the boss is already beaten, so the special catch still waits, win or lose
+  if (run.floor > FLOORS) {
+    const deep = deepDone ? undefined : run.deep
+    if (deep && mode === 'solo') {
+      run.over = true
+      saveRun()
+    } else clearRun()
+    const text = win ? `<p>You climbed back out of the deep floors of ${hand.name}.</p>` : `<p>Your party was carried out of the deep floors of ${hand.name}.</p>`
+    return message(text + found, [deep ? { label: 'Continue', gold: true, run: () => deepCatch(deep) } : { label: 'Back to the island', gold: true, run: home }])
+  }
+  const pool = win && !test && run.charged ? DEEP[run.dungeon] : undefined
+  // the special Pokémon waits in the saved run until its one throw (closing the tab doesn't lose it)
+  const deep = pool?.length && !deepDone ? run.deep ?? pool[Math.floor(Math.random() * pool.length)] : undefined
+  run.deep = deep
+  if (deep && mode === 'solo') {
+    run.over = true
+    saveRun()
+  } else clearRun()
   if (!win) {
     message(`<p>Your party was carried out of ${hand.name}.</p>${found}<p class="dg-dim">Levels come from focus. Study, then try again.</p>`, [
       { label: 'Try again', gold: true, run: () => location.reload() },
@@ -1450,14 +2237,16 @@ function end(win: boolean) {
   } else if (test) text += `<p class="dg-dim">Test play: nothing was saved.</p>`
   else if (boss) text += `<p>${boss.name} is beaten.</p>`
   text += found
-  if (deep?.length) {
-    const dex = run.deep ?? deep[Math.floor(Math.random() * deep.length)]
-    return message(text, [{ label: 'Continue', gold: true, run: () => deepCatch(dex) }])
-  }
-  message(text, [{ label: 'Back to the island', gold: true, run: home }])
+  // L10: once the gate has been cleared, a charged run can go on to three deeper floors
+  const deeper = !test && mode !== 'guest' && run.charged && !!g && latest().guardians.includes(g)
+  if (deeper) text += `<p class="dg-dim">Three deeper floors wait below, at about Lv${Math.max(1, Math.max(...party.map((p) => p.level)) - 5)}. They hold chests but give no EXP.</p>`
+  const after = deep ? { label: 'Continue', gold: !deeper, run: () => deepCatch(deep) } : { label: 'Back to the island', gold: !deeper, run: home }
+  message(text, [...(deeper ? [{ label: 'Go deeper', gold: true, run: goDeeper }] : []), after])
 }
+let deepDone = false // the special catch has been offered this page (so the deep floors can't offer it twice)
 /** After a charged clear: something stirs in the deep, for one throw. */
 function deepCatch(dex: number) {
+  deepDone = true
   const name = game.name(dex)
   const done = () => {
     run.deep = undefined
@@ -1525,7 +2314,7 @@ addEventListener('keydown', (e) => {
       me.dashCd = 1.2
       guestActs.push('dash')
     }
-    if (['1', '2', 'q', 'e'].includes(k)) guestActs.push(k)
+    if (['1', '2', '3', 'q', 'e', 'f'].includes(k)) guestActs.push(k)
     return
   }
   act(me, k === ' ' ? 'dash' : k)
@@ -1539,17 +2328,32 @@ function act(me: Actor, k: string) {
   }
   if (k === 'q') useBerry()
   if (k === 'e') useElixir()
+  if (k === 'f') pray(me)
   if (k === '1' && me.cd1 <= 0) {
-    const t = nearest(me, foes, ranged(me) ? 90 : 30)
-    if (t) {
-      me.cd1 = 4
-      attack(me, t, 2.2, STRONG[bestType(me, t)])
-    }
+    const t = nearest(me, foes, reach1(me))
+    if (t) strong(me, t)
   }
   if (k === '2' && me.cd2 <= 0) {
     me.cd2 = 9
     burst(me, 1.5, 44, BURST[me.types[0]] ?? 'Hyper Voice')
   }
+  // 3: your second Pokémon's burst, wherever it stands (D-F2)
+  const two = k === '3' ? second(me) : undefined
+  if (two && two.cd2 <= 0 && two.sleep <= 0) {
+    two.cd2 = 9
+    burst(two, 1.5, 44, BURST[two.types[0]] ?? 'Hyper Voice')
+  }
+}
+/** Move 1's reach: a shot for ranged types, a blow for melee ones. */
+const reach1 = (a: Actor) => (ranged(a) ? 90 : 30)
+function strong(a: Actor, t: Actor) {
+  a.cd1 = 4
+  attack(a, t, 2.2, STRONG[bestType(a, t)])
+}
+/** The first other living Pokémon of the same player as `me` (its own on the host, a guest's for a guest). */
+function second(me: Actor): Actor | undefined {
+  if (mode === 'guest') return party.find((p) => p !== me && !p.dead && mine.has(p.id))
+  return party.find((p) => p !== me && !p.dead && (me.owner ? p.owner === me.owner : !p.owner && isMine(p)))
 }
 addEventListener('keyup', (e) => keys.delete(e.key.toLowerCase()))
 addEventListener('blur', () => keys.clear())
@@ -1610,7 +2414,7 @@ async function boot() {
   team.forEach((m, i) => (party[i].monId = m.id))
   hud.innerHTML = `<div class="dg-party"></div><div class="dg-panel dg-boss" hidden></div><div class="dg-moves"></div><div class="dg-panel dg-toast"></div>
     <div class="dg-panel dg-floor"></div><div class="dg-panel dg-items"></div>
-    <div class="dg-panel dg-keys"><p>WASD move</p><p>Space dash</p><p>1 2 moves</p><p>Tab switch</p><p>Esc ${mode === "solo" ? "pause" : "menu"}</p></div>`
+    <div class="dg-panel dg-keys"><p>WASD move</p><p>Space dash</p><p>1 2 3 moves</p><p>Tab switch</p><p>Esc ${mode === "solo" ? "pause" : "menu"}</p></div>`
 
   let saved: Run | null = null
   try {
@@ -1634,13 +2438,14 @@ async function boot() {
     if (!(await loadSafely(run.floor))) return
     saveRun()
     state = 'play'
-    toast(map === hand ? `${hand.name}: the deepest floor.` : `${hand.name} B${run.floor}.`)
+    toast(arrival(run.floor))
     // co-op: tell each guest the seed and which Pokémon are theirs (their lead first)
     if (mode === 'host')
       for (const [peer, g] of guests) net?.sendStart({ dungeon: id, gate, seed: run.seed, floor: run.floor, mine: g.actors.filter((a) => party.includes(a)).map((a) => a.id) }, peer)
   }
-  // a cleared run whose special Pokémon is still waiting for its throw
-  if (saved?.deep) {
+  // a cleared run whose special Pokémon is still waiting for its throw (a run on the deep floors
+  // continues first; older saves from the boss floor have no `over`)
+  if (saved?.deep && (saved.over ?? saved.floor <= FLOORS)) {
     run = saved
     await loadFloor(run.floor)
     renderHud()
@@ -1662,7 +2467,7 @@ async function boot() {
     const berries = kept ? 0 : Math.min(2, game.save.berries)
     let light = !!kept?.charged || charges > 0
     const lanternLine = () =>
-      kept?.charged ? 'Your Lantern is still lit, so chests open.' : charges ? `Lantern charges: ${charges}. A lit charge opens chests.` : 'No Lantern charge: chests stay shut. Finish a 25-minute session to light one.'
+      kept?.charged ? 'Your Lantern is still lit, so chests open.' : charges ? `Lantern charges: ${charges}. A lit charge opens chests.` : 'No Lantern charge: chests stay shut. Finish a 30-minute session to light one.'
     const toggle = !kept?.charged && charges > 0 && !test ? `<button class="dg-btn dg-toggle" data-light>${'Light a charge: Yes'}</button>` : ''
     const intro = `<p>${hand.name}</p><p class="dg-dim">${test ? 'One floor (test play).' : `Three floors, then ${boss ? `${game.name(boss.dex!)} (Lv${boss.level})` : 'the deepest floor'}. Levels about ${Math.min(...lv) - 6} to ${Math.max(...lv)}.`}</p><p class="dg-dim">${lanternLine()}</p>${toggle}`
     const enter = (bring: boolean) => {
@@ -1712,7 +2517,7 @@ async function boot() {
     }
   }
   if (saved)
-    message(`<p>${hand.name}</p><p class="dg-dim">Your run is waiting on ${saved.floor >= FLOORS ? 'the deepest floor' : `B${saved.floor}`}.</p>`, [
+    message(`<p>${hand.name}</p><p class="dg-dim">Your run is waiting on ${floorLabel(saved.floor)}.</p>`, [
       { label: 'Continue', gold: true, run: () => void start(saved!) },
       { label: 'Start over', run: () => (clearRun(), entrance(saved!)) },
       { label: 'Back to the island', run: home },
@@ -1874,7 +2679,7 @@ async function bootGuest() {
   await Promise.all(team.map(async (m) => species.set(m.dex, await loadSpecies(manifest, String(m.dex).padStart(4, '0')))))
   hud.innerHTML = `<div class="dg-party"></div><div class="dg-panel dg-boss" hidden></div><div class="dg-moves"></div><div class="dg-panel dg-toast"></div>
     <div class="dg-panel dg-floor"></div><div class="dg-panel dg-items"></div>
-    <div class="dg-panel dg-keys"><p>WASD move</p><p>Space dash</p><p>1 2 moves</p><p>Tab switch</p><p>Esc menu</p></div>`
+    <div class="dg-panel dg-keys"><p>WASD move</p><p>Space dash</p><p>1 2 3 moves</p><p>Tab switch</p><p>Esc menu</p></div>`
   // review 2 D8: helping a friend never spends a charge unless you choose to
   const charges = latest().lanterns ?? 0
   const light = await new Promise<boolean>((done) => {
@@ -1914,7 +2719,7 @@ async function bootGuest() {
     await guestFloor(st.floor)
     hud.querySelectorAll('.dg-msg').forEach((m) => m.remove())
     state = 'play'
-    toast(`${hand.name} B${st.floor}, with your friends.${run.charged ? ' Your Lantern is lit.' : ''}`)
+    toast(`${arrival(st.floor)}${run.charged ? ' Your Lantern is lit.' : ''}`)
   })
   net.onSnap((snap, peer) => {
     if (hostPeer && peer !== hostPeer) return
@@ -1940,13 +2745,16 @@ async function bootGuest() {
     }
     if (!run || (hostPeer && peer !== hostPeer)) return
     if (e.kind === 'floor' && e.floor) {
+      // the host chose to go deeper after the boss: the end screen gives way to the next floor
+      if (state === 'won') hud.querySelectorAll('.dg-msg').forEach((m) => m.remove())
+      if (e.level) run.deepLevel = e.level
       state = 'busy'
       view.style.transition = 'opacity .35s ease'
       view.style.opacity = '0'
       await guestFloor(e.floor)
       view.style.opacity = '1'
       state = 'play'
-      toast(map === hand ? `${hand.name}: the deepest floor.` : `${hand.name} B${e.floor}.`)
+      toast(arrival(e.floor, e.floor === FLOORS + 1 ? ` The deep floors, at about Lv${run.deepLevel}.` : ''))
     }
     if (e.kind === 'chest') {
       if (run.charged) {
@@ -2019,6 +2827,9 @@ void boot()
   downstairs,
   keys,
   update,
+  render,
+  /** The view as a PNG data URL (dev: inspect the art with the pane hidden). */
+  shot: () => (render(), view.toDataURL()),
   guestUpdate,
   leads,
   get guests() {

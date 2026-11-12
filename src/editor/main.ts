@@ -64,7 +64,7 @@ root.innerHTML = `
   <div class="bar">
     <span class="brand">DUNGEON EDITOR</span>
     <input class="in name" data-k="name" />
-    <select class="in" data-k="theme"><option value="cave">Cave</option><option value="forest">Forest</option><option value="ice">Ice</option></select>
+    <select class="in" data-k="theme"><option value="cave">Cave</option><option value="forest">Forest</option><option value="ice">Ice</option><option value="volcano">Volcano</option></select>
     <label class="inl">Size <input class="in num" data-k="w" type="number" min="16" max="160" /> × <input class="in num" data-k="h" type="number" min="12" max="120" /></label>
     <label class="inl">Dark <input data-k="dark" type="range" min="0" max="1" step="0.05" /></label>
     <span class="sep"></span>

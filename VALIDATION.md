@@ -1,5 +1,39 @@
 # Validation
 
+## Content pass (2026-11-12, docs/CONTENT_PLAN.md)
+- **Island, in the browser on a local test save:**
+  - Rare visitors in short sessions: 6.9% on a 3-day streak, 0% without one.
+  - Landmarks restored through `restore()`, drawn ruined and restored, by day and at night. The hut added a third Day Care spot.
+  - The Landmarks tab fits at 1280 px.
+  - Pokédex milestones paid 25% (a rock pool) and 50% (an egg) with Wooper's line.
+  - A shiny Pidgey drew in its other colours with a sparkle.
+  - The tide was announced once at a break: Electric types and Eevee.
+  - Autumn leaves show on Home.
+  - Sailing to Ember Cove took the pier, Lapras, 60% of Frost's Pokédex and 50 hours. On Ember Cove:
+    - it has its own colours, crater, hot spring and an extra lobe;
+    - passers-by were Numel, Phanpy, Ponyta, Cubone and Torkoal at Lv14–19.
+  - The sailor turned a Haunter into Gengar, and refused a second trade that week.
+  - Ten hours together gave ten Together eggs and lit the festival lanterns.
+  - Residents walked toward the pier after an 8-hour gap.
+- **Stage 8 SQL** on PGlite (`npm run test:sql8`): all checks pass.
+  - Ember Cove scenes are cleaned.
+  - A trade is offered, accepted and claimed, and claiming twice gives nothing.
+  - A declined shiny comes back.
+  - Guardians and non-friends are refused.
+  - Each visit mark is allowed once a day, and marks are seen once.
+- **Dungeons**, from the helper's report and checked here:
+  - A generator sweep of 1,596 floors: stairs, vault gates and levers are always reachable, and there are no spore vents on ice.
+  - In the browser: the lever, shrine, monster house, boulders, slick ice and dark room all worked.
+  - Go deeper reached B5, and Continue resumed on B5.
+  - Co-op guests build the same floors and fire key 3.
+  - Here: Ember Crater loads with the volcano theme, a modifier and a vault, and Arcanine on the fourth floor.
+- **Not checked:**
+  - Anything by hand in real time.
+  - Trading and visit marks against the live database (stage 8 has not been run).
+  - Perish Song and monster-house doors on a co-op guest.
+  - The Fog, Flooded and Echo modifiers in play.
+  - The lead's 45-minute nap, the dusk lantern flicker, the forge and the Fortune silhouettes on a real session.
+
 ## Review 2: bugs and balance (2026-11-12)
 - Island, in the browser at 1280×800:
   - 20,000 finds gave about 2% stones, 3.8% Star Pieces and 2.7% eggs; before, stones never came.

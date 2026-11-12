@@ -1,0 +1,300 @@
+{
+  "v": 1,
+  "id": "ember-crater",
+  "name": "Ember Crater",
+  "theme": "volcano",
+  "w": 64,
+  "h": 44,
+  "dark": 0.8,
+  "pieces": [
+    {
+      "id": "of3bitb",
+      "type": "room",
+      "x": 4,
+      "y": 18,
+      "w": 8,
+      "h": 7
+    },
+    {
+      "id": "a5y58tk",
+      "type": "room",
+      "x": 12,
+      "y": 20,
+      "w": 9,
+      "h": 2
+    },
+    {
+      "id": "vl7hgxc",
+      "type": "cavern",
+      "x": 19,
+      "y": 12,
+      "w": 14,
+      "h": 13
+    },
+    {
+      "id": "utfcmff",
+      "type": "pond",
+      "x": 23,
+      "y": 15,
+      "w": 5,
+      "h": 3
+    },
+    {
+      "id": "qtfgviz",
+      "type": "room",
+      "x": 25,
+      "y": 24,
+      "w": 2,
+      "h": 8
+    },
+    {
+      "id": "af2s86o",
+      "type": "room",
+      "x": 18,
+      "y": 31,
+      "w": 13,
+      "h": 7
+    },
+    {
+      "id": "v7ztidy",
+      "type": "pond",
+      "x": 27,
+      "y": 35,
+      "w": 3,
+      "h": 2
+    },
+    {
+      "id": "26xqwj8",
+      "type": "room",
+      "x": 32,
+      "y": 17,
+      "w": 10,
+      "h": 2
+    },
+    {
+      "id": "j49np4o",
+      "type": "cavern",
+      "x": 41,
+      "y": 8,
+      "w": 13,
+      "h": 12
+    },
+    {
+      "id": "71o7v7d",
+      "type": "grass",
+      "x": 43,
+      "y": 11,
+      "w": 5,
+      "h": 3
+    },
+    {
+      "id": "xbuwzha",
+      "type": "room",
+      "x": 46,
+      "y": 19,
+      "w": 2,
+      "h": 9
+    },
+    {
+      "id": "3ep0c04",
+      "type": "room",
+      "x": 30,
+      "y": 34,
+      "w": 9,
+      "h": 2
+    },
+    {
+      "id": "jsu8vwg",
+      "type": "cavern",
+      "x": 37,
+      "y": 27,
+      "w": 18,
+      "h": 13
+    },
+    {
+      "id": "set4f5k",
+      "type": "pond",
+      "x": 38,
+      "y": 36,
+      "w": 3,
+      "h": 2
+    }
+  ],
+  "props": [
+    {
+      "id": "oo3hgu0",
+      "kind": "torch",
+      "x": 5,
+      "y": 18
+    },
+    {
+      "id": "xaohwco",
+      "kind": "torch",
+      "x": 10,
+      "y": 18
+    },
+    {
+      "id": "cvq0v0a",
+      "kind": "torch",
+      "x": 21,
+      "y": 14
+    },
+    {
+      "id": "obpabsi",
+      "kind": "rock",
+      "x": 30,
+      "y": 14
+    },
+    {
+      "id": "qlojgek",
+      "kind": "rock",
+      "x": 29,
+      "y": 33
+    },
+    {
+      "id": "89tdpk4",
+      "kind": "torch",
+      "x": 20,
+      "y": 31
+    },
+    {
+      "id": "gjt5a35",
+      "kind": "rock",
+      "x": 51,
+      "y": 14
+    },
+    {
+      "id": "jobn1ll",
+      "kind": "torch",
+      "x": 51,
+      "y": 10
+    },
+    {
+      "id": "w0674tk",
+      "kind": "torch",
+      "x": 39,
+      "y": 29
+    },
+    {
+      "id": "k78oaqa",
+      "kind": "torch",
+      "x": 52,
+      "y": 29
+    },
+    {
+      "id": "5snwgoy",
+      "kind": "torch",
+      "x": 42,
+      "y": 38
+    },
+    {
+      "id": "kzb9zpy",
+      "kind": "torch",
+      "x": 52,
+      "y": 37
+    }
+  ],
+  "entities": [
+    {
+      "id": "4kbqr3r",
+      "kind": "start",
+      "x": 7,
+      "y": 21
+    },
+    {
+      "id": "peq2hth",
+      "kind": "enemy",
+      "x": 22,
+      "y": 20,
+      "dex": 322,
+      "level": 66
+    },
+    {
+      "id": "mwp9y6j",
+      "kind": "enemy",
+      "x": 29,
+      "y": 13,
+      "dex": 218,
+      "level": 66
+    },
+    {
+      "id": "3dvkpf5",
+      "kind": "enemy",
+      "x": 27,
+      "y": 21,
+      "dex": 37,
+      "level": 67
+    },
+    {
+      "id": "92bp686",
+      "kind": "enemy",
+      "x": 21,
+      "y": 34,
+      "dex": 104,
+      "level": 67
+    },
+    {
+      "id": "94h2z4e",
+      "kind": "enemy",
+      "x": 26,
+      "y": 33,
+      "dex": 77,
+      "level": 68
+    },
+    {
+      "id": "01v7c47",
+      "kind": "enemy",
+      "x": 45,
+      "y": 15,
+      "dex": 228,
+      "level": 68
+    },
+    {
+      "id": "70pv4mq",
+      "kind": "enemy",
+      "x": 49,
+      "y": 11,
+      "dex": 324,
+      "level": 69
+    },
+    {
+      "id": "fbdali9",
+      "kind": "enemy",
+      "x": 50,
+      "y": 16,
+      "dex": 229,
+      "level": 70
+    },
+    {
+      "id": "ap0t1i8",
+      "kind": "enemy",
+      "x": 41,
+      "y": 31,
+      "dex": 323,
+      "level": 69
+    },
+    {
+      "id": "cxkxk15",
+      "kind": "enemy",
+      "x": 42,
+      "y": 35,
+      "dex": 105,
+      "level": 70
+    },
+    {
+      "id": "2a46wij",
+      "kind": "boss",
+      "x": 46,
+      "y": 33,
+      "dex": 59,
+      "level": 75
+    },
+    {
+      "id": "stz136e",
+      "kind": "exit",
+      "x": 52,
+      "y": 33
+    }
+  ],
+  "paint": {}
+}

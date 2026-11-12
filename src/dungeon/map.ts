@@ -34,9 +34,10 @@ export interface Prop {
   x: number
   y: number
 }
-// stairs, traps, pots, chests and the miniboss are placed by the floor generator (gen.ts)
-export type EntityKind = 'start' | 'exit' | 'enemy' | 'boss' | 'stairs' | 'trap' | 'chest' | 'pot' | 'miniboss'
-export type TrapKind = 'spikes' | 'spores' | 'alarm'
+// stairs, traps, pots, chests, levers, shrines and the miniboss are placed by the floor generator (gen.ts)
+export type EntityKind = 'start' | 'exit' | 'enemy' | 'boss' | 'stairs' | 'trap' | 'chest' | 'pot' | 'miniboss' | 'lever' | 'shrine'
+// boulders (cave): a plate that rolls a boulder down a warned line; ice (Glacier): a slick patch
+export type TrapKind = 'spikes' | 'spores' | 'alarm' | 'boulders' | 'ice'
 export interface Entity {
   id: string
   kind: EntityKind
@@ -45,8 +46,23 @@ export interface Entity {
   dex?: number
   level?: number
   trap?: TrapKind
+  big?: boolean // a big chest (a monster house's, or the deepest floor's)
+  phase?: number // spikes: where in the cycle they start (a vault's gate spikes move together)
+  dir?: 'h' | 'v' // boulders: the line they roll along
 }
-export type Theme = 'cave' | 'forest' | 'ice'
+/** A generated floor's one special room (gen.ts). */
+export interface Special {
+  kind: 'house' | 'vault' | 'shrine' | 'dark'
+  x: number // the room, in tiles
+  y: number
+  w: number
+  h: number
+  doors?: number[] // house: the doorway tiles (index y * w + x) that close while it fights
+  gate?: number[] // vault: the gate tiles the lever opens
+}
+/** One per generated floor, named on arrival. */
+export type Modifier = 'fog' | 'flooded' | 'restless' | 'echo' | 'rich'
+export type Theme = 'cave' | 'forest' | 'ice' | 'volcano' // volcano: dark rock, and its ponds are lava
 export interface DungeonMap {
   v: 1
   id: string
@@ -59,6 +75,9 @@ export interface DungeonMap {
   props: Prop[]
   entities: Entity[]
   paint: Record<string, T> // single-tile touch-ups, "x,y" → tile
+  special?: Special // generated floors only
+  modifier?: Modifier
+  wet?: { x: number; y: number; w: number; h: number }[] // Flooded: shallow water that slows everyone
 }
 
 export const uid = () => Math.random().toString(36).slice(2, 9)
@@ -139,6 +158,7 @@ interface ThemePal {
 const THEMES: Record<Theme, ThemePal> = {
   cave: { floor: hex('#6e6458'), floor2: hex('#655b50'), floorDot: hex('#7c7266'), top: hex('#3c342e'), face: hex('#4e443b'), face2: hex('#433a32'), edge: hex('#241e1a'), water: hex('#2c5a8c'), water2: hex('#3a6ea4'), grass: hex('#4f7d3e'), grassDark: hex('#3a6230') },
   forest: { floor: hex('#5f9a48'), floor2: hex('#56913f'), floorDot: hex('#74ad58'), top: hex('#2f5a33'), face: hex('#5a4630'), face2: hex('#4c3b28'), edge: hex('#1d3320'), water: hex('#2e6aa8'), water2: hex('#3d7dbd'), grass: hex('#3f8a3c'), grassDark: hex('#2f6e30') },
+  volcano: { floor: hex('#4a3a34'), floor2: hex('#42332e'), floorDot: hex('#5e4840'), top: hex('#231a17'), face: hex('#3a2a24'), face2: hex('#30221d'), edge: hex('#140d0b'), water: hex('#b8401c'), water2: hex('#f08a30'), grass: hex('#6a5a52'), grassDark: hex('#584a44') },
   ice: { floor: hex('#c8d8e8'), floor2: hex('#bccee2'), floorDot: hex('#dce8f4'), top: hex('#7f97b4'), face: hex('#9ab0ca'), face2: hex('#8aa2be'), edge: hex('#4d6582'), water: hex('#2f6fae'), water2: hex('#4083c0'), grass: hex('#a9c2d8'), grassDark: hex('#8eaac4') },
 }
 
@@ -288,5 +308,10 @@ export function bakeMap(m: DungeonMap) {
     if (a.light) lights.push({ x: p.x * TILE + TILE / 2, y: p.y * TILE + TILE + a.light.y, z: 18, r: a.light.r, color: a.light.color, power: 1.8 })
     if (p.kind === 'tree' || p.kind === 'rock') solid.push({ x: p.x * TILE + TILE / 2, y: p.y * TILE + TILE - 3, r: p.kind === 'tree' ? 5 : 6 })
   }
+  // lava glows: a soft red light every few tiles of it
+  if (m.theme === 'volcano')
+    for (let y = 0; y < m.h; y += 2)
+      for (let x = (y / 2) % 3; x < m.w; x += 3)
+        if (at(x, y) === T.Water) lights.push({ x: x * TILE + 8, y: y * TILE + 8, z: 10, r: 46, color: [1, 0.42, 0.18], power: 1.1 })
   return { tiles, at, color, normal, lights, solid }
 }

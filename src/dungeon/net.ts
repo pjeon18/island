@@ -44,7 +44,7 @@ export interface Input {
   y: number
   dir: number
   moving: boolean
-  acts: string[] // '1', '2', 'dash', 'q', 'e', 'tab'
+  acts: string[] // '1', '2', '3', 'dash', 'q', 'e', 'f'
 }
 /** host -> guest, about 15 times a second (compact; see play.ts snapshot()) */
 export type Snap = Record<string, unknown>
@@ -52,6 +52,7 @@ export type Snap = Record<string, unknown>
 export interface Event {
   kind: 'floor' | 'chest' | 'end' | 'toast' | 'refuse' // refuse: text is 'full', 'version' or 'started'
   floor?: number
+  level?: number // floor: the deep floors' level, when the host goes deeper
   big?: boolean
   win?: boolean
   text?: string
