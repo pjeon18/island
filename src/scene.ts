@@ -137,6 +137,9 @@ export class Scene {
   nest = { show: false, eggs: [] as number[] }
   /** The opening clouds (intro.ts), while they are parting. Updated here on sim time; main.ts draws them on their own full-window layer. */
   intro?: Intro
+  festival = false // ten hours with friends this week: paper lanterns at night (L12)
+  private lanternOn = false
+  private lanternLitAt = -10
   /** Little hearts that float up when you pet a Pokémon. */
   hearts: { x: number; y: number; t: number }[] = []
   /** Pokémon that give off light at night (fire types), by dex4; set by main.ts from the roster. */
@@ -497,6 +500,25 @@ export class Scene {
       g.fillRect(cx - r, cy - r, r * 2, r * 2)
       g.globalCompositeOperation = 'source-over'
     }
+    // a festival night (L12): a ring of paper lanterns around the island, each breathing slowly
+    if (this.festival && night > 0.05) {
+      const cols = ['255, 170, 90', '255, 120, 140', '255, 220, 120', '170, 210, 255']
+      for (let i = 0; i < 14; i++) {
+        const a = (i / 14) * Math.PI * 2
+        const lx = Math.round(120 + Math.cos(a) * 86)
+        const ly = Math.round(92 + Math.sin(a) * 44)
+        const breath = 0.8 + 0.2 * Math.sin(this.time * 0.9 + i * 1.7)
+        g.globalCompositeOperation = 'lighter'
+        const grad = g.createRadialGradient(lx, ly, 0, lx, ly, 10)
+        grad.addColorStop(0, `rgba(${cols[i % 4]}, ${0.35 * night * breath})`)
+        grad.addColorStop(1, `rgba(${cols[i % 4]}, 0)`)
+        g.fillStyle = grad
+        g.fillRect(lx - 10, ly - 10, 20, 20)
+        g.globalCompositeOperation = 'source-over'
+        g.fillStyle = `rgba(${cols[i % 4]}, ${Math.min(1, night * 1.5)})`
+        g.fillRect(lx - 1, ly - 2, 2, 3)
+      }
+    }
     // decorations that glow or move: feathered light first, then their live pixels
     for (const d of this.decor) {
       const gl = d.art.glow
@@ -597,7 +619,13 @@ export class Scene {
     const k = Math.min(1, night * 1.4)
     const warm: [number, number, number] = [1, 0.66, 0.36]
     const L = this.island.lantern
-    out.push({ x: L.x - this.lantern.ax + this.lantern.flame.x, y: L.y - this.lantern.ay + this.lantern.flame.y + 4, z: 14, r: 46, color: warm, power: 1.7 * k * (0.94 + 0.06 * Math.sin((t * Math.PI * 2) / 9)) })
+    // at dusk the stone lantern catches: a couple of soft flickers, then steady (L11)
+    const on = night > 0.15
+    if (on && !this.lanternOn) this.lanternLitAt = t
+    this.lanternOn = on
+    const since = t - this.lanternLitAt
+    const catching = since < 1.6 ? [0.25, 0.8, 0.4, 1][Math.floor(since / 0.4)] : 1
+    out.push({ x: L.x - this.lantern.ax + this.lantern.flame.x, y: L.y - this.lantern.ay + this.lantern.flame.y + 4, z: 14, r: 46, color: warm, power: 1.7 * k * catching * (0.94 + 0.06 * Math.sin((t * Math.PI * 2) / 9)) })
     for (const d of this.decor) {
       const gl = d.art.glow
       if (!gl) continue

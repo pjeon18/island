@@ -287,6 +287,10 @@ export interface Save {
   shinies?: number[] // species you have caught shiny
   tideSeen?: number // the week whose tide Wooper last announced
   forgeTarget?: string // the stone the Ember forge makes
+  sailorWeek?: number // the week the pier's sailor last traded (L3)
+  togetherEgg?: number // minutes focused with a friend toward the next Together egg (L12)
+  togetherWeek?: { week: number; min: number } // minutes with friends this week; 600 lights the festival
+  guestbook?: { name: string; t: number }[] // friends who signed your signpost (L12)
   togetherMin?: number // focused minutes with a friend; they count twice toward restoration
   lanterns: number // Lantern charges: one per finished session of 30+ minutes, up to LANTERN_MAX; a charged dungeon run opens chests
   deepTries: Record<string, number> // failed throws at each dungeon's special Pokémon (each makes the next likelier)
@@ -384,6 +388,8 @@ export const PASSERS_PER_DAY = 24
 export const FIND_EVERY = 9 * 60
 export const WEATHER_EVERY = 15 * 60
 export const SHINY_ODDS = 1 / 150
+export const TOGETHER_EGG = 60 // minutes focused with a friend for a Together egg (L12)
+export const FESTIVAL_MIN = 600 // minutes with friends in a week that light the festival night (L12)
 /** Each island's Pokédex pays out at these shares (L5). */
 export const DEX_MILESTONES = [25, 50, 75, 100]
 /** A 25% milestone gives the first of these you don't own yet (decor.ts CATALOG ids). */
@@ -518,6 +524,8 @@ export type GameEvent =
   | { type: 'sail'; to: IslandId }
   | { type: 'guardian'; island: IslandId; win: boolean }
   | { type: 'restored'; id: string }
+  | { type: 'togetherEgg'; with: string }
+  | { type: 'festival' }
   | { type: 'milestone'; island: IslandId; pct: number; reward: string } // reward: a decoration id, 'egg', 'slot', 'togepi', 'statue' or 'shells'
 
 export class Game {
@@ -880,10 +888,7 @@ export class Game {
   }
   private giveExp(n: number) {
     this.save.shells += n
-    if (this.together.length) {
-      this.save.shells += n // studying together: double shells
-      this.save.togetherMin = (this.save.togetherMin ?? 0) + n
-    }
+    if (this.together.length) this.focusTogether(n)
     for (const m of this.party) {
       m.focusedMin += n
       this.addExp(m, n * EXP_PER_MIN)
@@ -1755,6 +1760,80 @@ export class Game {
     }
     return { dex: pick.dex, level }
   }
+  // ---------- studying together, trading, visits (L3, L12) ----------
+  /**
+   * Minutes focused with a friend: they count twice toward restoration, warm a Together egg
+   * (in place of the old double shells; your friend's island warms one too), and add up to a
+   * festival night once a week reaches ten hours.
+   */
+  private focusTogether(n: number) {
+    const s = this.save
+    s.togetherMin = (s.togetherMin ?? 0) + n
+    s.togetherEgg = (s.togetherEgg ?? 0) + n
+    if (s.togetherEgg >= TOGETHER_EGG) {
+      s.togetherEgg = 0
+      const dex = this.randomEggDex(true)
+      if (!this.addEgg(dex, 'gift')) s.eggQueue.push(dex)
+      this.emit({ type: 'togetherEgg', with: this.together[0] })
+    }
+    const wk = weekOf(this.now())
+    if (s.togetherWeek?.week !== wk) s.togetherWeek = { week: wk, min: 0 }
+    const before = s.togetherWeek.min
+    s.togetherWeek.min += n
+    if (before < FESTIVAL_MIN && s.togetherWeek.min >= FESTIVAL_MIN) this.emit({ type: 'festival' })
+  }
+  /** This week, friends and you focused ten hours together: the island has a festival night. */
+  get festival() {
+    const tw = this.save.togetherWeek
+    return !!tw && tw.week === weekOf(this.now()) && tw.min >= FESTIVAL_MIN
+  }
+  /** Can this Pokémon be traded away? The same rules as a gift, but evolved ones are fine. */
+  canTrade(id: string) {
+    return this.canGiveMon(id)
+  }
+  /** A Pokémon arriving by trade: if its species evolves by trading (Haunter, Graveler), it evolves on arrival. */
+  receiveTrade(p: { dex: number; level: number; shiny?: boolean }, evolve = true) {
+    if (!this.species(p.dex)) return null
+    const m = this.addMon(p.dex, Math.max(1, Math.min(100, p.level)))
+    if (p.shiny) {
+      m.shiny = true
+      if (!this.save.shinies?.includes(p.dex)) this.save.shinies = [...(this.save.shinies ?? []), p.dex]
+    }
+    const evo = evolve ? this.evolutionOptions(m).find((e) => e.trade) : undefined
+    const from = evo ? m.dex : undefined
+    if (evo) this.evolve(m, evo.dex)
+    this.persist()
+    this.emit({ type: 'partyChanged' })
+    return { mon: m, from }
+  }
+  /** The sailor at the pier: once a week he trades a Pokémon and straight back, so a trade evolution finishes without a friend. */
+  canSailorTrade(id: string) {
+    const m = this.mon(id)
+    return !!m && !this.save.session && this.save.sailorWeek !== weekOf(this.now()) && this.evolutionOptions(m).some((e) => e.trade)
+  }
+  sailorTrade(id: string) {
+    const m = this.mon(id)
+    if (!m || !this.canSailorTrade(id)) return null
+    const evo = this.evolutionOptions(m).find((e) => e.trade)!
+    const from = m.dex
+    this.evolve(m, evo.dex)
+    this.save.sailorWeek = weekOf(this.now())
+    this.persist()
+    this.emit({ type: 'partyChanged' })
+    return { mon: m, from }
+  }
+  /** Something a friend left on your island (stage 8): a food in the dish, a name in the guestbook, a pet. */
+  visitMark(kind: string, from: string, payload: { food?: string; dex?: number }) {
+    const s = this.save
+    if (kind === 'berry' && payload.food && FOODS.some((f) => f.id === payload.food)) {
+      // it becomes your next lure, or waits in your bag if one is already out
+      if (!s.bait) s.bait = payload.food
+      else s.foods[payload.food] = (s.foods[payload.food] ?? 0) + 1
+    }
+    if (kind === 'sign') s.guestbook = [...(s.guestbook ?? []), { name: from.slice(0, 20), t: this.now() }].slice(-30)
+    this.persist()
+  }
+
   /** The Ember forge (L2): one of your most plentiful other stone becomes the chosen one. */
   forge() {
     const s = this.save

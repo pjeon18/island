@@ -11,7 +11,8 @@
     "desktop": "tauri dev",
     "desktop:build": "tauri build",
     "test:sql": "node supabase/test/run.mjs",
-    "test:sql7": "node supabase/test/stage7.mjs"
+    "test:sql7": "node supabase/test/stage7.mjs",
+    "test:sql8": "node supabase/test/stage8.mjs"
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.2.17",

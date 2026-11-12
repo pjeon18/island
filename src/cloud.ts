@@ -387,3 +387,85 @@ export async function clearDungeonInvite(id: number) {
   if (!hasStage7() || !supa) return
   await supa.rpc('island_dungeon_invite_clear', { p_id: id })
 }
+
+// ---------- stage 8 (island_stage8.sql): trades and visit marks ----------
+let stage8 = true // turns false once we learn the stage 8 SQL has not been run
+export const hasStage8 = () => state === 'ready' && stage8
+export interface TradeMon {
+  dex: number
+  level: number
+  shiny?: boolean
+}
+export interface Trade {
+  id: number
+  other: string // the friend's name
+  mine: boolean // you offered it
+  state: 'offered' | 'accepted' | 'declined' | 'done' | 'returned'
+  offered: TradeMon
+  back: TradeMon | null
+  expired: boolean
+}
+const asMon = (x: unknown): TradeMon | null => {
+  const o = x as Record<string, unknown> | null
+  return o && typeof o.dex === 'number' && typeof o.level === 'number' ? { dex: o.dex, level: o.level, shiny: o.shiny === true } : null
+}
+async function rpc8<T>(fn: string, args: Record<string, unknown>, fallback: T): Promise<T | { error: string }> {
+  if (!hasStage8() || !supa) return fallback
+  const { data, error } = await supa.rpc(fn, args)
+  if (missing(error)) {
+    stage8 = false
+    return fallback
+  }
+  if (error) return { error: error.message }
+  return data as T
+}
+/** Offer one of your Pokémon to a friend. 'ok' or a reason. */
+export async function tradeOffer(to: string, mon: TradeMon): Promise<string> {
+  if (!hasStage8()) return 'Trading is not set up yet.'
+  const r = await rpc8<string>('island_trade_offer', { p_to: to, p_mon: mon }, 'Trading is not set up yet.')
+  return typeof r === 'string' ? r : 'Could not send the offer.'
+}
+/** Offers to you, and yours that are waiting or ready to claim. */
+export async function trades(): Promise<Trade[]> {
+  const r = await rpc8<Record<string, unknown>[]>('island_trades', {}, [])
+  if (!Array.isArray(r)) return []
+  return r
+    .map((t) => ({ id: Number(t.id), other: String(t.other_name ?? 'A friend').slice(0, 20), mine: !!t.mine, state: String(t.state) as Trade['state'], offered: asMon(t.sender_mon)!, back: asMon(t.recipient_mon), expired: !!t.expired }))
+    .filter((t) => t.offered)
+}
+/** Accept an offer by sending one of yours: returns the Pokémon you receive, or null. */
+export async function tradeAccept(id: number, mon: TradeMon): Promise<TradeMon | null> {
+  const r = await rpc8<unknown>('island_trade_accept', { p_id: id, p_mon: mon }, null)
+  return r && !(r as { error?: string }).error ? asMon(r) : null
+}
+/** Say no to an offer, or take back your own. */
+export async function tradeDecline(id: number) {
+  await rpc8('island_trade_decline', { p_id: id }, null)
+}
+/** Claim what a trade of yours brought back: the friend's Pokémon, or yours if declined or expired. */
+export async function tradeClaim(id: number): Promise<{ kind: 'traded' | 'returned'; mon: TradeMon } | null> {
+  const r = (await rpc8<Record<string, unknown> | null>('island_trade_claim', { p_id: id }, null)) as Record<string, unknown> | null
+  if (!r || r.error) return null
+  const mon = asMon(r.mon)
+  return mon ? { kind: r.kind === 'traded' ? 'traded' : 'returned', mon } : null
+}
+/** Leave something on a friend's island: a food in the dish, your name on the signpost, a pet. */
+export async function visitMark(to: string, kind: 'berry' | 'sign' | 'pet', payload: Record<string, unknown> = {}): Promise<string> {
+  if (!hasStage8()) return 'This is not set up yet.'
+  const r = await rpc8<string>('island_visit_mark', { p_to: to, p_kind: kind, p_payload: payload }, 'This is not set up yet.')
+  return typeof r === 'string' ? r : 'Could not leave it.'
+}
+export interface VisitMark {
+  id: number
+  from: string
+  kind: 'berry' | 'sign' | 'pet'
+  payload: { food?: string; dex?: number }
+}
+/** What friends left on your island since you last looked; marks them seen. */
+export async function takeVisitMarks(): Promise<VisitMark[]> {
+  const r = await rpc8<Record<string, unknown>[]>('island_visit_marks', {}, [])
+  if (!Array.isArray(r) || !r.length) return []
+  const marks = r.map((m) => ({ id: Number(m.id), from: String(m.sender_name ?? 'A friend').slice(0, 20), kind: String(m.kind) as VisitMark['kind'], payload: (m.payload ?? {}) as VisitMark['payload'] }))
+  await rpc8('island_visit_marks_seen', { p_ids: marks.map((m) => m.id) }, null)
+  return marks
+}

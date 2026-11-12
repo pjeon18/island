@@ -3,7 +3,7 @@
 // into the pop-out window with the canvas. Dialogs follow PMD: a portrait beside a text box. Everything
 // you choose (befriend, feed, stones, party, decorations, friends) lives in
 // the sheet, and the sheet's choices only unlock between sessions.
-import type { CloudState, Friend, FriendRequest, Me } from './cloud'
+import type { CloudState, Friend, FriendRequest, Me, Trade } from './cloud'
 import { CATALOG, SLOTS, decorDef } from './decor'
 import { BALLS, DESTINATIONS, RESTORE, STONES, berryExp, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
 
@@ -119,6 +119,12 @@ export interface HudHandlers {
   /** Host a co-op dungeon and invite this friend into it. */
   inviteDungeon?: (id: string) => void
   gift: (friendId: string, friendName: string, kind: 'mon' | 'egg' | 'item', ref: string) => void
+  /** Trading (stage 8): offer, accept with one of yours, decline or take back; the pier's sailor. */
+  trades?: () => Trade[]
+  tradeOffer?: (friendId: string, monId: string) => void
+  tradeAccept?: (tradeId: number, monId: string) => void
+  tradeDecline?: (tradeId: number) => void
+  sailorTrade?: (monId: string) => void
   sail: (to: IslandId) => void
   popOut?: () => void
   quit?: () => void
@@ -718,6 +724,7 @@ export class Hud {
             ${usable.length && !m.heldItem ? btn(`data-stones="${m.id}"`, 'Give a stone', locked) : ''}
             ${m.heldItem ? btn(`data-take="${m.id}"`, 'Take stone', locked) : ''}
             ${m.noEvolve ? btn(`data-allow="${m.id}"`, 'Let it evolve') : ''}
+            ${g.canSailorTrade(m.id) ? btn(`data-sailor="${m.id}"`, "Sailor's trade", locked, true) : ''}
             ${partyBtn}
           </div>
           ${stoneRow}
@@ -951,6 +958,27 @@ export class Hud {
     return `<div class="send-pick"><p class="hint">Pokémon</p><div class="row-actions">${mons || '<span class="hint">None to spare</span>'}</div>${eggs ? `<p class="hint">Eggs</p><div class="row-actions">${eggs}</div>` : ''}<p class="hint">Items (one at a time)</p><div class="row-actions">${items || '<span class="hint">None</span>'}</div></div>`
   }
 
+  private tradeTo: string | null = null
+  private tradeAnswer: number | null = null
+  /** Your Pokémon that can leave (not your partner, not the last in the party, not away), as buttons. */
+  private monPicker(kind: string, key: string | number, title: string) {
+    const g = this.game
+    const mons = g.save.mons.filter((m) => g.canTrade(m.id)).map((m) => `<button class="px-btn small" data-${kind}="${key}|${m.id}">${g.name(m)} ${m.level}</button>`).join('')
+    return `<div class="send-pick"><p class="hint">${title}</p><div class="row-actions">${mons || '<span class="hint">None to spare</span>'}</div></div>`
+  }
+  /** Open trades: offers to you, and yours waiting for an answer (claims happen on their own at a break). */
+  private tradesHtml() {
+    const ts = (this.h.trades?.() ?? []).filter((t) => (!t.mine && t.state === 'offered' && !t.expired) || (t.mine && t.state === 'offered' && !t.expired))
+    if (!ts.length) return ''
+    const g = this.game
+    const mon = (m: { dex: number; level: number; shiny?: boolean }) => `${m.shiny ? 'shiny ' : ''}${g.name(m.dex)} Lv${m.level}`
+    return `<p class="row-title">Trades</p>` + ts.map((t) =>
+      t.mine
+        ? `<div class="decor-row"><img class="shop-ico mini-face" src="${portraitUrl(t.offered.dex)}" alt="" /><div class="mon-main"><p class="hint">Waiting for ${esc(t.other)} to answer your ${mon(t.offered)}.</p></div><div class="row-actions"><button class="px-btn small" data-tdecline="${t.id}">Take it back</button></div></div>`
+        : `<div class="decor-row"><img class="shop-ico mini-face" src="${portraitUrl(t.offered.dex)}" alt="" /><div class="mon-main"><p>${esc(t.other)} offers a ${mon(t.offered)}.</p>${this.tradeAnswer === t.id ? this.monPicker('taccept', t.id, 'Send which one back?') : ''}</div><div class="row-actions"><button class="px-btn small primary" data-tanswer="${t.id}">Trade</button><button class="px-btn small" data-tdecline="${t.id}">No thanks</button></div></div>`,
+    ).join('')
+  }
+
   private friendsTab() {
     const c = this.h.cloud
     const st = c.state()
@@ -977,13 +1005,15 @@ export class Hud {
         const waveBtn = f.studying && free ? `<button class="px-btn small" data-wave="${f.id}">Wave</button>` : ''
         // a dungeon invite only to a friend on a break (dungeons are break-time)
         const dgBtn = free && !f.studying && this.h.inviteDungeon ? `<button class="px-btn small" data-dginvite="${f.id}">Dungeon</button>` : ''
-        const acts = free ? `<div class="row-actions">${waveBtn}<button class="px-btn small" data-visit="${f.id}">Visit</button><button class="px-btn small" data-sendto="${f.id}">Send</button>${dgBtn}</div>` : ''
-        const picker = this.sendTo === f.id ? this.sendPicker(f.id, f.name) : ''
+        const tradeBtn = free && this.h.tradeOffer ? `<button class="px-btn small" data-tradeto="${f.id}">Trade</button>` : ''
+        const acts = free ? `<div class="row-actions">${waveBtn}<button class="px-btn small" data-visit="${f.id}">Visit</button><button class="px-btn small" data-sendto="${f.id}">Send</button>${tradeBtn}${dgBtn}</div>` : ''
+        const picker = this.sendTo === f.id ? this.sendPicker(f.id, f.name) : this.tradeTo === f.id ? this.monPicker(`toffer`, f.id, 'Offer which one?') : ''
         return `<div class="friend-row${f.studying ? ' live' : ''}"><div class="mon-main"><p><strong>${esc(f.name)}</strong> <span class="hint">@${esc(f.handle)}</span></p><p class="hint">${status} ${f.dexCount ? `Pokédex ${f.dexCount}.` : ''}</p>${acts}${picker}</div><div class="mini-party">${party}</div></div>`
       })
       .join('')
     return `<p class="note">@${esc(me.handle)}</p>
       ${reqs}
+      ${this.tradesHtml()}
       ${fc ? rows || `<p class="note">No friends yet.</p>` : `<p class="note">Loading…</p>`}
       ${fc?.error ? `<p class="note">${esc(fc.error)}</p>` : ''}
       <form class="inline-form" data-form="add"><input class="px-input" name="handle" maxlength="21" placeholder="@handle" required /><button class="px-btn small">Add friend</button></form>
@@ -1076,6 +1106,33 @@ export class Hud {
       this.sendTo = this.sendTo === sendto ? null : sendto
       return this.renderSheet()
     }
+    const tradeto = at('tradeto')
+    if (tradeto) {
+      this.tradeTo = this.tradeTo === tradeto ? null : tradeto
+      this.sendTo = null
+      return this.renderSheet()
+    }
+    const toffer = at('toffer')
+    if (toffer) {
+      const [fid, mid] = toffer.split('|')
+      this.tradeTo = null
+      return this.h.tradeOffer?.(fid, mid)
+    }
+    const tanswer = at('tanswer')
+    if (tanswer) {
+      this.tradeAnswer = this.tradeAnswer === Number(tanswer) ? null : Number(tanswer)
+      return this.renderSheet()
+    }
+    const taccept = at('taccept')
+    if (taccept) {
+      const [tid, mid] = taccept.split('|')
+      this.tradeAnswer = null
+      return this.h.tradeAccept?.(Number(tid), mid)
+    }
+    const tdecline = at('tdecline')
+    if (tdecline) return this.h.tradeDecline?.(Number(tdecline))
+    const sailor = at('sailor')
+    if (sailor) return this.h.sailorTrade?.(sailor)
     const giftAt = at('gift')
     if (giftAt) {
       const [fid, fname, kind, ref] = giftAt.split('|')

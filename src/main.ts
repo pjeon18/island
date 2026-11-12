@@ -263,6 +263,37 @@ async function syncParty(initial = false) {
 }
 
 /** Helpers stay near their work: the Day Care by the nest, the bush, the campfire, the end of the pier. */
+// ---------- small moments (L11) ----------
+// residents run down to the pier when you come back after a long time away
+const LAST_OPEN = 'island-last-open'
+const lastOpen = Number(localStorage.getItem(LAST_OPEN) ?? 0)
+setInterval(() => {
+  try {
+    localStorage.setItem(LAST_OPEN, String(Date.now()))
+  } catch {}
+}, 60_000)
+function welcomeBack() {
+  try {
+    localStorage.setItem(LAST_OPEN, String(Date.now()))
+  } catch {}
+  if (!lastOpen || Date.now() - lastOpen < 6 * 3600_000 || game.inSession) return
+  const d = scene.dockTop
+  after(1.8, () =>
+    game.party.forEach((m, i) => {
+      const c = scene.byMon(m.id)
+      if (c && !c.asleep) c.walkTo(d.x + (i - (game.party.length - 1) / 2) * 9, d.y - 8 - (i % 2) * 6, 'hop')
+    }),
+  )
+}
+// the lead dozes off for a moment 45 minutes into a session
+let dozedFor = 0
+function dozeAt45() {
+  const s = game.save.session
+  if (!s || s.state !== 'running' || dozedFor === s.startedAt || s.credited < 45 * 60 || s.credited > 46 * 60) return
+  dozedFor = s.startedAt
+  const lead = game.party[0] && scene.byMon(game.party[0].id)
+  if (lead && !lead.asleep && lead.sp.anims.Laying) lead.enter('lay', 60)
+}
 /** The first break of each week: Wooper names the week's tide, and a meteor shower if there is one (L7). */
 function announceTide() {
   if (game.save.tutorial !== 'done') return
@@ -770,6 +801,7 @@ async function syncVisitors(want: { name: string; dex: number }[]) {
 }
 async function takeGifts() {
   if (game.inSession) return
+  void takeTrades()
   const gifts = await cloud.claimGifts()
   for (const g of gifts) {
     const m = game.receive(g.kind, g.payload)
@@ -779,6 +811,77 @@ async function takeGifts() {
     game.note('friend', `${g.from} sent you ${what}.`, { dex: m?.dex })
   }
   if (gifts.length) hud.refreshSheet()
+}
+/** Trades and marks from friends (stage 8), collected at a break with the gifts. */
+async function takeTrades() {
+  if (game.inSession || !cloud.hasStage8()) return
+  for (const t of await cloud.trades()) {
+    if (!t.mine || !(t.state === 'accepted' || t.state === 'declined' || t.expired)) continue
+    const r = await cloud.tradeClaim(t.id)
+    if (!r) continue
+    const got = game.receiveTrade(r.mon, r.kind === 'traded')
+    if (!got) continue
+    const text =
+      r.kind === 'traded'
+        ? got.from
+          ? `${t.other} traded you a ${game.name(got.from)}, and it evolved into ${game.name(got.mon.dex)}!`
+          : `${t.other} traded you a ${game.name(got.mon.dex)}.`
+        : `${game.name(got.mon.dex)} came back. ${t.other} didn't trade this time.`
+    hud.say({ dex: got.mon.dex, emotion: 'Happy', text, wait: true })
+    game.note('friend', text, { dex: got.mon.dex })
+  }
+  hudTrades = await cloud.trades()
+  for (const m of await cloud.takeVisitMarks()) {
+    game.visitMark(m.kind, m.from, m.payload)
+    const mon = m.kind === 'pet' ? game.party.find((x) => x.dex === m.payload.dex) : undefined
+    const text =
+      m.kind === 'berry'
+        ? `A bottle washed up. ${m.from} left ${/^[aeiou]/i.test(itemName(m.payload.food ?? '')) ? 'an' : 'a'} ${itemName(m.payload.food ?? '')} in your dish.`
+        : m.kind === 'sign'
+          ? `${m.from} signed your signpost.`
+          : `${m.from} petted ${mon ? game.name(mon) : 'one of your Pokémon'}.`
+    if (mon) {
+      const c = scene.byMon(mon.id)
+      if (c) scene.petAt(c)
+    }
+    hud.toast(text)
+    game.note('friend', text, { dex: mon?.dex })
+  }
+  hud.refreshSheet()
+}
+let hudTrades: cloud.Trade[] = []
+const tradeMon = (id: string) => {
+  const m = game.mon(id)
+  return m ? { dex: m.dex, level: m.level, shiny: !!m.shiny } : null
+}
+/** Offer a Pokémon: it leaves your island at once and waits at the pier for your friend's answer. */
+async function offerTrade(friendId: string, monId: string) {
+  const mon = tradeMon(monId)
+  if (!mon || !game.canTrade(monId)) return hud.toast('That Pokémon cannot be traded.')
+  const r = await cloud.tradeOffer(friendId, mon)
+  if (r !== 'ok') return hud.toast(r === 'already offered' ? 'You already have an offer waiting for them.' : r === 'too many' ? 'That is enough trades for today.' : r)
+  game.giveAway('mon', monId)
+  hud.toast(`${game.name(mon.dex)} is waiting at the pier for your friend's answer.`)
+  game.note('friend', `Offered ${game.name(mon.dex)} in a trade.`, { dex: mon.dex })
+  hudTrades = await cloud.trades()
+  hud.refreshSheet()
+}
+/** Accept an offer by sending one of yours back; the friend's Pokémon arrives now. */
+async function acceptTrade(tradeId: number, monId: string) {
+  const mon = tradeMon(monId)
+  if (!mon || !game.canTrade(monId)) return hud.toast('That Pokémon cannot be traded.')
+  const t = hudTrades.find((x) => x.id === tradeId)
+  const got = await cloud.tradeAccept(tradeId, mon)
+  if (!got) return hud.toast('That offer is no longer open.')
+  game.giveAway('mon', monId)
+  const r = game.receiveTrade(got)
+  if (r) {
+    const text = r.from ? `You traded with ${t?.other ?? 'a friend'}. ${game.name(r.from)} evolved into ${game.name(r.mon.dex)}!` : `You traded with ${t?.other ?? 'a friend'} for a ${game.name(r.mon.dex)}.`
+    hud.say({ dex: r.mon.dex, emotion: 'Happy', text, wait: true })
+    game.note('friend', text, { dex: r.mon.dex })
+  }
+  hudTrades = await cloud.trades()
+  hud.refreshSheet()
 }
 const itemName = (id: string) =>
   BALLS.find((b) => b.id === id)?.name ?? FOODS.find((f) => f.id === id)?.name ?? (id === 'star-piece' ? 'Star Piece' : id === 'oran-berry' ? 'Oran Berry' : stoneName(id))
@@ -830,19 +933,54 @@ async function sendGift(friendId: string, friendName: string, kind: cloud.GiftKi
 /** The read-only view of a friend's island. */
 async function bootVisit(v: cloud.FriendScene & { id: string }) {
   scene.hour = clockHour()
-  scene.setHabitats(v.scene.habitats.filter((h) => ['grass', 'rocks', 'pond', 'cave'].includes(h)) as never)
+  scene.setHabitats(v.scene.habitats.filter((h) => ['grass', 'rocks', 'pond', 'cave', 'spring'].includes(h)) as never)
   scene.setDecor(v.scene.decor)
   for (const p of v.party) {
     const sp = await ensure(p.dex)
     const q = scene.freeSpot()
     scene.add(sp, q.x, q.y)
   }
+  // things you can leave on a friend's island (stage 8): a food from your own bag, your name, a pet
+  const mine = loadSave()
+  const food = FOODS.find((f) => (mine.foods[f.id] ?? 0) > 0)
   const el = document.createElement('div')
   el.className = 'visit-banner px-panel'
-  el.innerHTML = `<p>${v.name.replace(/[<>&]/g, '')}'s island</p><p class="hint">${v.studying ? 'Studying now' : 'Not studying right now'}</p><button class="px-btn primary">Go home</button>`
-  el.querySelector('button')!.addEventListener('click', () => {
-    sessionStorage.removeItem('island-visit')
-    location.href = location.pathname
+  el.innerHTML = `<p>${v.name.replace(/[<>&]/g, '')}'s island</p><p class="hint visit-note">${v.studying ? 'Studying now.' : 'Not studying right now.'} Tap a Pokémon to pet it.</p>
+    <div class="row-actions">${food ? `<button class="px-btn small" data-v="food">Leave ${/^[aeiou]/i.test(food.name) ? 'an' : 'a'} ${food.name}</button>` : ''}<button class="px-btn small" data-v="sign">Sign the signpost</button><button class="px-btn small primary" data-v="home">Go home</button></div>`
+  const note = (t: string) => (el.querySelector('.visit-note')!.textContent = t)
+  const said = (r: string, ok: string) => note(r === 'ok' ? ok : r === 'already today' ? 'You already did that today.' : r)
+  el.addEventListener('click', async (e) => {
+    const b = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-v]')
+    if (!b) return
+    if (b.dataset.v === 'home') {
+      sessionStorage.removeItem('island-visit')
+      location.href = location.pathname
+      return
+    }
+    b.disabled = true
+    if (b.dataset.v === 'sign') said(await cloud.visitMark(v.id, 'sign'), 'You signed the signpost.')
+    if (b.dataset.v === 'food' && food) {
+      const r = await cloud.visitMark(v.id, 'berry', { food: food.id })
+      if (r === 'ok') {
+        // it comes out of your own bag
+        const s = loadSave()
+        s.foods[food.id] = Math.max(0, (s.foods[food.id] ?? 0) - 1)
+        localStorage.setItem('island-save-v1', JSON.stringify(s))
+      }
+      said(r, `You left ${/^[aeiou]/i.test(food.name) ? 'an' : 'a'} ${food.name} in the dish. It will draw their next visitor.`)
+    }
+  })
+  let petted = false
+  canvas.addEventListener('click', async (e) => {
+    const r = canvas.getBoundingClientRect()
+    const x = ((e.clientX - r.left) / r.width) * W
+    const y = ((e.clientY - r.top) / r.height) * H
+    const c = scene.creatures.find((c) => Math.abs(c.x - x) < 11 && y > c.y - 26 && y < c.y + 3)
+    if (!c) return
+    scene.petAt(c)
+    if (petted) return
+    petted = true
+    said(await cloud.visitMark(v.id, 'pet', { dex: Number(c.sp.dex) }), `You petted their ${c.name}. They will see a heart.`)
   })
   const hudLayer = document.createElement('div')
   hudLayer.className = 'hud'
@@ -1153,6 +1291,15 @@ function onGame(e: GameEvent) {
       game.note('other', `Sailed to ${ISLANDS.find((i) => i.id === e.to)!.name}.`)
       sailAway(e.to)
       break
+    case 'togetherEgg':
+      hud.toast(`An egg from studying with ${e.with}. It is in the nest.`)
+      game.note('friend', `An egg from studying with ${e.with}.`)
+      break
+    case 'festival':
+      scene.festival = true
+      hud.say({ dex: GUIDE_DEX, emotion: 'Happy', text: 'Ten hours together with your friends this week! Tonight the island has a festival.', wait: true })
+      game.note('friend', 'Ten hours with friends this week. A festival night.')
+      break
     case 'restored': {
       // a landmark rebuilt (L1): Wooper tells a little more of the story
       const r = RESTORE.find((x) => x.id === e.id)!
@@ -1364,6 +1511,7 @@ setInterval(() => {
   if (clockOwner) game?.beat()
   if (game && scene.weather !== game.weather) scene.weather = game.weather
   if (game) syncNest()
+  if (game) dozeAt45()
 }, 1000)
 // the page around the canvas takes the open sea's colour as the light changes, so there is no seam
 if (!floatMode)
@@ -1703,6 +1851,7 @@ async function boot() {
   if (visitData) {
     const [m] = await Promise.all([loadManifest()])
     manifest = m
+    void cloud.initCloud() // signed in, so you can leave marks on the island you visit
     return bootVisit(visitData)
   }
   const [m, roster] = await Promise.all([loadManifest(), fetch(import.meta.env.BASE_URL + `data/roster.json?v=${__BUILD__}`).then((r) => r.json())])
@@ -1826,6 +1975,21 @@ async function boot() {
       visit: (id) => void visitFriend(id),
       inviteDungeon: (id) => void inviteDungeon(id),
       gift: (id, name, kind, ref) => void sendGift(id, name, kind, ref),
+      trades: () => hudTrades,
+      tradeOffer: (fid, mid) => void offerTrade(fid, mid),
+      tradeAccept: (tid, mid) => void acceptTrade(tid, mid),
+      tradeDecline: (tid) => void (async () => {
+        await cloud.tradeDecline(tid)
+        await takeTrades() // a taken-back offer comes home at once
+      })(),
+      sailorTrade: (mid) => {
+        const r = game.sailorTrade(mid)
+        if (!r) return hud.toast('The sailor trades once a week.')
+        const text = `The sailor traded your ${game.name(r.from)} away and straight back. It evolved into ${game.name(r.mon.dex)}!`
+        hud.say({ dex: r.mon.dex, emotion: 'Happy', text, wait: true })
+        game.note('evolve', text, { dex: r.mon.dex })
+        hud.refreshSheet()
+      },
       sail: (to) => {
         if (!game.sail(to)) hud.toast(game.inSession ? 'Sail between sessions.' : 'Not yet.')
       },
@@ -1900,6 +2064,7 @@ async function boot() {
     black?.remove()
     if (game.save.tutorial === 'prologue') game.setTutorial('meet')
     await syncParty(true)
+    welcomeBack()
   }
   // the desktop app reads system idle time natively (no permission prompt)
   if (tauri && invoke) {
@@ -1924,6 +2089,7 @@ async function boot() {
   }
   scene.setDecor(game.save.decor.slots)
   syncLandmarks()
+  scene.festival = game.festival
   scene.setHabitats(game.save.habitats)
   scene.setBait(game.save.bait)
   void placeGuardian()
