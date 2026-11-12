@@ -135,11 +135,10 @@ body { -webkit-font-smoothing: none; }
 @keyframes nextbob { 50% { transform: translateY(2px); } }
 
 /* sub-tabs inside a menu, and the compact rows that live in them */
-.subtabs { margin: 2px 8px 4px; flex-wrap: wrap; align-self: flex-start; }
-.subtabs .seg { padding: 4px 5px; white-space: nowrap; }
-/* review 2: five tabs with counts wrapped "Bag" at 1280 px; the narrowest still fits on one line */
-.subtabs:has(.seg:nth-child(5)) { flex-wrap: nowrap; }
-.subtabs:has(.seg:nth-child(5)) .seg { padding: 4px 4px; }
+/* one row when they fit, else two; either way each row fills the width evenly (Paul, 2026-11-12:
+   five tabs with counts ran past the window's edge when forced onto one line) */
+.subtabs { margin: 2px 4px 4px; flex-wrap: wrap; align-self: stretch; }
+.subtabs .seg { padding: 4px 3px; white-space: nowrap; flex: 1 0 auto; }
 .job-row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; line-height: 1.5; border-bottom: 2px solid #dde8f0; }
 .job-row span:last-child { text-align: right; }
 .bag-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin: 4px 0; }
