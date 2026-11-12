@@ -86,19 +86,22 @@ export interface Find {
   y?: number
 }
 export type Weather = 'clear' | 'rain' | 'fog' | 'sun' | 'snow'
-export type Habitat = 'pond' | 'rocks' | 'grass' | 'cave'
+export type Habitat = 'pond' | 'rocks' | 'grass' | 'cave' | 'spring'
 
 // ---------- islands (stage 4) ----------
-export type IslandId = 'home' | 'frost'
+export type IslandId = 'home' | 'frost' | 'ember'
 export const ISLANDS: {
   id: IslandId
   name: string
   guardian: { dex: number; level: number; where: string }
   dungeon: string // the gate dungeon (public/dungeons/<id>.json); the guardian is its boss
-  unlock?: { from: IslandId; share: number; hours: number }
+  unlock?: { from: IslandId; share: number; hours: number; landmark?: string }
+  wildLevel?: number // passers-by here are this many levels higher (L2: levels rise island to island)
 }[] = [
   { id: 'home', name: 'Home Island', guardian: { dex: 143, level: 36, where: 'asleep at the bottom of Pier Hollow' }, dungeon: 'pier-hollow' },
-  { id: 'frost', name: 'Frost Isle', guardian: { dex: 131, level: 58, where: 'resting at the bottom of Glacier Grotto' }, dungeon: 'glacier-grotto', unlock: { from: 'home', share: 0.7, hours: 20 } },
+  { id: 'frost', name: 'Frost Isle', guardian: { dex: 131, level: 58, where: 'resting at the bottom of Glacier Grotto' }, dungeon: 'glacier-grotto', unlock: { from: 'home', share: 0.7, hours: 20 }, wildLevel: 6 },
+  // the third island (L2, 2026-11-12): reached from the restored old pier, after Lapras
+  { id: 'ember', name: 'Ember Cove', guardian: { dex: 59, level: 75, where: 'at the mouth of the crater' }, dungeon: 'ember-crater', unlock: { from: 'frost', share: 0.6, hours: 50, landmark: 'pier' }, wildLevel: 12 },
 ]
 /** The island grows with your total focused hours. */
 export const GROWTH: { hours: number; text: string }[] = [
@@ -122,9 +125,9 @@ export interface Egg {
   source: 'daycare' | 'streak' | 'find' | 'expedition' | 'gift'
   fast?: boolean // from a pair that shares a type: it warms a quarter faster (L6)
 }
-export type JobId = 'bush' | 'dig' | 'lookout' | 'campfire' | 'garden' | 'generator' | 'fortune'
+export type JobId = 'bush' | 'dig' | 'lookout' | 'campfire' | 'garden' | 'generator' | 'fortune' | 'forge'
 /** One Pokémon per job. Interval in focused minutes at level 1; stronger Pokémon work faster. */
-export const JOBS: { id: JobId; name: string; types: string[]; every: number; floor: number; needsDecor?: string; needsLandmark?: string; does: string }[] = [
+export const JOBS: { id: JobId; name: string; types: string[]; every: number; floor: number; needsDecor?: string; needsLandmark?: string; needsIsland?: IslandId; does: string }[] = [
   { id: 'bush', name: 'Berry bush', types: ['water'], every: 30, floor: 12, does: 'An extra Oran Berry' },
   { id: 'dig', name: 'Digging', types: ['ground', 'rock'], every: 24, floor: 16, does: 'An extra find' },
   { id: 'lookout', name: 'Lookout', types: ['flying'], every: 40, floor: 18, does: 'An extra passer-by' },
@@ -134,6 +137,8 @@ export const JOBS: { id: JobId; name: string; types: string[]; every: number; fl
   { id: 'garden', name: 'Garden', types: ['grass'], every: 40, floor: 20, does: 'A food for the dish' },
   { id: 'generator', name: 'Generator', types: ['electric'], every: 60, floor: 60, needsLandmark: 'lighthouse', does: 'Keeps the lighthouse lit' },
   { id: 'fortune', name: 'Fortune', types: ['psychic'], every: 60, floor: 60, does: 'Shows who is likely to come next' },
+  // Ember Cove's own job (L2): it reforges your most plentiful stone into the one you choose
+  { id: 'forge', name: 'Ember forge', types: ['fire'], every: 150, floor: 90, needsIsland: 'ember', does: 'Turns a stone into the one you choose' },
 ]
 export const jobEvery = (job: (typeof JOBS)[number], level: number) => Math.max(job.floor, Math.round(job.every - level / 2))
 export const EGG_MAX = 3
@@ -168,11 +173,13 @@ export interface Haul {
 
 // ---------- lures (docs/GAME_DESIGN.md, stage 2) ----------
 /** Habitats are built once, on their own spot, with Star Pieces and shells. */
-export const HABITATS: { id: Habitat; name: string; stars: number; shells: number; types: string[] }[] = [
+export const HABITATS: { id: Habitat; name: string; stars: number; shells: number; types: string[]; only?: IslandId; not?: IslandId }[] = [
   { id: 'grass', name: 'Tall grass', stars: 2, shells: 60, types: ['bug', 'grass'] },
   { id: 'rocks', name: 'Rocks', stars: 2, shells: 80, types: ['rock', 'ground'] },
-  { id: 'pond', name: 'Pond', stars: 3, shells: 100, types: ['water'] },
+  { id: 'pond', name: 'Pond', stars: 3, shells: 100, types: ['water'], not: 'ember' },
   { id: 'cave', name: 'Cave', stars: 3, shells: 120, types: ['rock', 'ghost', 'poison', 'dark'] },
+  // Ember Cove's own habitat, where the pond would be (L2)
+  { id: 'spring', name: 'Hot spring', stars: 3, shells: 140, types: ['fire', 'ground'], only: 'ember' },
 ]
 export const HABITAT_HOURS: Partial<Record<Habitat, number>> = { cave: 10 }
 /** Food you set out before a session; it is eaten when the session ends. */
@@ -279,6 +286,7 @@ export interface Save {
   extraSlots?: number // decoration spots from Pokédex milestones (decor.ts SLOTS milestone)
   shinies?: number[] // species you have caught shiny
   tideSeen?: number // the week whose tide Wooper last announced
+  forgeTarget?: string // the stone the Ember forge makes
   togetherMin?: number // focused minutes with a friend; they count twice toward restoration
   lanterns: number // Lantern charges: one per finished session of 30+ minutes, up to LANTERN_MAX; a charged dungeon run opens chests
   deepTries: Record<string, number> // failed throws at each dungeon's special Pokémon (each makes the next likelier)
@@ -287,7 +295,7 @@ export interface Save {
 /** Dungeon loot needs a Lantern charge (Paul, 2026-11-11): focus stays the only real currency. */
 export const LANTERN_MAX = 2
 /** The special Pokémon deep in each dungeon, caught after a charged clear. */
-export const DEEP: Record<string, number[]> = { 'pier-hollow': [246, 304], 'glacier-grotto': [147] }
+export const DEEP: Record<string, number[]> = { 'pier-hollow': [246, 304], 'glacier-grotto': [147], 'ember-crater': [443] }
 
 /** Island upgrades: the long-term place for Star Pieces to go (review 2026-11-11). */
 export const UPGRADES: { id: string; name: string; text: string; stars: number }[] = [
@@ -718,6 +726,7 @@ export class Game {
     const j = JOBS.find((x) => x.id === job)!
     if (j.needsDecor && !Object.values(this.save.decor.slots).includes(j.needsDecor)) return false
     if (j.needsLandmark && !this.restored(j.needsLandmark)) return false
+    if (j.needsIsland && j.needsIsland !== this.save.island) return false
     return !!this.species(m.dex)?.types?.some((t) => j.types.includes(t))
   }
   /** Move a Pokémon to a new role. Only between sessions; the party never drops below one. */
@@ -1111,6 +1120,7 @@ export class Game {
     const u = def.unlock
     if (!u) return []
     const out: { text: string; done: boolean }[] = []
+    if (u.landmark) out.push({ text: 'Restore the old pier', done: this.restored(u.landmark) })
     const g = ISLANDS.find((i) => i.id === u.from)!.guardian
     out.push({ text: `Beat ${this.name(g.dex)}`, done: this.save.guardians.includes(u.from) })
     const dex = this.dexOf(u.from)
@@ -1220,6 +1230,7 @@ export class Game {
   buildHabitat(id: Habitat) {
     const h = HABITATS.find((x) => x.id === id)
     if (!h || this.save.session || this.save.habitats.includes(id)) return false
+    if ((h.only && h.only !== this.save.island) || h.not === this.save.island) return false
     if (!this.hoursOk(HABITAT_HOURS[id])) return false
     if (this.save.starPieces < h.stars || this.save.shells < h.shells) return false
     this.save.starPieces -= h.stars
@@ -1326,6 +1337,7 @@ export class Game {
       if (!m) continue
       if (j.needsDecor && !Object.values(s.decor.slots).includes(j.needsDecor)) continue
       if (j.needsLandmark && !this.restored(j.needsLandmark)) continue
+      if (j.needsIsland && j.needsIsland !== s.island) continue
       // with the lighthouse restored, the Lookout spots passers-by twice as often at night
       const nightWatch = j.id === 'lookout' && this.restored('lighthouse') && isNightHour(new Date(this.now()).getHours())
       s.jobProgress[j.id] = (s.jobProgress[j.id] ?? 0) + n * (nightWatch ? 2 : 1)
@@ -1339,6 +1351,7 @@ export class Game {
         const f = FOODS[Math.floor(rand() * FOODS.length)].id
         s.foods[f] = (s.foods[f] ?? 0) + 1
       }
+      if (j.id === 'forge' && !this.forge()) continue
       if (j.id === 'generator' || j.id === 'fortune') continue // they work all the time, with no payout to announce
       this.emit({ type: 'job', job: j.id, mon: m })
     }
@@ -1436,7 +1449,8 @@ export class Game {
         const r = rand()
         // December snows on Home Island too (L7)
         const snowy = this.save.island === 'frost' || new Date(this.now()).getMonth() === 11
-        const kind: Weather = r < 0.45 ? (snowy ? 'snow' : 'rain') : r < 0.7 ? 'fog' : snowy ? 'snow' : 'sun'
+        // Ember Cove: mostly sun, some ash haze (fog), rarely rain
+        const kind: Weather = this.save.island === 'ember' ? (r < 0.12 ? 'rain' : r < 0.45 ? 'fog' : 'sun') : r < 0.45 ? (snowy ? 'snow' : 'rain') : r < 0.7 ? 'fog' : snowy ? 'snow' : 'sun'
         this.save.weather = { kind, until: this.now() + (10 + rand() * 15) * 60 * 1000 }
         this.persist()
         this.emit({ type: 'weather', kind })
@@ -1731,7 +1745,7 @@ export class Game {
         break
       }
     }
-    const lo = pick.rarity === 'common' ? 2 : 4
+    const lo = (pick.rarity === 'common' ? 2 : 4) + (this.islandDef.wildLevel ?? 0)
     const level = lo + Math.floor(rand() * 5)
     if (commit) {
       this.mark(pick.dex, false)
@@ -1740,6 +1754,17 @@ export class Game {
       this.persist()
     }
     return { dex: pick.dex, level }
+  }
+  /** The Ember forge (L2): one of your most plentiful other stone becomes the chosen one. */
+  forge() {
+    const s = this.save
+    const want = s.forgeTarget
+    if (!want) return false
+    const from = Object.entries(s.bag).filter(([k, n]) => k !== want && STONES.includes(k) && n > 0).sort((a, b) => b[1] - a[1])[0]?.[0]
+    if (!from) return false
+    s.bag[from]--
+    s.bag[want] = (s.bag[want] ?? 0) + 1
+    return true
   }
   /** This week's tide (L7): a type, and one rare Pokémon of this island that is likelier. */
   tide() {

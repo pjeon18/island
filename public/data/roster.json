@@ -2212,6 +2212,50 @@
     "home"
    ]
   },
+  "443": {
+   "name": "Gible",
+   "types": [
+    "dragon",
+    "ground"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 444,
+     "level": 24
+    }
+   ],
+   "stage": 1,
+   "line": 443,
+   "islands": [],
+   "rarity": "deep"
+  },
+  "444": {
+   "name": "Gabite",
+   "types": [
+    "dragon",
+    "ground"
+   ],
+   "evolvesTo": [
+    {
+     "dex": 445,
+     "level": 48
+    }
+   ],
+   "stage": 2,
+   "line": 443,
+   "islands": []
+  },
+  "445": {
+   "name": "Garchomp",
+   "types": [
+    "dragon",
+    "ground"
+   ],
+   "evolvesTo": [],
+   "stage": 3,
+   "line": 443,
+   "islands": []
+  },
   "459": {
    "name": "Snover",
    "types": [

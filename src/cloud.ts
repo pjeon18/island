@@ -278,7 +278,7 @@ export async function collectWaves(): Promise<string[]> {
 
 // ---------- stage 5: visiting and gifts (supabase/island_stage5.sql) ----------
 export interface Scene5 {
-  island: 'home' | 'frost'
+  island: 'home' | 'frost' | 'ember'
   habitats: string[]
   decor: Record<string, string>
 }
@@ -323,7 +323,7 @@ export async function friendScene(id: string): Promise<FriendScene | string> {
     name: String(row.name ?? '').slice(0, 20),
     handle: String(row.handle ?? ''),
     party: (Array.isArray(row.party) ? row.party : []).slice(0, 3).map((p: { dex?: unknown; level?: unknown }) => ({ dex: Number(p.dex) | 0, level: Number(p.level) | 0 })).filter((p) => p.dex >= 1 && p.dex <= 493),
-    scene: { island: sc.island === 'frost' ? 'frost' : 'home', habitats: Array.isArray(sc.habitats) ? sc.habitats.map(String) : [], decor: sc.decor && typeof sc.decor === 'object' ? (sc.decor as Record<string, string>) : {} },
+    scene: { island: sc.island === 'frost' || sc.island === 'ember' ? sc.island : 'home', habitats: Array.isArray(sc.habitats) ? sc.habitats.map(String) : [], decor: sc.decor && typeof sc.decor === 'object' ? (sc.decor as Record<string, string>) : {} },
     studying: row.studying === true,
   }
 }

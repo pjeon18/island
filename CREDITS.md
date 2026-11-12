@@ -151,6 +151,9 @@ This is a free, non-commercial fan project with no affiliation.
 - **Shinx** (#403): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/)
 - **Luxio** (#404): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Caitemis (https://caitemis-art.tumblr.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), C_Pariah (<@322382592202637322>)
 - **Luxray** (#405): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Soulja (https://twitter.com/OlSoulja)
+- **Gible** (#443): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Gabite** (#444): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), dmDash
+- **Garchomp** (#445): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Top_Kec (@topkec.bsky.social), G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
 - **Snover** (#459): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Jarleypeño (https://www.deviantart.com/applecone413)
 - **Abomasnow** (#460): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), SingingMudkip
 - **Weavile** (#461): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, PhillipsYoung (https://twitter.com/PhilliYoung196), ShyStarryRain

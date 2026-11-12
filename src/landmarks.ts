@@ -141,3 +141,42 @@ export function landmarkArt(id: string, restored: boolean, lit = false): DecorAr
   }
   return a
 }
+
+/** Ember Cove's crater (L2), on the island's north-east shoulder: a dark cone that glows and smokes. */
+export const CRATER_SPOT = onIsland(184, 68)
+export function craterArt(): DecorArt {
+  const key = 'crater'
+  const have = cache.get(key)
+  if (have) return have
+  const p = new Pix(34, 22)
+  for (let y = 4; y < 22; y++) {
+    const half = Math.round(6 + (y - 4) * 0.62)
+    for (let x = 17 - half; x < 17 + half; x++) p.set(x, y, x < 17 - half + 2 ? hex('#6a5248') : x > 17 + half - 4 ? hex('#3e302a') : bayer(x, y) > 0.7 ? hex('#5a463e') : hex('#4c3a33'))
+  }
+  // the glowing mouth
+  for (let x = 12; x < 22; x++) p.set(x, 4, x > 13 && x < 20 ? hex('#ff9a3c') : hex('#c8502a'))
+  for (let x = 13; x < 21; x++) p.set(x, 5, hex('#a83c22'))
+  // a lava seam down the near side
+  for (let y = 7; y < 15; y++) p.set(18 + ((y * 3) % 2), y, hex('#d8622c'))
+  outline(p, hex('#2a1e1a'))
+  const a: DecorArt = {
+    img: p.toCanvas(),
+    ax: 17,
+    ay: 21,
+    r: 10,
+    glow: { x: 0, y: -17, r: 34, rgb: '255, 140, 60' },
+    live: (g, x, y, t) => {
+      // smoke rising slowly from the mouth, three puffs on their own clocks
+      for (let i = 0; i < 3; i++) {
+        const k = (t / 6 + i / 3) % 1
+        g.globalAlpha = 0.3 * (1 - k)
+        g.fillStyle = '#9a8e88'
+        const s = 2 + Math.round(k * 3)
+        g.fillRect(Math.round(x - 2 + Math.sin(t / 2 + i) * 3 + k * 6), Math.round(y - 19 - k * 22), s, s)
+      }
+      g.globalAlpha = 1
+    },
+  }
+  cache.set(key, a)
+  return a
+}

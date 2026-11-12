@@ -6,7 +6,7 @@ import { Creature } from './creature'
 import * as cloud from './cloud'
 import { CATALOG, SLOTS, decorDef } from './decor'
 import { BALLS, Ball, DESTINATIONS, FOODS, Find, GUIDE_DEX, isMeteorWeek, seasonOf, Game, GameEvent, RESTORE, dayKey, HABITATS, Haul, ISLANDS, JOBS, Mon, RARE_LONG, Role, Roster, STONES, Weather, Wild, aStone, loadSave, stoneName } from './game'
-import { LANDMARK_SPOTS, landmarkArt } from './landmarks'
+import { CRATER_SPOT, LANDMARK_SPOTS, craterArt, landmarkArt } from './landmarks'
 import { HABITAT_SPOTS } from './habitats'
 import { CatchAnim } from './catch'
 import { Intro } from './intro'
@@ -278,6 +278,7 @@ function announceTide() {
 }
 /** Home Island's landmarks (L1), ruined or restored; the lighthouse glows when a Generator keeps it lit. */
 function syncLandmarks() {
+  if (game.save.island === 'ember') return scene.setLandmarks([{ ...CRATER_SPOT, art: craterArt() }])
   if (game.save.island !== 'home') return scene.setLandmarks([])
   scene.setLandmarks(RESTORE.map((r) => ({ ...LANDMARK_SPOTS[r.id], art: landmarkArt(r.id, game.restored(r.id), r.id === 'lighthouse' && game.lighthouseLit) })))
 }
@@ -1131,7 +1132,7 @@ function onGame(e: GameEvent) {
       break
     case 'job':
       if (e.job === 'bush') hud.toast(`${game.name(e.mon)} watered the bush. A berry ripened.`)
-      game.note('other', e.job === 'bush' ? `${game.name(e.mon)} watered the bush.` : e.job === 'garden' ? `${game.name(e.mon)} grew some food in the garden.` : `${game.name(e.mon)} finished a job.`, { dex: e.mon.dex, key: `job:${e.mon.id}` })
+      game.note('other', e.job === 'bush' ? `${game.name(e.mon)} watered the bush.` : e.job === 'garden' ? `${game.name(e.mon)} grew some food in the garden.` : e.job === 'forge' ? `The Ember forge made ${aStone(game.save.forgeTarget ?? 'fire-stone')}.` : `${game.name(e.mon)} finished a job.`, { dex: e.mon.dex, key: `job:${e.mon.id}` })
       hud.refreshSheet()
       break
     case 'expeditionOut':

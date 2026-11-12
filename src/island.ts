@@ -78,6 +78,8 @@ export const TUFT = { out: '#24602c', dark: '#3b8735', mid: '#4fa13f', light: '#
  * the island, props and decorations all paint with these colours.
  */
 export function useIsland(id: string) {
+  LOBES = scaleLobes([...BASE_LOBES, ...(EXTRA_LOBES[id] ?? [])])
+  if (id === 'ember') return useEmber()
   if (id !== 'frost') return
   const F: Partial<Record<keyof typeof PAL, string>> = {
     deep: '#2a6fae', dusk: '#1c5088', abyss: '#123866', sea: '#3580c2', seaRipple: '#438dca', shallow: '#68b4dc', shallow2: '#a6daf0', foam: '#f4fbff',
@@ -87,6 +89,18 @@ export function useIsland(id: string) {
   }
   for (const [k, v] of Object.entries(F)) PAL[k as keyof typeof PAL] = hex(v!)
   Object.assign(TUFT, { out: '#6d8aa6', dark: '#a9c2d8', mid: '#c9dbea', light: '#f4f9fd' })
+}
+
+/** Ember Cove (L2): black sand, red earth, dry olive grass, a warmer sea. */
+function useEmber() {
+  const E: Partial<Record<keyof typeof PAL, string>> = {
+    deep: '#2f6f9e', dusk: '#245682', abyss: '#163a5e', sea: '#3a86b8', seaRipple: '#4690c0', shallow: '#5fb0c8', shallow2: '#8ccfd8', foam: '#eef6f6',
+    sandLight: '#8e837c', sand: '#716760', sandDark: '#58504b', cliffTop: '#7e5c4a', earth: '#8c4c34', earthDark: '#6c3628', earthWet: '#4a2418',
+    grassLight: '#cdc476', grass: '#aaa254', grassDark: '#888240', grassDeep: '#6a6432',
+    leaf: '#4a6a2e', leafMid: '#5e8038', leafLight: '#86a04a', leafDeep: '#34501f', trunk: '#5a3a28', trunkDark: '#3c2418',
+  }
+  for (const [k, v] of Object.entries(E)) PAL[k as keyof typeof PAL] = hex(v!)
+  Object.assign(TUFT, { out: '#5a5228', dark: '#888240', mid: '#aaa254', light: '#d4cc80' })
 }
 
 /**
@@ -115,17 +129,24 @@ export const seaEdge = () => PAL.abyss
  */
 export const ISLAND_SCALE = 1.14
 export const onIsland = (x: number, y: number) => ({ x: Math.round(120 + (x - 120) * ISLAND_SCALE), y: Math.round(92 + (y - 92) * ISLAND_SCALE) })
-const LOBES: [number, number, number, number][] = (
-  [
-    [120, 90, 76, 42],
-    [80, 100, 36, 24],
-    [164, 97, 36, 26],
-    [126, 71, 44, 23],
-  ] as [number, number, number, number][]
-).map(([x, y, rx, ry]) => {
-  const p = onIsland(x, y)
-  return [p.x, p.y, rx * ISLAND_SCALE, ry * ISLAND_SCALE]
-})
+const BASE_LOBES: [number, number, number, number][] = [
+  [120, 90, 76, 42],
+  [80, 100, 36, 24],
+  [164, 97, 36, 26],
+  [126, 71, 44, 23],
+]
+/** Each island adds a lobe of its own to the shared shape, so every fixed spot stays on land (L2). */
+const EXTRA_LOBES: Record<string, [number, number, number, number][]> = {
+  frost: [[58, 82, 22, 14]], // an ice spit to the west
+  ember: [[180, 68, 26, 17]], // the crater's shoulder to the north-east
+}
+let LOBES = scaleLobes(BASE_LOBES)
+function scaleLobes(xs: [number, number, number, number][]): [number, number, number, number][] {
+  return xs.map(([x, y, rx, ry]) => {
+    const p = onIsland(x, y)
+    return [p.x, p.y, rx * ISLAND_SCALE, ry * ISLAND_SCALE]
+  })
+}
 
 function inTop(x: number, y: number) {
   const wob = (noise(x / 11, y / 11, 3) - 0.5) * 0.22 + (noise(x / 4, y / 4, 9) - 0.5) * 0.06

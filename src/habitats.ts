@@ -11,6 +11,7 @@ export const HABITAT_SPOTS: Record<Habitat, { x: number; y: number; r: number }>
   rocks: { ...onIsland(64, 76), r: 9 },
   grass: { ...onIsland(146, 92), r: 9 },
   cave: { ...onIsland(66, 118), r: 9 },
+  spring: { ...onIsland(118, 84), r: 13 }, // Ember Cove's hot spring, where the pond would be
 }
 
 export interface HabitatArt {
@@ -19,6 +20,41 @@ export interface HabitatArt {
   ay: number
   flat: boolean // drawn under everything (the pond), or y-sorted (the rocks)
   live?: (g: CanvasRenderingContext2D, x: number, y: number, t: number) => void
+}
+
+/** Ember Cove's hot spring (L2): a milky teal pool in dark stone, with steam rising slowly. */
+function spring(): HabitatArt {
+  const rx = 13
+  const ry = 6.5
+  const p = new Pix(30, 16)
+  const cx = 15
+  const cy = 8
+  const rim = hex('#5a4e48')
+  const rimLight = hex('#7a6c62')
+  for (let y = 0; y < 16; y++)
+    for (let x = 0; x < 30; x++) {
+      const d = Math.hypot((x + 0.5 - cx) / rx, (y + 0.5 - cy) / ry)
+      if (d > 1) continue
+      let c = d > 0.86 ? (bayer(x, y) > 0.5 ? rim : rimLight) : d > 0.6 ? hex('#9ad8d0') : hex('#78c4c0')
+      if (d <= 0.86 && d > 0.6 && y < cy - 1) c = hex('#6ab4b2')
+      p.set(x, y, c)
+    }
+  return {
+    img: p.toCanvas(),
+    ax: cx,
+    ay: cy,
+    flat: true,
+    live: (g, x, y, t) => {
+      // three wisps of steam, each rising and fading on its own slow clock
+      for (let i = 0; i < 3; i++) {
+        const k = ((t / 4 + i / 3) % 1)
+        g.globalAlpha = 0.35 * (1 - k)
+        g.fillStyle = '#ffffff'
+        g.fillRect(Math.round(x - 7 + i * 7 + Math.sin(t + i) * 1.5), Math.round(y - 2 - k * 14), 2, 2)
+      }
+      g.globalAlpha = 1
+    },
+  }
 }
 
 /** An oval pond: a stony rim, shallow edges, deeper middle, one lily pad. */
@@ -120,7 +156,7 @@ function cave(): HabitatArt {
 const cache: Partial<Record<Habitat, HabitatArt>> = {}
 export function habitatArt(id: Habitat): HabitatArt | null {
   if (id === 'grass') return null // tufts, drawn by the scene
-  return (cache[id] ??= id === 'pond' ? pond() : id === 'cave' ? cave() : rocks())
+  return (cache[id] ??= id === 'pond' ? pond() : id === 'spring' ? spring() : id === 'cave' ? cave() : rocks())
 }
 
 const BAIT_COLORS: Record<string, string> = { honey: '#f8c030', 'cheri-berry': '#e83838', 'pecha-berry': '#f8a0c0', 'chesto-berry': '#5a5ab8' }

@@ -5,7 +5,7 @@
 // the sheet, and the sheet's choices only unlock between sessions.
 import type { CloudState, Friend, FriendRequest, Me } from './cloud'
 import { CATALOG, SLOTS, decorDef } from './decor'
-import { BALLS, DESTINATIONS, RESTORE, berryExp, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
+import { BALLS, DESTINATIONS, RESTORE, STONES, berryExp, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
 
 const BASE = import.meta.env.BASE_URL
 export const portraitUrl = (dex: number, emo = 'Normal') => `${BASE}sprites/${String(dex).padStart(4, '0')}/${emo}.png`
@@ -620,7 +620,7 @@ export class Hud {
       const jobs = JOBS.map((j) => {
         const who = s.jobs[j.id] && g.mon(s.jobs[j.id]!)
         const needs = `${j.types.map((t) => t[0].toUpperCase() + t.slice(1)).join(' or ')}${j.needsDecor ? ', campfire' : ''}${j.needsLandmark && !g.restored(j.needsLandmark) ? ', after the lighthouse' : ''}`
-        const doing = !who ? needs : j.id === 'generator' ? `${g.name(who)}, the lighthouse is lit` : j.id === 'fortune' ? `${g.name(who)} sees` : `${g.name(who)}, every ${jobEvery(j, who.level)} min`
+        const doing = !who ? needs : j.id === 'generator' ? `${g.name(who)}, the lighthouse is lit` : j.id === 'fortune' ? `${g.name(who)} sees` : j.id === 'forge' ? `${g.name(who)} makes <button class="px-btn small" data-forge="1">${s.forgeTarget ? stoneName(s.forgeTarget) : 'Choose a stone'}</button>` : `${g.name(who)}, every ${jobEvery(j, who.level)} min`
         // the Fortune job: silhouettes of the three likeliest next visitors
         const seen = who && j.id === 'fortune' ? `<span class="fortune">${g.likelyVisitors(3).map((d) => `<img class="silhouette" src="${portraitUrl(d)}" alt="" />`).join('')}</span>` : ''
         return `<div class="job-row"><span>${j.name}</span><span class="hint">${doing}${seen}</span></div>`
@@ -821,7 +821,7 @@ export class Hud {
     }).join('')
     const star = icon('star-piece', 'ico-s')
     const shell = icon('shoal-shell', 'ico-s')
-    const habitats = HABITATS.map((h) => {
+    const habitats = HABITATS.filter((h) => (!h.only || h.only === g.save.island) && h.not !== g.save.island).map((h) => {
       const built = g.save.habitats.includes(h.id)
       const can = g.save.starPieces >= h.stars && g.save.shells >= h.shells
       const hrs = HABITAT_HOURS[h.id]
@@ -1025,6 +1025,14 @@ export class Hud {
     const subAt = at('sub')
     if (subAt) {
       this.sub[this.tab] = subAt
+      return this.renderSheet()
+    }
+    if (at('forge')) {
+      // the Ember forge: tap to choose which stone it makes
+      const s = this.game.save
+      const i = STONES.indexOf(s.forgeTarget ?? '')
+      s.forgeTarget = STONES[(i + 1) % STONES.length]
+      this.game.persist()
       return this.renderSheet()
     }
     const rs = at('restore')

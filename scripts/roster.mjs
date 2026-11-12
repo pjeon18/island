@@ -58,6 +58,7 @@ export const LINES = [
   { dex: 246, rarity: 'deep', islands: [] }, // Larvitar, deep in Pier Hollow
   { dex: 304, rarity: 'deep', islands: [] }, // Aron, deep in Pier Hollow
   { dex: 147, rarity: 'deep', islands: [] }, // Dratini, deep in Glacier Grotto
+  { dex: 443, rarity: 'deep', islands: [] }, // Gible, deep in Ember Cove's crater
 
   // ---------- hatched only (2026-11-12, docs/CONTENT_PLAN.md) ----------
   // babies from Day Care pairs, Wooper's Togepi, and expedition eggs; they never pass by
