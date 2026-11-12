@@ -383,7 +383,9 @@ export class Hud {
   /** Advance a waiting line (a click on the text box, or Space/Enter). */
   advance() {
     const d = this.current
-    if (d?.wait && !d.actions?.length) {
+    // a line with no buttons closes on a click, whether it waits for one or would close on a timer
+    // (Paul, 2026-11-12: a tapped landmark's line couldn't be clicked away); tour instructions stay
+    if (d && !d.actions?.length && !d.task && (d.wait || d.auto)) {
       sfx('blip')
       this.dismiss()
     }
