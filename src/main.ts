@@ -16,6 +16,7 @@ import { H, W, seaCss, seaEdge, useIsland, useSeason } from './island'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
 import { applyVolume, audioState, initAudio, listenIn, sfx, syncMusic, wantsMusic, type SfxName } from './audio'
 import { NEST, Scene, lightAt, nightness } from './scene'
+import { nextTip } from './guide'
 import { Manifest, Species, loadManifest, loadSpecies } from './sprites'
 
 const params = new URLSearchParams(location.search)
@@ -385,7 +386,7 @@ function showLandmark(r: (typeof RESTORE)[number]) {
     dex: GUIDE_DEX,
     text: `The storm wrecked ${name}. Rebuilding it takes ${needs}.`,
     actions: [
-      { label: 'See progress', primary: true, run: () => hud.openTo('island', 'restore') },
+      { label: 'See progress', primary: true, run: () => hud.openTo('goals', 'restore') },
       { label: 'OK', run: () => {} },
     ],
   })
@@ -631,7 +632,18 @@ function openCatch(c: Creature) {
   const w = game.save.wild.find((x) => x.id === c.wildId)
   if (!w || catching || evo) return
   const have = BALLS.filter((b) => game.save.balls[b.id] > 0)
-  if (!have.length) return hud.say({ dex: w.dex, text: 'You have no balls. Buy some in the Town Map shop.', auto: 5000 })
+  if (!have.length) {
+    // out of balls and too few shells to buy one: Wooper hands over three, once a day
+    const day = dayKey(game.now())
+    if (game.save.shells < BALLS[0].price && game.save.ballGiftDay !== day) {
+      game.save.ballGiftDay = day
+      game.save.balls['poke-ball'] += 3
+      game.persist()
+      hud.say({ dex: GUIDE_DEX, emotion: 'Happy', text: 'Out of Poké Balls? Here are three. Finished sessions wash more up.', wait: true })
+      return
+    }
+    return hud.say({ dex: GUIDE_DEX, text: 'You have no Poké Balls. Buy them in the Island shop, or finish a session.', wait: true })
+  }
   if (!game.save.balls[catchBall]) catchBall = have[0].id
   hud.closeSheet()
   c.hold(true)
@@ -860,10 +872,11 @@ async function refreshFriends() {
   if (cloud.cloudState() !== 'ready') return
   const { friends } = await cloud.listFriends()
   const studying = friends.filter((f) => f.studying && f.party.length)
+  hud.setFriendsLive(studying.length)
   const running = game.save.session?.state === 'running'
   const before = game.together.length
   game.together = running ? studying.map((f) => f.name) : []
-  if (running && !before && game.together.length) hud.toast(`Studying with ${game.together[0]}. Shells are doubled.`)
+  if (running && !before && game.together.length) hud.toast(`Studying with ${game.together[0]}. You warm a Together egg.`)
   syncVisitors(studying.slice(0, 2).map((f) => ({ name: f.name, dex: f.party[0].dex })))
 }
 async function syncVisitors(want: { name: string; dex: number }[]) {
@@ -1089,6 +1102,53 @@ async function bootVisit(v: cloud.FriendScene & { id: string }) {
   startLoop()
 }
 
+// ---------- the end of a session: a ring you can hear from another tab (a friend's feedback, 2026-11-17) ----------
+const baseTitle = document.title
+let doneTitle = false
+/** Ask once, on the first Start, whether the island may send a notification when a session ends. */
+function askNotify() {
+  const st = game.save.settings
+  if (st.alarm === false || st.notifyAsked || !('Notification' in window) || Notification.permission !== 'default') return
+  st.notifyAsked = true
+  game.persist()
+  void Notification.requestPermission()
+}
+function ringDone(minutes: number) {
+  if (game.save.settings.alarm === false) return sfx('success')
+  // the chime twice, louder than other sounds, so it carries from a background tab
+  sfx('success', 2)
+  setTimeout(() => sfx('success', 2), 2600)
+  doneTitle = true
+  const away = document.hidden && !window.documentPictureInPicture?.window
+  if (away && 'Notification' in window && Notification.permission === 'granted')
+    try {
+      new Notification('Your session is done', { body: `You focused for ${fmtMinutes(minutes)}. Time for a break.`, icon: `${import.meta.env.BASE_URL}items/poke-ball.png`, silent: true })
+    } catch {}
+}
+/** The tab's title shows the time left while you focus, and "Session done" until you look. */
+function syncTitle() {
+  if (doneTitle && !document.hidden) doneTitle = false
+  const s = game?.save.session
+  const left = s && s.state === 'running' && s.length ? Math.max(0, s.length - s.credited) : null
+  const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`
+  document.title = doneTitle ? `Session done · ${baseTitle}` : left !== null ? `${mmss(left)} · ${baseTitle}` : baseTitle
+}
+
+// ---------- the Guide: Wooper explains one newly useful thing at a break (guide.ts) ----------
+function tellTip(tries = 0) {
+  if (!game || game.inSession || game.save.tutorial !== 'done' || catching || evo) return
+  // the tour already explained focusing and the pond
+  if (!game.save.tips) game.save.tips = ['focus', 'habitats']
+  if (hud.busy || !hud.sheetHidden) return tries < 12 ? after(5, () => tellTip(tries + 1)) : undefined
+  const t = nextTip(game)
+  if (!t) return
+  const first = game.save.tips.length <= 2
+  game.save.tips = [...game.save.tips, t.id]
+  game.persist()
+  for (const line of t.text.split(/(?<=\.)\s+/)) hud.say({ dex: GUIDE_DEX, text: line, wait: true })
+  if (first) hud.say({ dex: GUIDE_DEX, text: 'I keep tips like this in More, under Guide.', wait: true })
+}
+
 /** A sound for a moment the game makes on its own: quiet while you focus. */
 const calm = (n: SfxName) => {
   if (!game.inSession) sfx(n)
@@ -1285,10 +1345,11 @@ function onGame(e: GameEvent) {
       void cloud.sessionBegin()
       break
     case 'sessionEnd':
-      if (e.complete) sfx('success')
+      if (e.complete) ringDone(e.minutes)
+      after(4, () => tellTip())
       hud.clearQueue((d) => d.tag === 'checkin')
       void cloud.sessionEnd()
-      game.note('focus', `Focused for ${fmtMinutes(e.minutes)}.${e.complete ? ` ${e.berries === 2 ? 'Two berries' : 'A berry'} ripened.` : ''}`, { n: e.minutes, dex: lead() })
+      game.note('focus', `Focused for ${fmtMinutes(e.minutes)}.${e.complete ? ` ${e.berries === 2 ? 'Two berries' : 'A berry'} ripened${e.balls ? `, and ${e.balls === 2 ? 'two Poké Balls' : 'a Poké Ball'} washed up` : ''}.` : ''}`, { n: e.minutes, dex: lead() })
       announceTide()
       if (e.capped)
         hud.say({ dex: lead(), text: "Three hours focused. That's the most one session counts, so take a real break. Start another whenever you're ready.", wait: true })
@@ -1615,6 +1676,7 @@ document.addEventListener('visibilitychange', () => {
 })
 setInterval(() => {
   if (game) wantsMusic(clockOwner)
+  if (game) syncTitle()
   if (clockOwner) game?.beat()
   if (game && scene.weather !== game.weather) scene.weather = game.weather
   if (game) syncNest()
@@ -1648,7 +1710,7 @@ window.addEventListener('storage', (e) => {
 // ---------- pop out ----------
 declare global {
   interface Window {
-    documentPictureInPicture?: { requestWindow(o: { width: number; height: number }): Promise<Window>; window: Window | null }
+    documentPictureInPicture?: { requestWindow(o: { width: number; height: number; preferInitialWindowPlacement?: boolean }): Promise<Window>; window: Window | null }
     __island: unknown
   }
 }
@@ -1676,12 +1738,21 @@ async function popOut() {
   if (dpip.window) return
   let pip: Window
   try {
-    pip = await dpip.requestWindow({ width: W * 2, height: H * 2 })
+    // open at this size every time, not at whatever size Chrome remembers (a friend's small window
+    // "takes up so much of the screen", 2026-11-17)
+    pip = await dpip.requestWindow({ width: W * 2, height: H * 2, preferInitialWindowPlacement: true })
   } catch {
     return plainPopOut()
   }
   // carry the page's styles and fonts into the new window
-  for (const node of document.head.querySelectorAll('style, link[rel="stylesheet"], link[rel="preconnect"]')) pip.document.head.append(node.cloneNode(true))
+  // and wait for the copied stylesheets, so nothing is laid out unstyled (the island cut off, no menus)
+  const loads: Promise<unknown>[] = []
+  for (const node of document.head.querySelectorAll('style, link[rel="stylesheet"], link[rel="preconnect"]')) {
+    const copy = node.cloneNode(true) as HTMLElement
+    if (copy instanceof HTMLLinkElement && copy.rel === 'stylesheet') loads.push(new Promise((r) => ((copy.onload = r), (copy.onerror = r), setTimeout(r, 3000))))
+    pip.document.head.append(copy)
+  }
+  await Promise.all(loads)
   pip.document.body.className = 'pip-body'
   listenIn(pip.document)
   const marker = document.createComment('island')
@@ -1689,7 +1760,12 @@ async function popOut() {
   pip.document.body.append(win)
   fitInto(pip)
   pip.addEventListener('resize', () => fitInto(pip))
+  // lay out again once the window has its real size, and whenever the island's size changes there
+  pip.requestAnimationFrame(() => fitInto(pip))
+  const ro = new (pip as unknown as { ResizeObserver: typeof ResizeObserver }).ResizeObserver(() => hud.fit(canvas))
+  ro.observe(canvas)
   host = pip
+  hud.setSmall(true)
   startLoop()
   // keys pressed in the small window reach the same handlers (dialogs, throwing, cheats)
   pip.addEventListener('keydown', (e) => {
@@ -1698,7 +1774,9 @@ async function popOut() {
     if (copy.defaultPrevented) e.preventDefault()
   })
   pip.addEventListener('pagehide', () => {
+    ro.disconnect()
     marker.replaceWith(win)
+    hud.setSmall(false)
     host = window
     startLoop()
     fitInto(window)
@@ -1981,7 +2059,10 @@ async function boot() {
     win,
     game,
     {
-      start: () => game.startSession(),
+      start: () => {
+        askNotify()
+        game.startSession()
+      },
       end: () => {
         const s = game.save.session
         if (!s) return
@@ -2095,6 +2176,12 @@ async function boot() {
         sfx('click')
         hud.refreshSheet()
       },
+      toggleAlarm: () => {
+        game.save.settings.alarm = game.save.settings.alarm === false
+        game.persist()
+        if (game.save.settings.alarm) askNotify()
+        hud.refreshSheet()
+      },
       toggleMusic: () => {
         game.save.settings.music = game.save.settings.music === false
         game.persist()
@@ -2152,10 +2239,13 @@ async function boot() {
         }
       },
       popOut: popoutMode ? undefined : popOut,
+      // the plain pop-out page closes itself; the always-on-top window closes and the island goes back to the tab
+      closeSmall: floatMode ? undefined : () => (window.documentPictureInPicture?.window ? window.documentPictureInPicture.window.close() : window.close()),
       quit: tauri ? () => void invoke?.('plugin:window|close', { label: 'main' }) : undefined,
     },
     creditsHtml,
   )
+  if (popoutMode && !floatMode) hud.setSmall(true) // the plain pop-out page is itself the small window
   game.on(onGame)
   new ResizeObserver(() => hud.fit(canvas)).observe(canvas)
   {
@@ -2199,6 +2289,7 @@ async function boot() {
     if (game.save.tutorial === 'prologue') game.setTutorial('meet')
     await syncParty(true)
     welcomeBack()
+    if (!game.save.session) after(8, () => tellTip())
   }
   // the desktop app reads system idle time natively (no permission prompt)
   if (tauri && invoke) {

@@ -246,7 +246,7 @@ export interface Save {
   mons: Mon[]
   session: Session | null
   days: Record<string, number> // local date → focused minutes
-  settings: { length: number | null; detector: boolean; sound?: boolean; music?: boolean; volume?: number }
+  settings: { length: number | null; detector: boolean; sound?: boolean; music?: boolean; volume?: number; custom?: number; alarm?: boolean; notifyAsked?: boolean }
   seen: number[] // species that have visited or that you have raised
   caught: number[] // species you have owned
   shells: number
@@ -258,6 +258,8 @@ export interface Save {
   breakUntil: number | null
   wild: Wild[]
   balls: Record<Ball, number>
+  ballGiftDay?: string // the day Wooper last handed over free balls
+  tips?: string[] // Guide entries Wooper has explained (guide.ts)
   starPieces: number
   finds: Find[]
   weather: { kind: Weather; until: number }
@@ -360,7 +362,10 @@ export const AWAY_GAP = 5 * 60 // a gap this long means you were gone
 // 10 minutes to answer (the wait counts when you do); every session ends itself at 3 hours.
 export const CHECKIN_EVERY = 60 * 60 // without idle detection
 export const ANSWER_WINDOW = 10 * 60
-export const MAX_SESSION = 3 * 60 * 60
+// a custom session can be up to 6 hours (Paul, 2026-11-17), so that is also where any session ends itself
+export const MAX_SESSION = 6 * 60 * 60
+export const CUSTOM_MIN = 15 // custom lengths go in 15-minute steps, from 15 minutes to 6 hours
+export const CUSTOM_MAX = 360
 // session lengths (Paul, 2026-11-12: 30 minutes and an hour, was 25 and 50)
 export const SHORT_SESSION = 30 * 60
 export const LONG_SESSION = 60 * 60
@@ -438,7 +443,7 @@ export function emptySave(): Save {
     stonesPaid: [],
     breakUntil: null,
     wild: [],
-    balls: { 'poke-ball': 5, 'great-ball': 0, 'ultra-ball': 0 },
+    balls: { 'poke-ball': 10, 'great-ball': 0, 'ultra-ball': 0 }, // was 5: new players ran out (2026-11-17)
     starPieces: 0,
     finds: [],
     weather: { kind: 'clear', until: 0 },
@@ -478,6 +483,8 @@ export function loadSave(): Save {
         // 25 and 50 minutes became 30 and 60 (Paul, 2026-11-12)
         if (m.settings.length === 25 * 60) m.settings.length = SHORT_SESSION
         if (m.settings.length === 50 * 60) m.settings.length = LONG_SESSION
+        // Open became Custom (Paul, 2026-11-17: 30 min, 1 hour, and a custom time)
+        if (m.settings.length === null) m.settings.length = LONG_SESSION
         // your partner lives on every island: put it on this one if it is free
         const pid = m.partner
         const busy = !!pid && (m.daycare.ids.includes(pid) || Object.values(m.jobs).includes(pid) || m.expedition?.id === pid)
@@ -496,7 +503,7 @@ export type GameEvent =
   | { type: 'evolveReady'; mon: Mon; to: number }
   | { type: 'boxEvolved'; mon: Mon; from: string }
   | { type: 'sessionStart' }
-  | { type: 'sessionEnd'; minutes: number; complete: boolean; berries: number; capped?: boolean }
+  | { type: 'sessionEnd'; minutes: number; complete: boolean; berries: number; balls?: number; capped?: boolean }
   | { type: 'visit'; rareMult: number }
   | { type: 'visitCapped' }
   | { type: 'ask'; reason: 'idle' | 'checkin' }
@@ -1002,7 +1009,12 @@ export class Game {
       this.emit({ type: 'bait', food: null })
     }
     let berries = 0
+    let balls = 0
     if (complete) {
+      // a finished session washes up Poké Balls too: one, or two for an hour or more (Paul's friend
+      // ran out of balls early, 2026-11-17)
+      balls = s.credited >= LONG_SESSION ? 2 : 1
+      this.save.balls['poke-ball'] += balls
       // Open sessions already ripen a berry every 30 minutes, so they get none at the end
       berries = !s.length ? 0 : s.length >= LONG_SESSION ? 2 : 1
       this.save.berries = Math.min(BERRIES_MAX, this.save.berries + berries)
@@ -1011,7 +1023,7 @@ export class Game {
       this.save.breakUntil = this.now() + BREAK_SECONDS * 1000
     }
     this.persist()
-    this.emit({ type: 'sessionEnd', minutes: s.granted, complete, berries, capped })
+    this.emit({ type: 'sessionEnd', minutes: s.granted, complete, berries, balls, capped })
     // the old end-of-session visitor is now a minor extra; passers-by are the main way in
     if (complete && Math.random() < FRIENDLY_VISIT_CHANCE) this.requestVisit(s.length && s.length >= LONG_SESSION ? RARE_LONG : 1, this.lure(s))
   }

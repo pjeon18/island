@@ -60,16 +60,17 @@ interface Glint {
 // Day/night light, by hour. Multiplied over the whole scene, so it shifts
 // slowly with the real clock instead of switching.
 const LIGHT: [number, string][] = [
-  [0, '#5f69a8'],
-  [4.5, '#5f69a8'],
+  // night (Paul, 2026-11-17: "super dark at night when you first start"): lighter than the old #5f69a8
+  [0, '#7a82b8'],
+  [4.5, '#7a82b8'],
   [6, '#c7a2bb'],
   [7.5, '#ffe7d2'],
   [9, '#ffffff'],
   [16, '#ffffff'],
   [17.5, '#ffe3bf'],
   [19, '#eaa284'],
-  [20.5, '#7d7db6'],
-  [24, '#5f69a8'],
+  [20.5, '#8a8cc0'],
+  [24, '#7a82b8'],
 ]
 
 function lerpHex(a: string, b: string, k: number) {
@@ -451,7 +452,7 @@ export class Scene {
     if (lit) {
       const [r0, g0, b0] = lightAt(this.hour).match(/\d+/g)!.map(Number)
       // the night ambient, deepened so lights can read against it
-      const deep = 1 - 0.5 * night
+      const deep = 1 - 0.25 * night
       applyLighting(g, this.ncv.getContext('2d', { willReadFrequently: true })!, [(r0 / 255) * deep, (g0 / 255) * deep, (b0 / 255) * deep], this.lights(night))
     } else {
       g.globalCompositeOperation = 'multiply'

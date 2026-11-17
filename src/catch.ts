@@ -122,7 +122,10 @@ export class CatchAnim {
       const q = this.quality
       const p = this.chance(q)
       const col = p >= 0.6 ? '#58d058' : p >= 0.35 ? '#f8c838' : '#f05040'
-      circle(g, tg.x, tg.y, R_MAX + 1, 'rgba(255,255,255,0.55)')
+      // the white target is the ring's smallest size: throw as the coloured ring closes onto it
+      // (2026-11-17: whether small or big was better wasn't clear)
+      circle(g, tg.x, tg.y, R_MAX + 1, 'rgba(255,255,255,0.25)')
+      circle(g, tg.x, tg.y, R_MIN, 'rgba(255,255,255,0.9)')
       circle(g, tg.x, tg.y, this.ring, col)
       circle(g, tg.x, tg.y, this.ring - 1, col)
       return

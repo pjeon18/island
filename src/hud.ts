@@ -5,8 +5,9 @@
 // the sheet, and the sheet's choices only unlock between sessions.
 import type { CloudState, Friend, FriendRequest, Me, Trade } from './cloud'
 import { click, sfx } from './audio'
+import { GUIDE } from './guide'
 import { CATALOG, SLOTS, decorDef } from './decor'
-import { BALLS, DESTINATIONS, RESTORE, STONES, berryExp, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
+import { CUSTOM_MAX, CUSTOM_MIN, DEX_MILESTONES, BALLS, DESTINATIONS, RESTORE, STONES, berryExp, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
 
 const BASE = import.meta.env.BASE_URL
 export const portraitUrl = (dex: number, emo = 'Normal') => `${BASE}sprites/${String(dex).padStart(4, '0')}/${emo}.png`
@@ -43,6 +44,8 @@ const TABS: [Tab, string, string][] = [
   ['mons', 'Pokémon', itemUrl('poke-ball')],
   ['dex', 'Pokédex', DEX_ICON],
   ['island', 'Island', itemUrl('town-map')],
+  // what you are working toward, out of the busy Island menu (Paul, 2026-11-17)
+  ['goals', 'Goals', itemUrl('star-piece')],
   ['friends', 'Friends', itemUrl('pal-pad')],
   ['log', 'Journal', LOG_ICON],
   ['more', 'More', ''],
@@ -50,8 +53,9 @@ const TABS: [Tab, string, string][] = [
 /** Sub-tabs inside a menu, so each view stays short instead of one long scroll. */
 const SUBS: Partial<Record<Tab, [string, string][]>> = {
   mons: [['party', 'Party'], ['helpers', 'Helpers'], ['box', 'Box'], ['eggs', 'Eggs'], ['bag', 'Bag']],
-  island: [['map', 'Map'], ['restore', 'Landmarks'], ['habitats', 'Habitats'], ['decor', 'Decor'], ['shop', 'Shop']],
-  more: [['focus', 'Focus'], ['settings', 'Settings'], ['credits', 'Credits']],
+  island: [['habitats', 'Habitats'], ['decor', 'Decor'], ['shop', 'Shop']],
+  goals: [['islands', 'Islands'], ['restore', 'Landmarks'], ['milestones', 'Pokédex']],
+  more: [['focus', 'Focus'], ['guide', 'Guide'], ['settings', 'Settings'], ['credits', 'Credits']],
 }
 /**
  * The HUD's whole-number scale for a canvas this wide. Small windows (the corner pop-out,
@@ -66,6 +70,20 @@ const POP_ICON = `data:image/svg+xml,${encodeURIComponent(
     <path fill="#f8d060" d="M8 2h5v5h-1V4l-4 4-1-1 4-4H8z"/>
   </svg>`,
 )}`
+// the small window's way back: a box with an arrow pointing down into it (Paul's friend closed the
+// tab and had no way to close the small window, 2026-11-17)
+const BACK_ICON = `data:image/svg+xml,${encodeURIComponent(
+  `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" shape-rendering="crispEdges">
+    <path fill="#e8eef8" d="M2 4h4v1H3v7h9V5H9V4h4v9H2z"/>
+    <path fill="#f8d060" d="M7 1h1v6h2l-2.5 3L5 7h2z"/>
+  </svg>`,
+)}`
+/** A session length in short words: "45 min", "1 h", "1 h 45". */
+const fmtLen = (sec: number) => {
+  const m = Math.round(sec / 60)
+  const h = Math.floor(m / 60)
+  return h ? `${h} h${m % 60 ? ` ${m % 60}` : ''}` : `${m} min`
+}
 const tabIcon = (src: string) => (src ? `<img class="ico" src="${src}" alt="" />` : `<span class="dots"><i></i><i></i><i></i></span>`)
 
 export interface DialogAction {
@@ -117,6 +135,7 @@ export interface HudHandlers {
   pet: (id: string) => void
   toggleSound: () => void
   toggleMusic: () => void
+  toggleAlarm: () => void
   setVolume: (v: number) => void
   visit: (id: string) => void
   /** Host a co-op dungeon and invite this friend into it. */
@@ -130,6 +149,8 @@ export interface HudHandlers {
   sailorTrade?: (monId: string) => void
   sail: (to: IslandId) => void
   popOut?: () => void
+  /** Close the small window and go back to the full page (only while the island is in one). */
+  closeSmall?: () => void
   quit?: () => void
   cloud: {
     state: () => CloudState
@@ -144,7 +165,7 @@ export interface HudHandlers {
   }
 }
 
-type Tab = 'mons' | 'dex' | 'island' | 'friends' | 'log' | 'more'
+type Tab = 'mons' | 'dex' | 'island' | 'goals' | 'friends' | 'log' | 'more'
 export interface CatchOpts {
   dex: number
   name: string
@@ -186,6 +207,7 @@ export class Hud {
   private toastTimer = 0
   private tab: Tab = 'mons'
   private openMon: string | null = null
+  private friendMore: string | null = null // the friend card showing its other buttons
   private stonePick: string | null = null
   private dexPick: number | null = null
   private note = ''
@@ -204,7 +226,7 @@ export class Hud {
     this.el.innerHTML = `
       <div class="hud-focus"></div>
       <button class="hud-party" aria-label="Your Pokémon"></button>
-      <nav class="hud-strip" aria-label="Menu">${TABS.map(([id, label, src]) => `<button class="strip-tab" data-open-tab="${id}" aria-label="${label}" title="${label}">${tabIcon(src)}</button>`).join('')}${this.h.popOut ? `<button class="strip-tab strip-pop" data-popout aria-label="Pop out to a small window" title="Pop out">${tabIcon(POP_ICON)}</button>` : ''}</nav>
+      <nav class="hud-strip" aria-label="Menu">${TABS.map(([id, label, src]) => `<button class="strip-tab" data-open-tab="${id}" aria-label="${label}" title="${label}">${tabIcon(src)}</button>`).join('')}${this.h.popOut || this.h.closeSmall ? `<button class="strip-tab strip-pop" data-popout aria-label="Pop out to a small window" title="Pop out">${tabIcon(POP_ICON)}</button>` : ''}</nav>
       <div class="hud-toast" aria-live="polite"></div>
       <div class="hud-dialog" hidden>
         <div class="hud-portrait-frame"><img class="hud-portrait" alt="" /></div>
@@ -230,8 +252,22 @@ export class Hud {
     this.dialogEl.addEventListener('click', (e) => {
       if (!(e.target as HTMLElement).closest('button')) this.advance()
     })
+    // a line that waits for you moves on with a click anywhere (Paul, 2026-11-12), not only on
+    // the text box; the click is used up, so it doesn't also pet or throw on the island
+    host.addEventListener(
+      'click',
+      (e) => {
+        const d = this.current
+        if (!d?.wait || d.actions?.length || d.task) return
+        const t = e.target as HTMLElement
+        if (t.closest('button, input, select, .hud-dialog, .hud-sheet, .hud-catch, .hud-cheats, .hud-summary')) return
+        e.stopPropagation()
+        this.advance()
+      },
+      true,
+    )
     this.el.querySelector('.hud-strip')!.addEventListener('click', (e) => {
-      if ((e.target as HTMLElement).closest('[data-popout]')) return this.h.popOut?.()
+      if ((e.target as HTMLElement).closest('[data-popout]')) return this.small ? this.h.closeSmall?.() : this.h.popOut?.()
       const b = (e.target as HTMLElement).closest<HTMLElement>('[data-open-tab]')
       if (!b) return
       if (!this.sheet.hidden && this.tab === b.dataset.openTab) this.closeSheet()
@@ -247,7 +283,10 @@ export class Hud {
       else if (f === 'still') this.h.stillHere()
       else if (f?.startsWith('len:')) {
         const v = f.slice(4)
-        this.h.setLength(v === 'open' ? null : Number(v) * 60)
+        this.h.setLength(v === 'custom' ? (this.game.save.settings.custom ?? 90) * 60 : Number(v) * 60)
+        this.lastFocusKey = ''
+      } else if (f?.startsWith('cust:')) {
+        this.stepCustom(Number(f.slice(5)))
         this.lastFocusKey = ''
       }
     })
@@ -318,7 +357,8 @@ export class Hud {
       this.lastFocusKey = key
       const len = g.save.settings.length
       const seg = (v: string, label: string, on: boolean) => `<button class="seg${on ? ' on' : ''}" data-f="len:${v}">${label}</button>`
-      const segs = `<div class="segs">${seg('30', '30 min', len === 1800)}${seg('60', '1 hour', len === 3600)}${seg('open', 'Open', len === null)}</div>`
+      const custom = len !== 1800 && len !== 3600
+      const segs = `<div class="segs">${seg('30', '30 min', len === 1800)}${seg('60', '1 hour', len === 3600)}${seg('custom', 'Custom', custom)}</div>${custom ? `<div class="segs stepper"><button class="seg" data-f="cust:-15" aria-label="15 minutes less">-</button><span class="step-v">${fmtLen(len ?? 3600)}</span><button class="seg" data-f="cust:15" aria-label="15 minutes more">+</button></div>` : ''}`
       this.focus.innerHTML =
         key === 'none'
           ? ''
@@ -457,6 +497,7 @@ export class Hud {
     this.catchEl.innerHTML = `
       <div class="catch-head"><img class="catch-face" src="${portraitUrl(o.dex)}" alt="" /><p>${o.shiny ? '<span class="shiny-mark">Shiny</span> ' : 'Wild '}${o.name}<br /><span class="hint">Lv${o.level}</span></p></div>
       <div class="catch-balls">${balls}</div>
+      <p class="hint catch-tip">Throw when the ring closes on the white circle.</p>
       <div class="catch-actions"><button class="px-btn primary" data-c="throw">Throw</button><button class="px-btn" data-c="run">Run</button></div>`
     this.catchEl.hidden = false
   }
@@ -498,7 +539,7 @@ export class Hud {
       <p class="sum-line"><span class="hint">EXP</span><span class="thin wide"><i style="width:${Math.round((m.exp / need) * 100)}%"></i></span><span class="hint">${need - m.exp} to Lv${m.level + 1}</span></p>
       <p class="sum-line hint">${roleText}. ${fmtMinutes(m.focusedMin)} together.</p>
       ${m.heldItem ? `<p class="sum-line hint">${icon(m.heldItem, 'ico-s')}Holding ${aStone(m.heldItem)}.</p>` : ''}
-      <p class="sum-line hint">${this.evoText(m)}</p>
+      <p class="sum-text hint">${this.evoText(m)}</p>
       <div class="row-actions"><button class="px-btn small primary" data-s="pet">Pet</button><button class="px-btn small" data-s="feed" ${g.inSession || g.save.berries <= 0 ? 'disabled' : ''}>${icon('oran-berry', 'ico-s')}Feed</button><button class="px-btn small" data-s="more">More</button></div>`
     el.onclick = (e) => {
       const a = (e.target as HTMLElement).closest<HTMLElement>('[data-s]')?.dataset.s
@@ -557,6 +598,32 @@ export class Hud {
   private markStrip() {
     this.el.querySelectorAll<HTMLElement>('.strip-tab').forEach((b) => b.classList.toggle('on', !this.sheet.hidden && b.dataset.openTab === this.tab))
   }
+  get sheetHidden() {
+    return this.sheet.hidden
+  }
+  /** A green dot on the Friends button while a friend is studying. */
+  setFriendsLive(n: number) {
+    this.el.querySelector('[data-open-tab="friends"]')?.classList.toggle('live', n > 0)
+  }
+  /** Custom length: 15-minute steps between 15 minutes and 6 hours. */
+  private stepCustom(d: number) {
+    const st = this.game.save.settings
+    const cur = Math.round((st.length ?? 3600) / 60)
+    const next = Math.max(CUSTOM_MIN, Math.min(CUSTOM_MAX, Math.round((cur + d) / 15) * 15))
+    st.custom = next
+    this.h.setLength(next * 60)
+  }
+  /** In the small window the pop-out button turns into "Back to the full window". */
+  small = false
+  setSmall(on: boolean) {
+    this.small = on
+    this.el.classList.toggle('small-window', on)
+    const b = this.el.querySelector<HTMLElement>('[data-popout]')
+    if (!b) return
+    b.innerHTML = tabIcon(on ? BACK_ICON : POP_ICON)
+    b.title = on ? 'Close the small window' : 'Pop out'
+    b.setAttribute('aria-label', on ? 'Close the small window' : 'Pop out to a small window')
+  }
   /** Open a menu on one of its sub-tabs (a landmark's "See progress" opens Landmarks). */
   openTo(tab: Tab, sub: string) {
     this.sub[tab] = sub
@@ -598,7 +665,10 @@ export class Hud {
   private subOf(tab: Tab) {
     return this.sub[tab] ?? SUBS[tab]?.[0][0] ?? ''
   }
+  /** A panel laid over the bottom of the open menu (the Box's picked Pokémon); set while a view renders. */
+  private overlay = ''
   private renderSheet() {
+    this.overlay = ''
     const title = TABS.find(([id]) => id === this.tab)![1]
     const subs = SUBS[this.tab]
     const cur = this.subOf(this.tab)
@@ -616,6 +686,8 @@ export class Hud {
           ? this.dexTab()
           : this.tab === 'island'
             ? this.islandTab()
+            : this.tab === 'goals'
+              ? this.goalsTab()
             : this.tab === 'friends'
               ? this.friendsTab()
               : this.tab === 'log'
@@ -631,6 +703,7 @@ export class Hud {
         <div class="sheet-head">${small ? bar : `<p class="sheet-title">${title}</p>`}<button class="close-x" data-act="close" aria-label="Close"></button></div>
         ${small ? '' : bar}
         <div class="sheet-body">${this.note ? `<p class="note flash">${esc(this.note)}</p>` : ''}${body}</div>
+        ${this.overlay}
       </div>`
     const sb = this.sheet.querySelector('.sheet-body')
     if (sb) sb.scrollTop = scroll
@@ -661,7 +734,9 @@ export class Hud {
       if (!box.length) return `<p class="hint">The box is empty.</p>`
       const picked = box.find((m) => m.id === this.openMon)
       const grid = box.map((m) => `<button class="box-cell${m.id === this.openMon ? ' on' : ''}" data-open="${m.id}" title="${esc(g.name(m))}"><img src="${portraitUrl(m.dex)}" alt=""${m.shiny ? ' class="shiny-img"' : ''} /><span>Lv${m.level}${m.shiny ? '*' : ''}</span></button>`).join('')
-      return locked + `<div class="box-grid">${grid}</div>` + (picked ? this.monRow(picked) : `<p class="hint">Tap one for its choices.</p>`)
+      // the picked one's choices come up over the bottom of the Box, not far below the grid (2026-11-17)
+      if (picked) this.overlay = `<div class="sheet-overlay"><button class="close-x" data-open="${picked.id}" aria-label="Close"></button>${this.monRow(picked)}</div>`
+      return locked + `<div class="box-grid">${grid}</div>` + (picked ? '<div class="overlay-room"></div>' : `<p class="hint">Tap one for its choices.</p>`)
     }
     if (view === 'eggs')
       return s.eggs.length
@@ -831,6 +906,36 @@ export class Hud {
       <p class="row-title">Islands</p>${others}`
   }
 
+  /** Goals: this island and the next ones, the landmarks, and the Pokédex milestones. */
+  private goalsTab() {
+    const g = this.game
+    const view = this.subOf('goals')
+    if (view === 'restore') {
+      const wallet = `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${g.save.shells}</b></span><span title="Star Pieces">${icon('star-piece')}<b>×${g.save.starPieces}</b></span></p>${g.inSession ? '<p class="note">Locked while focusing.</p>' : ''}`
+      return g.save.island === 'home' || g.save.restored?.length ? wallet + this.landmarksHtml(g.inSession) : '<p class="hint">The landmarks are on Home Island.</p>'
+    }
+    if (view === 'milestones') return this.milestonesHtml()
+    return this.islandsHtml()
+  }
+  /** Each island's Pokédex milestones: what 25, 50, 75 and 100 percent give, ticked once paid. */
+  private milestonesHtml() {
+    const g = this.game
+    const paid = new Set(g.save.dexPaid ?? [])
+    const gift: Record<number, (home: boolean) => string> = {
+      25: () => 'A decoration',
+      50: () => 'An egg',
+      75: () => 'One more decoration spot',
+      100: (home) => (home ? "Wooper's own egg" : 'A Pokédex statue'),
+    }
+    return ISLANDS.filter((i) => i.id === 'home' || i.id === g.save.island || g.save.stash[i.id] || g.dexOf(i.id).caught > 0)
+      .map((i) => {
+        const d = g.dexOf(i.id)
+        const rows = DEX_MILESTONES.map((pct) => `<p class="hint"><i class="tick${paid.has(`${i.id}:${pct}`) ? ' on' : ''}"></i>${pct}%: ${gift[pct](i.id === 'home')}</p>`).join('')
+        return `<p class="row-title">${i.name}</p><div class="stat-rows"><p><span>Pokédex</span><b>${d.caught} of ${d.all.length}</b></p></div>${rows}`
+      })
+      .join('')
+  }
+
   // Island: decorations bought with shells, placed on fixed spots
   private islandTab() {
     const g = this.game
@@ -866,10 +971,8 @@ export class Hud {
       (b) => `<div class="decor-row tight"><span class="shop-ico">${icon(b.id)}</span><div class="mon-main"><p>${b.name} <span class="hint">×${g.save.balls[b.id]}</span></p></div><div class="row-actions row"><button class="px-btn small${g.save.shells >= b.price ? ' primary' : ''}" data-ball="${b.id}:1" ${g.save.shells < b.price || locked ? 'disabled' : ''}>${icon('shoal-shell', 'ico-s')}${b.price}</button><button class="px-btn small" data-ball="${b.id}:5" ${g.save.shells < b.price * 5 || locked ? 'disabled' : ''}>×5</button></div></div>`,
     ).join('')
     const view = this.subOf('island')
-    if (view === 'map') return this.islandsHtml()
     const wallet = `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${g.save.shells}</b></span><span title="Star Pieces">${icon('star-piece')}<b>×${g.save.starPieces}</b></span></p>${locked ? '<p class="note">Locked while focusing.</p>' : ''}`
     if (view === 'habitats') return `${wallet}${habitats}`
-    if (view === 'restore') return wallet + this.landmarksHtml(locked)
     if (view === 'decor') return `${wallet.replace('</p>', `<span>${free} of ${open.length} spots free</span></p>`)}<div class="decor-grid">${rows}</div>`
     const upgrades = UPGRADES.map((u) => {
       const have = g.save.upgrades.includes(u.id)
@@ -1020,26 +1123,43 @@ export class Hud {
     const reqs = (fc?.requests ?? [])
       .map((r) => `<div class="decor-row"><div class="mon-main"><p><strong>${esc(r.name)}</strong> <span class="hint">@${esc(r.handle)} wants to be friends.</span></p></div><div class="row-actions"><button class="px-btn small primary" data-accept="${r.rowId}">Accept</button><button class="px-btn small" data-decline="${r.rowId}">Decline</button></div></div>`)
       .join('')
-    const rows = (fc?.friends ?? [])
+    // friend cards (Paul, 2026-11-17: "more prominent, streamlined, cooler"): the lead Pokémon's
+    // face, a live line, one main button, and the rest behind More
+    const g = this.game
+    const free = !g.inSession
+    const cards = (fc?.friends ?? [])
+      .slice()
+      .sort((a, b) => Number(b.studying) - Number(a.studying))
       .map((f) => {
-        const party = f.party.map((p) => `<span class="mini"><img src="${portraitUrl(p.dex)}" alt="" /><i>${p.level}</i></span>`).join('')
-        const status = f.studying ? 'Studying now.' : f.dayMin ? `${fmtMinutes(f.dayMin)} today.` : ''
-        const free = !this.game.inSession
+        const lead = f.party[0]
+        const party = f.party.slice(1, 4).map((p) => `<span class="mini"><img src="${portraitUrl(p.dex)}" alt="" /><i>${p.level}</i></span>`).join('')
+        const status = f.studying ? '<span class="live-dot"></span>Studying now' : f.dayMin ? `${fmtLen(f.dayMin * 60)} today` : 'Resting'
+        // one main move: join a friend who is studying, else go and see their island
+        const main = f.studying && free && !g.save.session ? `<button class="px-btn small primary" data-together="1">Study together</button>` : free ? `<button class="px-btn small primary" data-visit="${f.id}">Visit</button>` : ''
+        const open = this.friendMore === f.id
         const waveBtn = f.studying && free ? `<button class="px-btn small" data-wave="${f.id}">Wave</button>` : ''
-        // a dungeon invite only to a friend on a break (dungeons are break-time)
         const dgBtn = free && !f.studying && this.h.inviteDungeon ? `<button class="px-btn small" data-dginvite="${f.id}">Dungeon</button>` : ''
         const tradeBtn = free && this.h.tradeOffer ? `<button class="px-btn small" data-tradeto="${f.id}">Trade</button>` : ''
-        const acts = free ? `<div class="row-actions">${waveBtn}<button class="px-btn small" data-visit="${f.id}">Visit</button><button class="px-btn small" data-sendto="${f.id}">Send</button>${tradeBtn}${dgBtn}</div>` : ''
+        const visitBtn = f.studying && free ? `<button class="px-btn small" data-visit="${f.id}">Visit</button>` : ''
+        const more = open && free ? `<div class="row-actions">${visitBtn}${waveBtn}<button class="px-btn small" data-sendto="${f.id}">Send a gift</button>${tradeBtn}${dgBtn}</div>` : ''
         const picker = this.sendTo === f.id ? this.sendPicker(f.id, f.name) : this.tradeTo === f.id ? this.monPicker(`toffer`, f.id, 'Offer which one?') : ''
-        return `<div class="friend-row${f.studying ? ' live' : ''}"><div class="mon-main"><p><strong>${esc(f.name)}</strong> <span class="hint">@${esc(f.handle)}</span></p><p class="hint">${status} ${f.dexCount ? `Pokédex ${f.dexCount}.` : ''}</p>${acts}${picker}</div><div class="mini-party">${party}</div></div>`
+        return `<div class="friend-card${f.studying ? ' live' : ''}">
+          <div class="fc-top">
+            <span class="fc-face">${lead ? `<img src="${portraitUrl(lead.dex)}" alt="" />` : ''}</span>
+            <div class="fc-id"><p><strong>${esc(f.name)}</strong></p><p class="hint">${status}</p><p class="hint">@${esc(f.handle)}${f.dexCount ? ` · Pokédex ${f.dexCount}` : ''}</p></div>
+            <div class="mini-party">${party}</div>
+          </div>
+          <div class="row-actions">${main}${free ? `<button class="px-btn small" data-fmore="${f.id}">${open ? 'Less' : 'More'}</button>` : ''}</div>
+          ${more}${picker}
+        </div>`
       })
       .join('')
-    return `<p class="note">@${esc(me.handle)}</p>
+    return `<div class="fc-me"><span class="hint">You are</span> <b>@${esc(me.handle)}</b></div>
+      <form class="inline-form" data-form="add"><input class="px-input" name="handle" maxlength="21" placeholder="Friend's @handle" required /><button class="px-btn small">Add</button></form>
       ${reqs}
       ${this.tradesHtml()}
-      ${fc ? rows || `<p class="note">No friends yet.</p>` : `<p class="note">Loading…</p>`}
+      ${fc ? cards || `<p class="note">No friends yet. Ask a friend for their @handle.</p>` : `<p class="note">Loading…</p>`}
       ${fc?.error ? `<p class="note">${esc(fc.error)}</p>` : ''}
-      <form class="inline-form" data-form="add"><input class="px-input" name="handle" maxlength="21" placeholder="@handle" required /><button class="px-btn small">Add friend</button></form>
       <button class="px-btn small quiet" data-act="signout">Sign out</button>`
   }
 
@@ -1051,6 +1171,12 @@ export class Hud {
     const streak = g.streak()
     const view = this.subOf('more')
     if (view === 'credits') return `<div class="credits-body">${this.credits()}</div>`
+    if (view === 'guide') {
+      const seen = new Set(g.save.tips ?? [])
+      const known = GUIDE.filter((t) => seen.has(t.id))
+      const left = GUIDE.length - known.length
+      return known.map((t) => `<div class="guide-entry"><p class="row-title">${t.title}</p><p class="hint">${t.text}</p></div>`).join('') + (left ? `<p class="note">${left} more ${left === 1 ? 'entry unlocks' : 'entries unlock'} as you play.</p>` : '')
+    }
     if (view === 'settings')
       return `<p class="row-title">Sound</p><button class="px-btn small" data-act="sound">Sounds ${g.save.settings.sound === false ? 'off' : 'on'}</button> <button class="px-btn small" data-act="music">Music ${g.save.settings.music === false ? 'off' : 'on'}</button>
       <p class="row-title">Volume</p>
@@ -1063,8 +1189,11 @@ export class Hud {
       <div class="segs wide">
         <button class="seg${len === 1800 ? ' on' : ''}" data-len="30">30 min</button>
         <button class="seg${len === 3600 ? ' on' : ''}" data-len="60">1 hour</button>
-        <button class="seg${len === null ? ' on' : ''}" data-len="open">Open</button>
+        <button class="seg${len !== 1800 && len !== 3600 ? ' on' : ''}" data-len="custom">Custom</button>
       </div>
+      ${len !== 1800 && len !== 3600 ? `<div class="segs wide stepper"><button class="seg" data-cust="-15" aria-label="15 minutes less">-</button><span class="step-v">${fmtLen(len ?? 3600)}</span><button class="seg" data-cust="15" aria-label="15 minutes more">+</button></div>` : ''}
+      <p class="row-title">When a session ends</p>
+      <button class="px-btn small" data-act="alarm">Ring ${g.save.settings.alarm === false ? 'off' : 'on'}</button>
       <p class="row-title">Today</p>
       <p class="note">${fmtMinutes(g.todayMinutes())} focused${streak ? ` · ${streak} day${streak === 1 ? '' : 's'} in a row` : ''}</p>
       ${!det && idleOk ? `<p class="row-title">Idle detection</p><button class="px-btn small" data-act="idle">Turn on</button>` : ''}`
@@ -1115,6 +1244,7 @@ export class Hud {
     if (act === 'cheats') return this.h.cheats?.()
     if (act === 'sound') return this.h.toggleSound()
     if (act === 'music') return this.h.toggleMusic()
+    if (act === 'alarm') return this.h.toggleAlarm()
     if (act === 'popout') {
       this.closeSheet()
       return this.h.popOut?.()
@@ -1191,9 +1321,24 @@ export class Hud {
     }
     const vol = at('vol')
     if (vol) return this.h.setVolume(Number(vol))
+    const fmore = at('fmore')
+    if (fmore) {
+      this.friendMore = this.friendMore === fmore ? null : fmore
+      return this.renderSheet()
+    }
+    if (at('together')) {
+      this.closeSheet()
+      return this.h.start()
+    }
     const len = at('len')
     if (len) {
-      this.h.setLength(len === 'open' ? null : Number(len) * 60)
+      this.h.setLength(len === 'custom' ? (this.game.save.settings.custom ?? 90) * 60 : Number(len) * 60)
+      this.lastFocusKey = ''
+      return this.renderSheet()
+    }
+    const cust = at('cust')
+    if (cust) {
+      this.stepCustom(Number(cust))
       this.lastFocusKey = ''
       return this.renderSheet()
     }

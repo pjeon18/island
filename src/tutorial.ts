@@ -80,7 +80,10 @@ class TextBox {
     this.menu = this.ui.querySelector('.prologue-menu')!
     this.fit()
     new ResizeObserver(() => this.fit()).observe(canvas)
-    this.ui.querySelector('.prologue-box')!.addEventListener('click', () => this.tap())
+    // a click anywhere moves the text on (Paul, 2026-11-12), except on a choice
+    root.addEventListener('click', (e) => {
+      if (!(e.target as HTMLElement).closest('button, .prologue-menu')) this.tap()
+    })
     window.addEventListener('keydown', this.onKey)
   }
   private onKey = (e: KeyboardEvent) => {

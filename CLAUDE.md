@@ -138,11 +138,28 @@ Read `docs/GAME_DESIGN.md` first: it is the game loop and core features from Pau
     - The HUD shows the charge as three pips, each move's status word, and dims a move you can't afford. Statuses show as small coloured marks over an enemy's head.
     - Guests get statuses as snapshot flag bits 4096 to 65536. A party actor's `cd1` slot carries its charge.
   - L5: `checkMilestones` (called when a species is first caught) pays each island's Pokédex at `DEX_MILESTONES` 25/50/75/100% once (`save.dexPaid`): a free decoration from `MILESTONE_DECOR`, an egg, an extra decoration spot (`extraSlots`, SLOTS `i` with `milestone: 1`, `slotOpen`), and Wooper's Togepi egg on Home or the gift-only `statue` elsewhere. Shinies: `SHINY_ODDS` 1/150 for passers-by in a clean long session (`Wild.shiny` → `Mon.shiny`, `save.shinies`); `Creature.shiny` draws with a hue-rotate filter and a brief sparkle (`syncShiny`); gold marks in the catch screen, summary, box and Pokédex.
+- Playtest round (2026-11-17, a friend's feedback plus Paul's; Paul chose the four design calls):
+  - **Session lengths** are 30 min, 1 hour and Custom (15-minute steps from 15 minutes to 6 hours; `settings.custom`, `CUSTOM_MIN`, `CUSTOM_MAX`, `stepCustom`). Open is gone and saved Open settings become 1 hour. `MAX_SESSION` is now 6 hours.
+  - **The end of a session:**
+    - The success chime plays twice at double level (`ringDone`). Settings → Focus has "Ring on/off" (`settings.alarm`).
+    - A system notification comes if the page is hidden; permission is asked once, on the first Start (`askNotify`).
+    - The tab title shows the time left, then "Session done" until you look (`syncTitle`).
+  - **Dialogue:** a waiting line moves on with a click anywhere, and the click is used up so it doesn't also act on the island. The prologue's text box does the same.
+  - **Night** is lighter: `LIGHT` midnight #7a82b8 (was #5f69a8), and the lit ambient dims by a quarter, not a half.
+  - **Small window:**
+    - The pop-out button turns into "Close the small window" while the island is in one (`hud.setSmall`, `closeSmall`), so a small window left behind can always be closed.
+    - Picture-in-picture waits for its copied stylesheets, lays out again on the next frame and on resize, and asks Chrome for 480×360 every time (`preferInitialWindowPlacement`). The friend's "no menus, cut off" isn't reproduced: the pane can't open picture-in-picture.
+  - **Catching:** the aim ring closes onto a fixed white target circle (`R_MIN`), and the catch panel says "Throw when the ring closes on the white circle."
+  - **Poké Balls:** new saves start with 10 (was 5). A finished session washes up 1 (2 for an hour or more). With no balls and fewer shells than a ball costs, Wooper gives 3 once a day (`ballGiftDay`).
+  - **Box:** the picked Pokémon's choices come up over the bottom of the Box (`hud.overlay`, `.sheet-overlay`) instead of below the grid. The summary's evolution line is plain text (`.sum-text`), not flex columns.
+  - **Goals tab** (new, Star Piece icon): Islands (the old Map page), Landmarks and Pokédex milestones (`goalsTab`, `milestonesHtml`). The Island tab keeps Habitats, Decor and Shop, and the Town Map icon, so the tour's "map button" still means it.
+  - **Friend cards** (`.friend-card`): each card shows the lead's face, a live line, one main button ("Study together" while they study, else Visit) and More (Visit, Wave, Send a gift, Trade, Dungeon). Studying friends sort first. Adding a friend is at the top, and the Friends button gets a green dot while a friend studies (`hud.setFriendsLive`).
+  - **The Guide** (`src/guide.ts`, More → Guide): 13 entries, each unlocking when it becomes useful (`ready`). At a break, or 8 s after loading, Wooper explains the first unlocked one not yet told (`tellTip`, `save.tips`), one sentence a line, never during focus. The tour's focusing and pond count as told.
 - The dungeon entrance (2026-11-12, Paul: "too many buttons and uneven"): label-and-value rows (Floors, Levels, the Lantern, berries), Yes/No switches for lighting a charge and bringing Oran Berries (`data-light`, `data-bring`), and one Enter. Every dungeon message panel now gives its gold button a whole row and spreads the others evenly across the next row, so "Back to the island" became "Back" and "Play with a friend" became "With a friend".
 - Landmarks (2026-11-12, Paul: "not clear what they are", "placed on top and over the end of the island"):
   - The ruins stand on open grass: the hut at `onIsland(81, 66)` and the lighthouse at `onIsland(55, 88)`. They are low and have soft dithered shadows (`shade`) with grass growing through them (`blades`).
   - The hut ruin has a doorway, fallen red roof slabs and a Poké Ball sign. The lighthouse ruin has a red-and-white stump, a fallen section and its lamp cage.
-  - Tapping one (`landmarkAt`, `showLandmark`) has Wooper say what it is and what rebuilding takes, with "See progress" (`hud.openTo('island', 'restore')`). The next one, once affordable, glints gold every few seconds (`readyGlint`) and offers Rebuild.
+  - Tapping one (`landmarkAt`, `showLandmark`) has Wooper say what it is and what rebuilding takes, with "See progress" (`hud.openTo('goals', 'restore')`). The next one, once affordable, glints gold every few seconds (`readyGlint`) and offers Rebuild.
 - The small window (compact HUD):
   - Sub-tabs take the title's place beside the close button and wrap.
   - The Box and Pokédex grids fit their columns to the width.

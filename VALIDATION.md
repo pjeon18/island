@@ -1,5 +1,23 @@
 # Validation
 
+## Playtest round (2026-11-17)
+- **In the browser (local test saves):**
+  - A click on an empty part of the prologue moved the text on; a click during a question did nothing.
+  - Night at 23:00 is readable.
+  - The summary's evolution line reads as one paragraph.
+  - Picking a Pokémon in the Box opened its choices over the bottom of the Box, with its own close button.
+  - Goals shows Islands, Landmarks and Pokédex milestones; the Island tab shows Habitats, Decor and Shop.
+  - Custom went 1 h 30, then 1 h 45, and stopped at 6 hours.
+  - Wooper told the catching tip 8 s after loading, then said where the Guide is.
+  - The Guide lists what has been told.
+  - Friend cards were shown with stand-in data, since the dev copy isn't signed in. A studying friend sorts first with "Study together", More opens the rest, and the Friends button gets a green dot.
+  - A running 30-minute session showed "29:59 · Island" in the title, and finishing it added a Poké Ball.
+  - At 480×360 nothing runs past any menu's edge, and "Close the small window" shows when the island is in one.
+- **Not checked:**
+  - picture-in-picture itself (the pane can't open it), so the friend's blank, cut-off small window is fixed only on reading;
+  - the system notification and the alarm by ear;
+  - friend cards with real friends.
+
 ## Landmarks, small window, volume, move choices (2026-11-12)
 - **Landmarks:**
   - Island shots with and without Pokémon show both ruins on grass, with shadows. The hut reads as a broken Pokémon Center (doorway, red roof slabs, Poké Ball sign).
