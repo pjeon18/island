@@ -42,8 +42,9 @@ Read `docs/GAME_DESIGN.md` first: it is the game loop and core features from Pau
 ## Map
 - `src/island.ts`: the island, painted pixel by pixel into a static base (`PAL`, `buildIsland`), plus the props: tree, bush and lantern.
   - **The clean look** (Paul, 2026-11-18: the dithered ground "felt rasterized, no charm"; he picked ground and sea from the mock-ups on the Island Look Study page):
-    - The ground and sea are drawn without dithering. The grass is one even green with a darker step inside a clean sand band. The cliff is clean bands (a lit lip, earth, one darker stratum at depth 4, a wet foot). The sea is smooth rings: pale shallows, the island's water, a deep ring, then the open sea, with a slow wave on the ring edges.
-    - Deviations are placed on purpose: six soft patches at fixed window positions (`PATCHES`, four darker and two lighter, each with a lit top edge), 16 small tufts (`TUFT`) and 7 clusters of three flowers.
+    - The ground and sea are drawn without dithering. The grass keeps the old lighting and slow noise, lit from the top-left, but cut into clean-edged regions of three greens instead of dots: Paul found the fully flat version too plain the same day.
+    - The sand is a clean band. The cliff is clean bands (a lit lip, earth, a wavy darker stratum, a wet foot). The sea is smooth rings (pale shallows, the island's water, a deep ring, then the open sea) with a slow wave on the edges and a few short ripple dashes.
+    - Grass particles are placed on purpose: 34 small tufts (`TUFT`) and 12 clusters of three flowers. Paul liked these.
     - `buildIsland(keepClear)` gets the decor slots, habitat spots, landmarks, crater and nest from the scene, so tufts and flowers stay off them.
     - The float-mode lagoon is unchanged.
 - `src/scene.ts`: the y-sorted world, the water glints and foam, the swaying tall grass, and the day/night light (a multiply by `lightAt(hour)` plus the lantern's feathered glow).
