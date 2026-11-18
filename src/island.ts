@@ -174,7 +174,11 @@ export interface IslandLayout {
   shoreline: { x: number; y: number }[] // foam pixels, just outside the footprint
 }
 
-export function buildIsland(): IslandLayout {
+/**
+ * `keepClear`: spots where decorations, habitats and landmarks stand (in window pixels), so the
+ * ground's tufts and flowers stay off them.
+ */
+export function buildIsland(keepClear: { x: number; y: number; r: number }[] = []): IslandLayout {
   const top = new Uint8Array(W * H)
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) top[y * W + x] = inTop(x, y) ? 1 : 0
   const edge = distanceField(top, W, H)
@@ -222,16 +226,18 @@ export function buildIsland(): IslandLayout {
       const d = seaDist[y * W + x]
       // the island's water deepens in a soft ring, then gives way to the darker open sea,
       // which meets the window's edge in exactly the page's colour (no visible frame)
+      // clean rings, no dithering (Paul, 2026-11-18: the dithered ground and sea felt rasterized):
+      // pale shallows, the island's water, a deep ring, then the open sea. A slow wave keeps the
+      // ring edges from looking ruled. The canvas edge is always exactly the open sea's colour,
+      // the page's, so no frame shows.
       const r = Math.hypot((x - 120) / 120, (y - 92) / 90)
       const edge = Math.min(x, W - 1 - x, y, H - 1 - y)
-      const dith = bayer(x, y) - 0.5
-      let c: RGB = r + dith * 0.1 > 0.84 ? PAL.deep : PAL.sea
-      // one in-between shade, so the step down to the dark open sea is gradual
-      // the open sea; the canvas edge is always exactly this colour, the page's, so no frame shows
-      if (r + dith * 0.1 > 0.95 || edge + dith * 8 < 6) c = PAL.dusk
-      // faint static ripples
-      if (hash2(x >> 2, y, 17) < 0.035 && (x & 3) !== 3 && d > 8 && c !== PAL.dusk) c = PAL.seaRipple
-      if (d < 12) c = d + bayer(x, y) * 3 < 9 ? (d < 4 + bayer(x + 1, y) * 2 ? PAL.shallow2 : PAL.shallow) : c
+      const wave = Math.sin(x * 0.35 + y * 0.2) * 0.6
+      let c: RGB = PAL.sea
+      if (r > 0.84 + wave * 0.01) c = PAL.deep
+      if (r > 0.95 || edge < 6) c = PAL.dusk
+      if (d < 9 + wave) c = PAL.shallow
+      if (d < 4 + wave * 0.5) c = PAL.shallow2
       p.set(x, y, c)
     }
 
@@ -240,15 +246,9 @@ export function buildIsland(): IslandLayout {
     for (let x = 0; x < W; x++) {
       const k = cliff[y * W + x]
       if (!k) continue
-      const strata = noise(x / 7, y / 2, 11) + bayer(x, y) * 0.3
-      let c: RGB
-      if (k === 1) c = PAL.cliffTop
-      else if (k >= CLIFF) c = PAL.earthWet
-      else if (k === CLIFF - 1) c = strata > 0.7 ? PAL.earthWet : PAL.earthDark
-      else c = strata > 0.78 ? PAL.earthDark : PAL.earth
-      // a pebble line two rows down
-      if (k === 3 && hash2(x, y, 4) < 0.12) c = PAL.cliffTop
-      p.set(x, y, c)
+      // clean bands: a lit lip, earth with one darker stratum, and a wet foot at the water
+      const foot = k >= CLIFF || !footprint[(y + 1) * W + x]
+      p.set(x, y, k === 1 ? PAL.cliffTop : foot ? PAL.earthWet : k === 4 ? PAL.earthDark : PAL.earth)
     }
 
   // ---------- top surface ----------
@@ -259,43 +259,64 @@ export function buildIsland(): IslandLayout {
       // sand band: wider along the south-east beach
       const beach = Math.max(0, (y - 92) / 40) * Math.max(0, (x - 100) / 80)
       const sandW = 2.2 + noise(x / 9, y / 9, 7) * 2.6 + beach * 7
-      const nearSand = e + bayer(x, y) * 1.4
-      if (nearSand <= sandW) {
-        let c = PAL.sand
-        if (e <= 1) c = PAL.sandLight
-        else if (nearSand > sandW - 0.8) c = PAL.sandDark
-        if (hash2(x, y, 21) < 0.05) c = PAL.sandDark
-        p.set(x, y, c)
+      // a clean sand band (a lit rim, sand, a darker inner edge), then one even green with a
+      // darker step just inside the sand; the grass's few deviations are placed below
+      if (e <= sandW) {
+        p.set(x, y, e <= 1 ? PAL.sandLight : e > sandW - 1 ? PAL.sandDark : PAL.sand)
         continue
       }
-      // grass shading: lit from the top-left, darker toward the south-east
-      const nx = (x - 120) / 80
-      const ny = (y - 88) / 46
-      const light = -nx * 0.35 - ny * 0.55
-      const v = 0.52 + light * 0.32 + (noise(x / 10, y / 8, 13) - 0.5) * 0.4
-      const t = v + (bayer(x, y) - 0.5) * 0.22
-      let c = t < 0.3 ? PAL.grassDeep : t < 0.46 ? PAL.grassDark : t < 0.74 ? PAL.grass : PAL.grassLight
-      // grass rim just inside the sand reads as a soft step
-      if (e <= sandW + 1.2) c = PAL.grassDark
-      p.set(x, y, c)
+      p.set(x, y, e <= sandW + 1.5 ? PAL.grassDark : PAL.grass)
     }
 
-  // grass tufts and flowers (deterministic sprinkles)
-  for (let y = 2; y < H; y++)
-    for (let x = 2; x < W - 2; x++) {
-      if (!T(x, y) || edge[y * W + x] < 7) continue
-      const h = hash2(x, y, 31)
-      if (h < 0.022) {
-        p.set(x, y, PAL.grassDeep)
-        p.set(x - 1, y - 1, PAL.grassDark)
-        p.set(x + 1, y - 1, PAL.grassDark)
-        p.set(x, y - 1, PAL.grassLight)
-      } else if (h < 0.0275 && Math.hypot(x - grassPatch.x, y - grassPatch.y) > grassPatch.r + 6) {
-        const f = [PAL.flowerA, PAL.flowerB, PAL.flowerC][Math.floor(hash2(x, y, 7) * 3)]
-        p.set(x, y, f)
-        p.set(x, y + 1, PAL.grassDeep)
+  // ---------- the grass's few deviations, placed on purpose ----------
+  // six soft patches on open lawn (window pixels), four darker and two lighter, each a pair of
+  // overlapping ellipses with a lit top edge so it reads as a gentle mound
+  const PATCHES = [
+    { x: 140, y: 116, rx: 14, ry: 4.5, dark: true },
+    { x: 180, y: 104, rx: 11, ry: 4, dark: true },
+    { x: 94, y: 112, rx: 12, ry: 4, dark: true },
+    { x: 208, y: 98, rx: 9, ry: 3.5, dark: true },
+    { x: 152, y: 70, rx: 12, ry: 4, dark: false },
+    { x: 108, y: 50, rx: 13, ry: 4, dark: false },
+  ]
+  const inPatch = (q: (typeof PATCHES)[number], x: number, y: number) =>
+    ((x - q.x) / q.rx) ** 2 + ((y - q.y) / q.ry) ** 2 < 1 || ((x - q.x - q.rx * 0.45) / (q.rx * 0.65)) ** 2 + ((y - q.y + q.ry * 0.5) / (q.ry * 0.8)) ** 2 < 1
+  const lightLip = hex('#bee682')
+  for (const q of PATCHES)
+    for (let y = Math.floor(q.y - q.ry * 2); y <= q.y + q.ry * 2; y++)
+      for (let x = Math.floor(q.x - q.rx * 2); x <= q.x + q.rx * 2; x++) {
+        if (!T(x, y) || edge[y * W + x] < 6 || !inPatch(q, x, y)) continue
+        const lit = !inPatch(q, x, y - 1)
+        p.set(x, y, q.dark ? (lit ? PAL.grass : PAL.grassDark) : lit ? lightLip : PAL.grassLight)
       }
+  // small tufts and clusters of three flowers, on open lawn away from everything that stands there
+  const busy = [...keepClear, { ...tree, r: 22 }, { ...bush, r: 12 }, { ...lantern, r: 8 }, { x: grassPatch.x, y: grassPatch.y, r: grassPatch.r + 8 }]
+  const open = (x: number, y: number, pad = 0) => T(x, y) && edge[y * W + x] > 7 + pad && !busy.some((b) => Math.hypot(x - b.x, (y - b.y) * 1.4) < b.r * 0.75 + pad)
+  let seed = 3
+  const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
+  const TUFT = ['.L.L.', 'LdLdL', 'dDdDd']
+  const tuftCol: Record<string, RGB> = { L: PAL.grassLight, d: PAL.grassDark, D: PAL.grassDeep }
+  for (let n = 0, tries = 0; tries < 500 && n < 16; tries++) {
+    const x = Math.round(30 + rnd() * 180)
+    const y = Math.round(45 + rnd() * 95)
+    if (!open(x, y)) continue
+    TUFT.forEach((row, r) => [...row].forEach((ch, c) => ch !== '.' && p.set(x - 2 + c, y - 2 + r, tuftCol[ch])))
+    n++
+  }
+  const petals = [PAL.flowerA, PAL.flowerB, PAL.flowerC]
+  const heart = hex('#ffe680')
+  for (let f = 0, tries = 0; tries < 500 && f < 7; tries++) {
+    const x = Math.round(35 + rnd() * 170)
+    const y = Math.round(50 + rnd() * 85)
+    if (!open(x, y, 2)) continue
+    for (const [ox, oy] of [[0, 0], [4, 1], [2, 3]]) {
+      p.set(x + ox, y + oy + 1, PAL.grassDark)
+      for (const dx of [-1, 0, 1]) p.set(x + ox + dx, y + oy, petals[f % 3])
+      p.set(x + ox, y + oy - 1, petals[f % 3])
+      p.set(x + ox, y + oy, heart)
     }
+    f++
+  }
 
   // soft contact shadows painted into the grass (tree, bush)
   const shade = (cx: number, cy: number, rx: number, ry: number) => {
@@ -304,7 +325,7 @@ export function buildIsland(): IslandLayout {
         const dx = (x - cx) / rx
         const dy = (y - cy) / ry
         const d = dx * dx + dy * dy
-        if (d < 1 && T(x, y) && d < 0.55 + bayer(x, y) * 0.45) p.set(x, y, d < 0.45 ? PAL.grassDeep : PAL.grassDark)
+        if (d < 1 && T(x, y)) p.set(x, y, PAL.grassDark) // a clean shape, no dithering
       }
   }
   shade(tree.x + 4, tree.y + 1, 15, 5)

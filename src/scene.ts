@@ -7,6 +7,7 @@ import { DecorArt, SLOTS, decorArt } from './decor'
 import type { Species } from './sprites'
 import type { FindKind, Habitat, Weather } from './game'
 import { HABITAT_SPOTS, HabitatArt, baitArt, habitatArt, paintGate } from './habitats'
+import { CRATER_SPOT, LANDMARK_SPOTS } from './landmarks'
 import { FLAT, Light, applyLighting, normalMapFor } from './lighting'
 import type { Intro } from './intro'
 import { drawFrame, frameAt } from './sprites'
@@ -151,7 +152,14 @@ export class Scene {
   overlay?: (g: CanvasRenderingContext2D) => void
 
   constructor() {
-    this.island = buildIsland()
+    // the ground's tufts and flowers keep off every spot where something stands
+    this.island = buildIsland([
+      ...SLOTS.map((sl) => ({ x: sl.x, y: sl.y, r: 13 })),
+      ...Object.values(HABITAT_SPOTS).map((h) => ({ x: h.x, y: h.y, r: Math.max(h.r * 1.4, 14) })),
+      ...Object.values(LANDMARK_SPOTS).map((l) => ({ x: l.x, y: l.y, r: 16 })),
+      { x: CRATER_SPOT.x, y: CRATER_SPOT.y, r: 20 },
+      { x: NEST.x, y: NEST.y, r: 12 },
+    ])
     this.addTufts(this.island.grassPatch)
     // open sea positions for water glints
     const fp = this.island.footprint
