@@ -2435,7 +2435,7 @@ function render() {
     fg.fillStyle = f.mini ? '#f8a040' : p > 0.5 ? '#58d058' : p > 0.2 ? '#f8c838' : '#f05040'
     fg.fillRect(x + 1, y + 1, Math.round(14 * p), 1)
   }
-  fg.font = '8px "Press Start 2P", monospace'
+  fg.font = '8px "Island Digits", "Press Start 2P", monospace'
   fg.textAlign = 'center'
   for (const p of pops) {
     if (!p.text) continue

@@ -1,4 +1,8 @@
 /* The page is the game: the island over open sea, nothing else. */
+/* Press Start 2P's 8 has one-pixel holes and read as a blob at game size (Paul, 2026-11-18): the
+   digits 0 to 9 come from our own font on the same grid (scripts/build-digits.py); every other
+   character stays Press Start 2P */
+@font-face { font-family: 'Island Digits'; src: url('./fonts/island-digits.ttf') format('truetype'); unicode-range: U+0030-0039; font-display: block; }
 :root { --sea-page: #2f7fc4; }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--sea-page); }
@@ -27,7 +31,7 @@ body { -webkit-font-smoothing: none; }
   --fr-navy: #202c48; --fr-navy-2: #34446a; --fr-navy-3: #4e6090;
   --fr-gold: #f8d060; --fr-gold-edge: #a06820; --fr-gold-ink: #483010;
   --fr-exp: #40c8f8; --fr-track: #303838; --fr-red: #e03838;
-  --px: 'Press Start 2P', ui-monospace, monospace;
+  --px: 'Island Digits', 'Press Start 2P', ui-monospace, monospace;
   position: absolute; left: 0; top: 0; transform-origin: 0 0;
   pointer-events: none; color: var(--fr-ink);
   font: 8px/1.5 var(--px); text-shadow: 1px 1px 0 var(--fr-shadow);
