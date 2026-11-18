@@ -291,6 +291,8 @@ export interface Scene5 {
   island: 'home' | 'frost' | 'ember'
   habitats: string[]
   decor: Record<string, string>
+  /** Where each decoration stands (arrange mode); kept by the server from stage 9. */
+  pos?: Record<string, { x: number; y: number }>
 }
 export interface FriendScene {
   name: string
@@ -333,9 +335,20 @@ export async function friendScene(id: string): Promise<FriendScene | string> {
     name: String(row.name ?? '').slice(0, 20),
     handle: String(row.handle ?? ''),
     party: (Array.isArray(row.party) ? row.party : []).slice(0, 3).map((p: { dex?: unknown; level?: unknown }) => ({ dex: Number(p.dex) | 0, level: Number(p.level) | 0 })).filter((p) => p.dex >= 1 && p.dex <= 493),
-    scene: { island: sc.island === 'frost' || sc.island === 'ember' ? sc.island : 'home', habitats: Array.isArray(sc.habitats) ? sc.habitats.map(String) : [], decor: sc.decor && typeof sc.decor === 'object' ? (sc.decor as Record<string, string>) : {} },
+    scene: { island: sc.island === 'frost' || sc.island === 'ember' ? sc.island : 'home', habitats: Array.isArray(sc.habitats) ? sc.habitats.map(String) : [], decor: sc.decor && typeof sc.decor === 'object' ? (sc.decor as Record<string, string>) : {}, pos: cleanPos(sc.pos) },
     studying: row.studying === true,
   }
+}
+/** A friend's decoration positions, whole pixels inside the window; anything else is dropped. */
+function cleanPos(p: unknown): Record<string, { x: number; y: number }> {
+  const out: Record<string, { x: number; y: number }> = {}
+  if (!p || typeof p !== 'object') return out
+  for (const [k, v] of Object.entries(p as Record<string, { x?: unknown; y?: unknown }>)) {
+    const x = Number(v?.x)
+    const y = Number(v?.y)
+    if (/^[a-i]$/.test(k) && Number.isInteger(x) && Number.isInteger(y) && x >= 0 && x < 240 && y >= 0 && y < 180) out[k] = { x, y }
+  }
+  return out
 }
 export async function sendGift(to: string, kind: GiftKind, payload: Gift['payload']) {
   if (!supa || state !== 'ready') return 'You are not signed in.'

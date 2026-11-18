@@ -161,6 +161,10 @@ This is a free, non-commercial fan project with no affiliation.
 - **Glaceon** (#471): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, baronessfaron; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, PhillipsYoung (https://twitter.com/PhilliYoung196)
 - **Froslass** (#478): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, baronessfaron
 
+# Art credits
+
+- Island nature pieces (trees, palms, bushes, tall grass, grass tiles, tufts, flowers, rocks, lily pads, leaves, mushrooms, logs, snowman, umbrellas, stones and the stone pool): Flurmimon, Flurmimon's Tileset - Nature, https://www.deviantart.com/flurmimon/art/Flurmimons-Tileset-Nature-580160241. Credit required, non-commercial. Cut into public/art/nature.png by scripts/build-nature.py.
+
 # Audio credits
 
 - Sound effects: Case Portman Audio, Cute & Cozy UI Audio (free sample), https://caseportman.itch.io/cute-cozy-ui-sfx. Royalty-free with attribution.

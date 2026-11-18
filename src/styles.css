@@ -234,6 +234,9 @@ body { -webkit-font-smoothing: none; }
 .mon-main .bar { width: 96px; }
 .mon-detail { padding: 0 4px 8px 52px; }
 .mon-detail .hint { display: block; margin-bottom: 6px; }
+/* each group of a Pokémon's actions: a plain label, the buttons, one line on what they do */
+.act-label { margin: 8px 0 0; color: var(--fr-ink); }
+.act-why { margin: 3px 0 0; color: var(--fr-soft); line-height: 1.5; }
 .row-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 
 .dex-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; margin: 4px 0; }
@@ -427,3 +430,16 @@ html:has(.float), body:has(.float) { background: transparent; }
 .shiny-img { filter: hue-rotate(150deg) saturate(1.15); }
 .dex-cell { position: relative; }
 .dex-shiny { position: absolute; right: 1px; top: 1px; width: 4px; height: 4px; background: #f0c040; box-shadow: 0 0 0 1px #a87818; }
+
+/* arrange mode (2026-11-18): only the island and the arrange bar */
+.hud.arranging > :not(.hud-arrange):not(.hud-toast) { display: none !important; }
+.hud-arrange { position: absolute; left: 6px; right: 6px; bottom: 6px; padding: 6px 8px 8px; display: flex; flex-direction: column; gap: 4px; z-index: 6; }
+.hud-arrange[hidden] { display: none !important; }
+.hud-arrange p { margin: 0; line-height: 1.5; }
+.hud:not(.compact) .hud-arrange { left: auto; width: 300px; }
+
+/* Wooper's first-visit card at the top of a menu view (intros.ts, 2026-11-18) */
+.intro-card { display: flex; gap: 6px; align-items: flex-start; margin: 0 0 8px; padding: 6px; background: var(--fr-tint); }
+.intro-card p { margin: 0 0 5px; line-height: 1.5; color: var(--fr-ink); }
+.intro-face { width: 40px; height: 40px; image-rendering: pixelated; flex: none; }
+.hud.compact .intro-face { width: 24px; height: 24px; }

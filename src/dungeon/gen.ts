@@ -14,7 +14,7 @@
 // a shrine (2 Oran Berries for a Reviver Seed) or a dark room (no ambient light).
 // Those come from a second random stream, so the layout above them is unchanged.
 import { rng } from '../pixel'
-import { DungeonMap, Entity, Modifier, Piece, Prop, Special, T, Theme, TrapKind, compose, uid } from './map'
+import { DungeonMap, Entity, Modifier, OUTDOOR, Piece, Prop, Special, T, Theme, TrapKind, compose, uid } from './map'
 
 export interface FloorSpec {
   seed: number
@@ -128,9 +128,12 @@ export function generateFloor(spec: FloorSpec): DungeonMap {
 
   // the modifier and the special room come from their own stream
   const r2 = rng(spec.seed * 7919 + spec.floor * 104729 + 31337)
-  const modifier = MODIFIERS[Math.floor(r2() * MODIFIERS.length)]
+  // outdoors in daylight there is no fog or flooding: those are cave moods (2026-11-18, Paul)
+  const mods = OUTDOOR[spec.theme] ? MODIFIERS.filter((m) => m !== 'fog' && m !== 'flooded') : MODIFIERS
+  const modifier = mods[Math.floor(r2() * mods.length)]
   const roll = r2()
-  let kind: Special['kind'] | null = roll < 0.25 ? 'house' : roll < 0.45 ? 'vault' : roll < 0.6 ? 'shrine' : roll < 0.75 ? 'dark' : null
+  const outdoor = !!OUTDOOR[spec.theme]
+  let kind: Special['kind'] | null = roll < 0.25 ? 'house' : roll < 0.45 ? 'vault' : roll < 0.6 ? 'shrine' : roll < 0.75 && !outdoor ? 'dark' : null
   const candidates = big.filter((rm) => rm !== start && rm !== end && !rm.cavern && rm.w >= 8 && rm.h >= 6)
   const sroom = candidates.length ? candidates[Math.floor(r2() * candidates.length)] : null
   if (!sroom) kind = null
@@ -248,6 +251,16 @@ export function generateFloor(spec: FloorSpec): DungeonMap {
     add({ kind: 'shrine', ...p })
   }
   for (const rm of rooms) {
+    // outdoors in daylight: trees, a rock, bushes and flower clumps instead of lights
+    if (outdoor) {
+      if (!small.has(rm.cell))
+        for (const [kind, n, pad] of [['tree', r() < 0.7 ? 1 : 0, 2], ['tree2', r() < 0.5 ? 1 : 0, 2], ['rock', r() < 0.4 ? 1 : 0, 1], ['bush', 1 + Math.floor(r() * 2), 1], ['flower', 2 + Math.floor(r() * 3), 1]] as [Prop['kind'], number, number][])
+          for (let i = 0; i < n; i++) {
+            const p = spot(rm, pad)
+            if (p) props.push({ id: uid(), kind, x: p.x, y: p.y })
+          }
+      continue
+    }
     // a light in most rooms, more in dark dungeons (never in a dark room)
     if (r() < 0.55 + spec.dark * 0.35 && !(special?.kind === 'dark' && rm === sroom)) {
       const p = spot(rm, 0)
@@ -285,7 +298,7 @@ export function generateFloor(spec: FloorSpec): DungeonMap {
   // traps: spikes anywhere, alarms in bigger rooms, spores in caves and forests, rolling
   // boulders in caves and volcanoes, slick ice in ice caves (never spores in either)
   const kinds: TrapKind[] =
-    spec.theme === 'ice' ? ['spikes', 'alarm', 'ice', 'ice'] : spec.theme === 'cave' ? ['spikes', 'spores', 'alarm', 'boulders'] : spec.theme === 'volcano' ? ['spikes', 'alarm', 'boulders'] : ['spikes', 'spores', 'alarm']
+    OUTDOOR[spec.theme] ? (spec.theme === 'snowwood' ? ['alarm', 'ice', 'spores'] : ['spores', 'alarm', 'spores']) : spec.theme === 'ice' ? ['spikes', 'alarm', 'ice', 'ice'] : spec.theme === 'cave' ? ['spikes', 'spores', 'alarm', 'boulders'] : spec.theme === 'volcano' ? ['spikes', 'alarm', 'boulders'] : ['spikes', 'spores', 'alarm']
   for (let i = 0; i < Math.min(7, 4 + spec.floor); i++) {
     const rm = pick(rooms.filter((x) => x !== start))
     const p = spot(rm, 1)
@@ -301,6 +314,12 @@ export function generateFloor(spec: FloorSpec): DungeonMap {
   for (const rm of (leaves.length ? leaves : big.filter((x) => x !== start)).slice(0, int(1, 2))) {
     const p = spot(rm, 1)
     if (p) add({ kind: 'chest', ...p })
+  }
+  // supply chests (2026-11-18, Paul: more chests that open without a Lantern charge): one or two
+  // a floor, in rooms off the main path where they can be
+  for (const rm of (leaves.length > 1 ? leaves.slice(1) : big.filter((x) => x !== start && x !== end)).slice(0, int(1, 2))) {
+    const p = spot(rm, 1)
+    if (p) add({ kind: 'chest', ...p, free: true })
   }
   // Rich: one more chest; the deepest deep floor: a big one by the stairs
   if (modifier === 'rich') {

@@ -3,6 +3,17 @@
 // expression only: nothing here changes odds, growth or what friends see.
 import { PAL, onIsland } from './island'
 import { Pix, RGB, bayer, hex } from './pixel'
+import { piece } from './nature'
+
+/** A decoration made of Flurmimon's pieces (2026-11-18): [name, x, y] on a w by h canvas. */
+function compose(w: number, h: number, parts: [string, number, number][], ax: number, ay: number, r: number): DecorArt {
+  const c = document.createElement('canvas')
+  c.width = w
+  c.height = h
+  const g = c.getContext('2d')!
+  for (const [n, x, y] of parts) g.drawImage(piece(n), x, y)
+  return { img: c, ax, ay, r }
+}
 
 export interface DecorDef {
   id: string
@@ -39,18 +50,22 @@ export const CATALOG: DecorDef[] = [
 ]
 
 /** Ground points on the grassy top where a decoration can stand. */
+// (2026-11-18, the bigger island and Flurmimon's bigger pieces: every spot was re-solved so the
+// widest decoration, 32 px, stands fully on land at every spot, two spots never overlap, the one
+// in front never hides the other's foot even with the tallest decoration, and none sits under
+// the tree's canopy or on a habitat, the nest, the tall grass or the pier steps)
 export const SLOTS: { id: string; x: number; y: number; minHours?: number; milestone?: number }[] = [
-  { id: 'a', ...onIsland(98, 70) },
-  { id: 'b', ...onIsland(134, 63) },
+  { id: 'a', ...onIsland(95, 73) },
+  { id: 'b', ...onIsland(124, 55) },
   { id: 'c', ...onIsland(182, 88) },
-  { id: 'd', ...onIsland(176, 120) },
+  { id: 'd', ...onIsland(172, 115) },
   { id: 'e', ...onIsland(100, 126) },
-  { id: 'f', ...onIsland(157, 122) }, // moved right so the umbrella clears the dungeon doorway
+  { id: 'f', ...onIsland(150, 122) },
   // the island grows: two more spots after 3 focused hours
-  { id: 'g', ...onIsland(188, 76), minHours: 3 },
-  { id: 'h', ...onIsland(58, 100), minHours: 3 },
+  { id: 'g', ...onIsland(139, 106), minHours: 3 },
+  { id: 'h', ...onIsland(111, 113), minHours: 3 },
   // a Pokédex milestone (75%) opens one more (L5)
-  { id: 'i', ...onIsland(130, 114), milestone: 1 },
+  { id: 'i', ...onIsland(84, 62), milestone: 1 },
 ]
 
 export interface DecorArt {
@@ -73,45 +88,18 @@ const outline = (p: Pix, c: RGB) => {
 }
 
 function flowers(): DecorArt {
-  const p = new Pix(18, 10)
-  for (let y = 4; y < 10; y++) for (let x = 1; x < 17; x++) if (((x - 9) / 8) ** 2 + ((y - 6.5) / 3.5) ** 2 < 1) p.set(x, y, bayer(x, y) > 0.5 ? hex('#8a5a35') : hex('#7a4e2c'))
-  const cols = [PAL.flowerA, PAL.flowerB, PAL.flowerC, PAL.flowerB, PAL.flowerA]
-  ;[[4, 4], [7, 2], [10, 4], [13, 3], [9, 6], [5, 7], [12, 7]].forEach(([x, y], i) => {
-    p.set(x, y + 1, PAL.grassDeep)
-    const c = cols[i % cols.length]
-    p.set(x, y, c)
-    p.set(x - 1, y, c)
-    p.set(x + 1, y, c)
-    p.set(x, y - 1, c)
-    p.set(x, y, PAL.flowerC)
-  })
-  return { img: p.toCanvas(), ax: 9, ay: 8, r: 8 }
+  // three of Flurmimon's flower clumps
+  return compose(30, 19, [['flower1', 0, 4], ['flower2', 14, 0], ['flower0', 9, 5], ['flower1', 16, 4]], 15, 17, 8)
 }
 
 function stones(): DecorArt {
-  const p = new Pix(22, 10)
-  for (const [cx, cy, rx, ry] of [[4, 6, 3, 2], [11, 4, 3.5, 2], [18, 6, 3, 2], [11, 8, 2.5, 1.5]] as const)
-    for (let y = 0; y < 10; y++)
-      for (let x = 0; x < 22; x++) {
-        const d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2
-        if (d < 1) p.set(x, y, d > 0.6 ? PAL.stoneDark : x - cx + (y - cy) < 0 ? PAL.stoneLight : PAL.stone)
-      }
-  return { img: p.toCanvas(), ax: 11, ay: 9, r: 0 }
+  // single cobbles from Flurmimon's stone path, set into the grass in a short curve
+  return compose(32, 11, [['stone0', 0, 3], ['stone1', 8, 1], ['stone2', 16, 2], ['stone0', 24, 0]], 16, 10, 0)
 }
 
 function mushrooms(): DecorArt {
-  const p = new Pix(18, 10)
-  const cap = hex('#d8434c')
-  const capDark = hex('#a8303a')
-  ;[[3, 6], [8, 3], [14, 5], [11, 8], [5, 9]].forEach(([x, y], i) => {
-    const s = i % 2 ? 1 : 2
-    p.set(x, y, hex('#f2e6cf'))
-    p.set(x, y - 1, hex('#f2e6cf'))
-    for (let dx = -s; dx <= s; dx++) p.set(x + dx, y - 2, dx > 0 ? capDark : cap)
-    for (let dx = -s + 1; dx <= s - 1; dx++) p.set(x + dx, y - 3, cap)
-    p.set(x - (s > 1 ? 1 : 0), y - 2, hex('#ffffff'))
-  })
-  return { img: p.toCanvas(), ax: 9, ay: 9, r: 7 }
+  // a ring of Flurmimon's red mushrooms
+  return compose(30, 22, [['mushroom', 8, 0], ['mushroom', 0, 6], ['mushroom', 16, 7]], 15, 21, 7)
 }
 
 function sign(): DecorArt {
@@ -142,20 +130,39 @@ function bench(): DecorArt {
 }
 
 function umbrella(): DecorArt {
-  const p = new Pix(24, 26)
-  const red = hex('#e2525c')
-  const white = hex('#fff7ea')
-  for (let y = 0; y < 10; y++)
-    for (let x = 0; x < 24; x++) {
-      const d = ((x - 12) / 11.5) ** 2 + ((y - 9) / 9) ** 2
-      if (d < 1 && y < 10) {
-        const stripe = Math.floor(Math.atan2(y - 10, x - 12) * 3) % 2 === 0
-        p.set(x, y, y === 9 ? hex('#b63c47') : stripe ? red : white)
-      }
-    }
-  for (let y = 10; y < 26; y++) p.set(12, y, hex('#e9dcc2'))
-  outline(p, hex('#8c3038'))
-  return { img: p.toCanvas(), ax: 12, ay: 25, r: 5 }
+  // Flurmimon's canopy raised on a pole, with a soft shadow on the grass (2026-11-18: its own sand
+  // disc read as a cropped beige blob on the lawn, and without it the dome sat on the ground)
+  const src = piece('umbrella-red')
+  const c = document.createElement('canvas')
+  c.width = 32
+  c.height = 40
+  const g = c.getContext('2d')!
+  // the shadow first, a little to the right, as the light comes from the top-left
+  g.fillStyle = 'rgba(30, 70, 30, 0.28)'
+  g.beginPath()
+  g.ellipse(18, 37, 12, 2.5, 0, 0, Math.PI * 2)
+  g.fill()
+  // the pole: pale wood with a darker right edge, from under the canopy to the ground
+  g.fillStyle = '#5a4a3a'
+  g.fillRect(14, 22, 4, 17)
+  g.fillStyle = '#e8dcc0'
+  g.fillRect(15, 22, 1, 16)
+  g.fillStyle = '#b8a888'
+  g.fillRect(16, 22, 1, 16)
+  // the canopy down to its own outline (row 28), without the sand around it or the stub of pole
+  // under it (2026-11-18: cutting at row 26 sliced off the canopy's bottom edge)
+  const top = document.createElement('canvas')
+  top.width = 32
+  top.height = 29
+  const tg = top.getContext('2d')!
+  tg.drawImage(src, 0, 0, 32, 29, 0, 0, 32, 29)
+  const id = tg.getImageData(0, 0, 32, 29)
+  const d = id.data
+  const sand = (i: number) => d[i] > 170 && d[i + 1] > 140 && d[i + 2] < 120 // the yellow towel
+  for (let i = 0; i < d.length; i += 4) if (d[i + 3] && sand(i)) d[i + 3] = 0
+  tg.putImageData(id, 0, 0)
+  g.drawImage(top, 0, 0)
+  return { img: c, ax: 16, ay: 38, r: 5 }
 }
 
 function lantern(): DecorArt {
@@ -274,30 +281,9 @@ function windmill(): DecorArt {
 }
 
 function snowman(): DecorArt {
-  const p = new Pix(14, 20)
-  const snow = hex('#f4f8fc')
-  const shade = hex('#cfdced')
-  const disc = (cx: number, cy: number, r: number) => {
-    for (let y = cy - r; y <= cy + r; y++)
-      for (let x = cx - r; x <= cx + r; x++) {
-        const d = ((x - cx) ** 2 + (y - cy) ** 2) / (r * r)
-        if (d <= 1) p.set(x, y, x - cx + (y - cy) > r * 0.45 ? shade : snow)
-      }
-  }
-  disc(7, 14, 5)
-  disc(7, 6, 4)
-  p.set(5, 5, hex('#2e3440'))
-  p.set(8, 5, hex('#2e3440'))
-  p.set(7, 7, hex('#e8803a'))
-  p.set(8, 7, hex('#c86424'))
-  for (let x = 3; x < 12; x++) p.set(x, 10, hex('#c84848'))
-  p.set(10, 11, hex('#c84848'))
-  p.set(10, 12, hex('#a83838'))
-  p.set(7, 13, hex('#2e3440'))
-  p.set(7, 15, hex('#2e3440'))
-  outline(p, hex('#8aa0bb'))
-  return { img: p.toCanvas(), ax: 7, ay: 19, r: 6 }
+  return compose(11, 16, [['snowman', 0, 0]], 5, 15, 5)
 }
+
 function icecarving(): DecorArt {
   const p = new Pix(14, 22)
   const ice = hex('#bfe4f6')
@@ -353,40 +339,35 @@ function aurora(): DecorArt {
 }
 
 function leafpile(): DecorArt {
-  const p = new Pix(16, 9)
-  const cols = [hex('#d9893a'), hex('#c4632c'), hex('#e8b04a'), hex('#a8512a')]
-  for (let y = 2; y < 9; y++)
-    for (let x = 0; x < 16; x++) {
-      const d = ((x - 8) / 7.5) ** 2 + ((y - 8) / 6) ** 2
-      if (d < 1) p.set(x, y, cols[Math.floor(bayer(x * 3, y * 5) * 4)])
-    }
-  for (const [x, y] of [[4, 4], [9, 3], [12, 5], [7, 6]]) p.set(x, y, hex('#f0c870'))
-  outline(p, hex('#7a3a1c'))
-  return { img: p.toCanvas(), ax: 8, ay: 8, r: 6 }
+  // a heap of Flurmimon's fallen leaves with a few loose ones
+  return compose(26, 15, [['leaves-orange', 13, 2], ['leaves-heap', 2, 0], ['leaves-heap', 9, 1]], 13, 14, 6)
 }
+
 function rockpool(): DecorArt {
-  const p = new Pix(22, 12)
-  for (let y = 0; y < 12; y++)
-    for (let x = 0; x < 22; x++) {
-      const d = ((x - 11) / 10.5) ** 2 + ((y - 6) / 5.5) ** 2
-      if (d >= 1) continue
-      if (d > 0.55) p.set(x, y, bayer(x, y) > 0.5 ? PAL.stone : x + y < 14 ? PAL.stoneLight : PAL.stoneDark)
-      else p.set(x, y, d > 0.35 ? PAL.sea : bayer(x, y) > 0.7 ? PAL.shallow2 : PAL.shallow)
-    }
-  outline(p, PAL.stoneDark)
+  // Flurmimon's stone-rimmed pool, cut down to its four corners
+  const src = piece('pool')
+  const c = document.createElement('canvas')
+  c.width = 32
+  c.height = 22
+  const g = c.getContext('2d')!
+  g.drawImage(src, 0, 0, 16, 11, 0, 0, 16, 11)
+  g.drawImage(src, 32, 0, 16, 11, 16, 0, 16, 11)
+  g.drawImage(src, 0, 37, 16, 11, 0, 11, 16, 11)
+  g.drawImage(src, 32, 37, 16, 11, 16, 11, 16, 11)
   return {
-    img: p.toCanvas(),
-    ax: 11,
-    ay: 11,
-    r: 9,
+    img: c,
+    ax: 16,
+    ay: 21,
+    r: 10,
     live: (g, x, y, t) => {
       // a slow glint on the water
       const k = (t % 5) / 5
       g.fillStyle = 'rgba(255,255,255,0.7)'
-      g.fillRect(x - 4 + Math.round(k * 6), y - 6, 2, 1)
+      g.fillRect(x - 6 + Math.round(k * 8), y - 13, 2, 1)
     },
   }
 }
+
 function lightningrod(): DecorArt {
   const p = new Pix(8, 26)
   const cu = hex('#d08a4a')

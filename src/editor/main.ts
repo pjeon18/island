@@ -7,6 +7,9 @@
 import './editor.css'
 import { DungeonMap, Entity, EntityKind, PRESETS, Piece, PieceType, Prop, PropKind, T, TILE, Theme, bakeMap, compose, emptyMap, paintProp, uid, walkableTile } from '../dungeon/map'
 import { applyLighting } from '../lighting'
+import { loadNature } from '../nature'
+// outdoor themes draw Flurmimon's pieces, so the atlas loads first
+await loadNature()
 
 const BASE = import.meta.env.BASE_URL
 const STORE = 'island-dungeons'
@@ -64,7 +67,7 @@ root.innerHTML = `
   <div class="bar">
     <span class="brand">DUNGEON EDITOR</span>
     <input class="in name" data-k="name" />
-    <select class="in" data-k="theme"><option value="cave">Cave</option><option value="forest">Forest</option><option value="ice">Ice</option><option value="volcano">Volcano</option></select>
+    <select class="in" data-k="theme"><option value="cave">Cave</option><option value="forest">Forest</option><option value="ice">Ice</option><option value="volcano">Volcano</option><option value="meadow">Meadow</option><option value="snowwood">Snowy woods</option><option value="shore">Shore</option></select>
     <label class="inl">Size <input class="in num" data-k="w" type="number" min="16" max="160" /> × <input class="in num" data-k="h" type="number" min="12" max="120" /></label>
     <label class="inl">Dark <input data-k="dark" type="range" min="0" max="1" step="0.05" /></label>
     <span class="sep"></span>

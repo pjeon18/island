@@ -1,0 +1,298 @@
+{
+ "v": 1,
+ "id": "blossom-meadow",
+ "name": "Blossom Meadow",
+ "theme": "meadow",
+ "w": 50,
+ "h": 32,
+ "dark": 0,
+ "pieces": [
+  {
+   "id": "blo0",
+   "type": "room",
+   "x": 2,
+   "y": 14,
+   "w": 8,
+   "h": 4
+  },
+  {
+   "id": "blo1",
+   "type": "cavern",
+   "x": 8,
+   "y": 4,
+   "w": 32,
+   "h": 24
+  },
+  {
+   "id": "blo2",
+   "type": "cavern",
+   "x": 36,
+   "y": 10,
+   "w": 11,
+   "h": 11
+  },
+  {
+   "id": "blo3",
+   "type": "pond",
+   "x": 21,
+   "y": 9,
+   "w": 9,
+   "h": 5
+  },
+  {
+   "id": "blo4",
+   "type": "grass",
+   "x": 12,
+   "y": 18,
+   "w": 8,
+   "h": 5
+  },
+  {
+   "id": "blo5",
+   "type": "grass",
+   "x": 29,
+   "y": 19,
+   "w": 7,
+   "h": 4
+  }
+ ],
+ "props": [
+  {
+   "id": "blo6",
+   "kind": "tree",
+   "x": 12,
+   "y": 7
+  },
+  {
+   "id": "blo7",
+   "kind": "tree",
+   "x": 17,
+   "y": 5
+  },
+  {
+   "id": "blo8",
+   "kind": "tree2",
+   "x": 33,
+   "y": 6
+  },
+  {
+   "id": "blo9",
+   "kind": "tree",
+   "x": 37,
+   "y": 9
+  },
+  {
+   "id": "blo10",
+   "kind": "tree",
+   "x": 11,
+   "y": 24
+  },
+  {
+   "id": "blo11",
+   "kind": "tree",
+   "x": 19,
+   "y": 26
+  },
+  {
+   "id": "blo12",
+   "kind": "tree",
+   "x": 30,
+   "y": 25
+  },
+  {
+   "id": "blo13",
+   "kind": "tree",
+   "x": 36,
+   "y": 23
+  },
+  {
+   "id": "blo14",
+   "kind": "flower",
+   "x": 14,
+   "y": 11
+  },
+  {
+   "id": "blo15",
+   "kind": "flower",
+   "x": 18,
+   "y": 14
+  },
+  {
+   "id": "blo16",
+   "kind": "flower",
+   "x": 25,
+   "y": 16
+  },
+  {
+   "id": "blo17",
+   "kind": "flower",
+   "x": 31,
+   "y": 13
+  },
+  {
+   "id": "blo18",
+   "kind": "flower",
+   "x": 34,
+   "y": 16
+  },
+  {
+   "id": "blo19",
+   "kind": "flower",
+   "x": 16,
+   "y": 22
+  },
+  {
+   "id": "blo20",
+   "kind": "flower",
+   "x": 26,
+   "y": 22
+  },
+  {
+   "id": "blo21",
+   "kind": "flower",
+   "x": 38,
+   "y": 13
+  },
+  {
+   "id": "blo22",
+   "kind": "flower",
+   "x": 22,
+   "y": 7
+  },
+  {
+   "id": "blo23",
+   "kind": "bush",
+   "x": 20,
+   "y": 20
+  },
+  {
+   "id": "blo24",
+   "kind": "bush",
+   "x": 33,
+   "y": 11
+  },
+  {
+   "id": "blo25",
+   "kind": "bush",
+   "x": 13,
+   "y": 15
+  },
+  {
+   "id": "blo26",
+   "kind": "rock",
+   "x": 28,
+   "y": 7
+  },
+  {
+   "id": "blo27",
+   "kind": "rock",
+   "x": 24,
+   "y": 24
+  }
+ ],
+ "entities": [
+  {
+   "id": "blo28",
+   "kind": "start",
+   "x": 4,
+   "y": 15
+  },
+  {
+   "id": "blo29",
+   "kind": "exit",
+   "x": 44,
+   "y": 15
+  },
+  {
+   "id": "blo30",
+   "kind": "enemy",
+   "x": 16,
+   "y": 9,
+   "dex": 43,
+   "level": 13
+  },
+  {
+   "id": "blo31",
+   "kind": "enemy",
+   "x": 26,
+   "y": 14,
+   "dex": 44,
+   "level": 16
+  },
+  {
+   "id": "blo32",
+   "kind": "enemy",
+   "x": 31,
+   "y": 9,
+   "dex": 187,
+   "level": 13
+  },
+  {
+   "id": "blo33",
+   "kind": "enemy",
+   "x": 18,
+   "y": 17,
+   "dex": 188,
+   "level": 16
+  },
+  {
+   "id": "blo34",
+   "kind": "enemy",
+   "x": 27,
+   "y": 19,
+   "dex": 12,
+   "level": 15
+  },
+  {
+   "id": "blo35",
+   "kind": "enemy",
+   "x": 35,
+   "y": 14,
+   "dex": 179,
+   "level": 14
+  },
+  {
+   "id": "blo36",
+   "kind": "enemy",
+   "x": 39,
+   "y": 17,
+   "dex": 397,
+   "level": 16
+  },
+  {
+   "id": "blo37",
+   "kind": "chest",
+   "x": 41,
+   "y": 12,
+   "big": true,
+   "free": true
+  },
+  {
+   "id": "blo38",
+   "kind": "chest",
+   "x": 15,
+   "y": 25,
+   "free": true
+  },
+  {
+   "id": "blo39",
+   "kind": "chest",
+   "x": 33,
+   "y": 20,
+   "free": true
+  },
+  {
+   "id": "blo40",
+   "kind": "pot",
+   "x": 10,
+   "y": 13
+  },
+  {
+   "id": "blo41",
+   "kind": "pot",
+   "x": 23,
+   "y": 18
+  }
+ ],
+ "paint": {}
+}

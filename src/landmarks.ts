@@ -2,16 +2,19 @@
 // Pokémon Center hut, lighthouse and old pier, each painted ruined and restored. They use the
 // decoration art shape (DecorArt), so the scene draws, lights and blocks them like decorations.
 import { DecorArt } from './decor'
-import { PAL, TUFT, onIsland } from './island'
+import { ISLET, PAL, TUFT, onIsland } from './island'
 import { Pix, RGB, bayer, hex } from './pixel'
 
 /** Where each landmark stands on Home Island (ground points, through onIsland like every fixed spot). */
-// (2026-11-12, Paul: the ruins sat on the island's rim and hung over the beach. They now stand
-// on open grass: the hut on the north-west lawn, the lighthouse on the west lawn.)
+// (2026-11-12, Paul: the ruins sat on the island's rim and hung over the beach; 2026-11-18: the
+// side buildings crowded the lawn. The hut is no longer drawn: it lives in Goals only. The
+// lighthouse stands on a rock in the sea and the pier stays at the shore.)
+/** Landmarks drawn on the island; the hut is a Goals entry with no art (2026-11-18). */
+export const DRAWN_LANDMARKS = new Set(['lighthouse', 'pier'])
 export const LANDMARK_SPOTS: Record<string, { x: number; y: number }> = {
   hut: onIsland(81, 66),
-  lighthouse: onIsland(55, 88),
-  pier: onIsland(197, 117),
+  lighthouse: { x: ISLET.x, y: ISLET.y + 1 }, // on its own rock in the sea (2026-11-18)
+  pier: { x: 92, y: 147 }, // the cliff's foot on the south shore, west of the dock (2026-11-18)
 }
 
 const outline = (p: Pix, c: RGB) => {
@@ -96,88 +99,150 @@ function hut(restored: boolean): DecorArt {
   return { img: p.toCanvas(), ax: 15, ay: 20, r: 10 }
 }
 
+/**
+ * The lighthouse (2026-11-18, Paul: the old one was "small in scale", "awkward" and "a little toy").
+ * At the island's scale a Pokémon is 20 to 30 px, so the tower stands about 54 px: a tapering
+ * tower in broad red and white bands, lit from the left, with a door and two small windows, a
+ * dark iron gallery, a glass lamp room with mullions, and a red domed cap. The ruin keeps the
+ * whole tower but has lost its lamp room: the top is broken off at the gallery, with a bent
+ * rail, dark gaps in the brickwork and rubble at the foot, so it still reads as a lighthouse.
+ */
 function lighthouse(restored: boolean, lit: boolean): DecorArt {
-  const p = new Pix(16, 46)
-  const red = hex('#d0464c')
+  const W = 24
+  const H = 58
+  const p = new Pix(W, H)
+  const cx = 12
+  const red = hex('#d84a4e')
+  const redLit = hex('#ee7470')
+  const redShade = hex('#a8343a')
   const white = hex('#f6f0e6')
+  const whiteLit = hex('#ffffff')
+  const whiteShade = hex('#d2c8b8')
+  const iron = hex('#3a3c4a')
+  const ironLit = hex('#5c6070')
+  const base = 55 // the foot of the tower
+  const top = 19 // where the tower meets the gallery
+  const halfAt = (y: number) => 4 + ((y - top) / (base - top)) * 3.5 // 8 px wide at the top, 15 at the foot
+  // the tower: four bands, each lit on the left and shaded on the right
+  for (let y = top; y <= base; y++) {
+    const half = halfAt(y)
+    const band = Math.floor((y - top) / 9) % 2 === 0 ? 'r' : 'w'
+    for (let x = Math.ceil(cx - half); x <= Math.floor(cx + half - 0.01); x++) {
+      const u = (x - (cx - half)) / (half * 2) // 0 at the left edge, 1 at the right
+      const c = band === 'r' ? (u < 0.22 ? redLit : u > 0.72 ? redShade : red) : u < 0.22 ? whiteLit : u > 0.72 ? whiteShade : white
+      p.set(x, y, c)
+    }
+  }
+  // the door at the foot and two small windows up the tower
+  rect(p, cx - 2, base - 6, 4, 6, hex('#5a3a2a'))
+  rect(p, cx - 1, base - 7, 2, 1, hex('#5a3a2a'))
+  rect(p, cx - 1, base - 5, 2, 1, hex('#7a5038'))
+  for (const wy of [41, 28]) rect(p, cx - 1, wy, 2, 3, hex('#3a4a5e')), p.set(cx - 1, wy, hex('#7ea0c0'))
+  // a stone footing under it
+  for (let x = cx - 9; x <= cx + 9; x++) {
+    p.set(x, base + 1, x < cx - 3 ? PAL.stoneLight : PAL.stone)
+    p.set(x, base + 2, PAL.stoneDark)
+  }
   if (restored) {
-    // a tapering tower in red and white bands, a dark lamp room, a stone base
-    for (let y = 12; y < 42; y++) {
-      const half = Math.round(3 + (y - 12) * 0.12)
-      const band = Math.floor((y - 12) / 6) % 2 === 0 ? red : white
-      for (let x = 8 - half; x < 8 + half; x++) p.set(x, y, x >= 8 + half - 1 ? (band === red ? hex('#a8343a') : hex('#d6ccbc')) : band)
+    // the gallery: a dark ledge wider than the tower, with a railing
+    rect(p, cx - 7, top - 1, 14, 2, iron)
+    rect(p, cx - 7, top - 1, 14, 1, ironLit)
+    for (let x = cx - 7; x <= cx + 6; x += 2) p.set(x, top - 3, iron), p.set(x, top - 2, iron)
+    rect(p, cx - 7, top - 4, 14, 1, iron)
+    // the lamp room: glass between iron mullions, warm when the Generator keeps it lit
+    const glass = lit ? hex('#ffe68a') : hex('#a8cce0')
+    const glassLit = lit ? hex('#fff6c8') : hex('#d8eef8')
+    rect(p, cx - 4, 8, 8, 8, glass)
+    rect(p, cx - 3, 9, 2, 6, glassLit)
+    for (const mx of [cx - 4, cx - 1, cx + 2]) rect(p, mx, 8, 1, 8, iron)
+    rect(p, cx + 3, 8, 1, 8, iron)
+    rect(p, cx - 5, 15, 10, 1, iron)
+    // the cap: a red dome with a vent and a little ball on top
+    rect(p, cx - 5, 7, 10, 1, redShade)
+    for (let y = 3; y < 7; y++) {
+      const half = [2, 3, 4, 5][y - 3]
+      for (let x = cx - half; x < cx + half; x++) p.set(x, y, x < cx - half + 2 ? redLit : x >= cx + half - 2 ? redShade : red)
     }
-    rect(p, 4, 6, 8, 6, hex('#3a3a4a'))
-    rect(p, 5, 7, 6, 4, lit ? hex('#ffe890') : hex('#9ab8c8'))
-    rect(p, 3, 11, 10, 1, hex('#2a2a36'))
-    for (let y = 2; y < 6; y++) rect(p, 8 - (y - 1), y, (y - 1) * 2, 1, red)
-    p.set(8, 1, hex('#2a2a36'))
-    for (let x = 2; x < 14; x++) {
-      p.set(x, 42, PAL.stoneLight)
-      p.set(x, 43, bayer(x, 43) > 0.5 ? PAL.stone : PAL.stoneDark)
-    }
-    outline(p, hex('#5a2a2a'))
-    shade(p, 8, 44.5, 8, 1.5)
-    return {
-      img: p.toCanvas(),
-      ax: 8,
-      ay: 45,
-      r: 6,
-      glow: lit ? { x: 0, y: -36, r: 30, rgb: '255, 236, 160' } : undefined,
-      live: lit
+    rect(p, cx - 1, 1, 2, 2, iron)
+    p.set(cx - 1, 0, ironLit)
+  } else {
+    // the ruin: the tower ends in a jagged break where the gallery was, with dark gaps and a bent rail
+    const jag = [3, 1, 0, 2, 4, 2, 1, 3, 5, 3, 2, 4, 1, 3, 2]
+    for (let x = 0; x < W; x++)
+      for (let y = top; y <= top + 6; y++) if (p.alpha(x, y) && y < top + (jag[(x + 3) % jag.length] ?? 0)) p.set(x, y, [0, 0, 0], 0)
+    for (const [x, y] of [[cx - 2, top + 4], [cx + 1, top + 6], [cx + 3, 33], [cx - 3, 37], [cx + 2, 46]] as [number, number][]) p.set(x, y, hex('#5a3a34'))
+    // a bent piece of railing sticking up from the break
+    for (let k = 0; k < 6; k++) p.set(cx + 3 + (k >> 1), top + 2 - k, iron)
+    // rubble and a fallen pane of the lamp room at the foot
+    for (const [x, y, c] of [[cx - 9, base, PAL.stoneDark], [cx - 8, base, PAL.stone], [cx + 8, base, PAL.stone], [cx + 9, base - 1, PAL.stoneLight], [cx + 6, base, redShade], [cx - 6, base, hex('#a8cce0')]] as [number, number, RGB][])
+      p.set(x, y, c)
+  }
+  outline(p, hex('#5a2a2a'))
+  const glowY = -(base - 11)
+  return {
+    img: p.toCanvas(),
+    ax: cx,
+    ay: base + 2,
+    r: 7,
+    glow: restored && lit ? { x: 0, y: glowY, r: 34, rgb: '255, 236, 160' } : undefined,
+    live:
+      restored && lit
         ? (g, x, y, t, night) => {
             // the beam sweeps slowly; only after dusk, and soft
             if (night <= 0.05) return
             const k = Math.sin((t * Math.PI * 2) / 8)
-            g.globalAlpha = 0.18 * night
+            g.globalAlpha = 0.2 * night
             g.fillStyle = '#fff2b0'
-            const len = Math.round(26 * Math.abs(k))
-            if (k > 0) g.fillRect(x + 4, y - 37, len, 2)
-            else g.fillRect(x - 4 - len, y - 37, len, 2)
+            const len = Math.round(40 * Math.abs(k))
+            const by = y + glowY
+            if (k > 0) g.fillRect(x + 5, by - 1, len, 3)
+            else g.fillRect(x - 5 - len, by - 1, len, 3)
             g.globalAlpha = 1
           }
         : undefined,
-    }
   }
-  // ruined: the bottom of the tower on its round stone footing, broken off in a jagged edge,
-  // with a fallen red-and-white section and the dark lamp cage lying on the grass beside it
-  const q = new Pix(26, 46)
-  const tops = [33, 31, 30, 32, 29, 31, 33, 34]
-  for (let i = 0; i < 8; i++)
-    for (let y = tops[i]; y < 43; y++) {
-      const band = Math.floor((y - 30) / 5) % 2 === 0 ? white : red
-      q.set(9 + i, y, i === 7 ? (band === red ? hex('#a8343a') : hex('#d6ccbc')) : band)
-    }
-  // the round footing: a lit top face and a darker front
-  for (let x = 6; x < 20; x++) {
-    q.set(x, 43, PAL.stoneLight)
-    q.set(x, 44, bayer(x, 44) > 0.5 ? PAL.stone : PAL.stoneDark)
-  }
-  // a fallen section of the tower, lying on its side
-  for (let x = 19; x < 25; x++) for (let y = 41; y < 45; y++) q.set(x, y, Math.floor((x - 19) / 3) % 2 === 0 ? red : white)
-  // the lamp cage: dark iron with a pale pane
-  rect(q, 1, 40, 5, 4, hex('#3a3a4a'))
-  rect(q, 2, 41, 3, 2, hex('#9ab8c8'))
-  outline(q, hex('#5a4848'))
-  blades(q, [[7, 45], [17, 45], [24, 45], [3, 44]])
-  shade(q, 13, 45, 12, 1.5)
-  return { img: q.toCanvas(), ax: 13, ay: 45, r: 7 }
 }
 
+/**
+ * The old pier, beside the new one on the south shore (2026-11-18: it moved here so the
+ * lighthouse could have the south-east sea). It runs out from the cliff's foot, straight south.
+ * Ruined, only its posts stand in the water, with the first plank still on and one floating loose.
+ */
 function pier(restored: boolean): DecorArt {
-  const p = new Pix(26, 14)
-  if (restored) {
-    // planks running out to sea, on posts
-    for (let x = 0; x < 26; x++) rect(p, x, 3, 1, 6, (xx, y) => (y === 3 ? PAL.woodLight : xx % 4 === 0 ? PAL.woodGap : y === 8 ? PAL.woodDark : PAL.wood))
-    for (const x of [3, 13, 23]) rect(p, x, 9, 2, 5, PAL.woodDark)
-    outline(p, PAL.woodGap)
-    return { img: p.toCanvas(), ax: 0, ay: 8, r: 0 }
+  const W = 12
+  const H = 26
+  const p = new Pix(W, H)
+  const post = (x: number, y0: number, h: number) => {
+    rect(p, x, y0, 2, h, PAL.woodDark)
+    p.set(x, y0, PAL.wood)
+    p.set(x - 1, y0 + h, PAL.foam)
+    p.set(x, y0 + h, PAL.foam)
+    p.set(x + 1, y0 + h, PAL.foam)
+    p.set(x + 2, y0 + h, PAL.shallow2)
   }
-  // ruined: posts standing in the water, one loose plank
-  for (const [x, h] of [[3, 5], [13, 7], [23, 4]] as const) rect(p, x, 13 - h, 2, h, PAL.woodDark)
-  rect(p, 15, 9, 6, 1, PAL.wood)
+  if (restored) {
+    // the deck: planks across, a lit front edge every third row, dark sides, posts at the end
+    for (let y = 0; y < 21; y++)
+      for (let x = 1; x < W - 1; x++) {
+        const r = y % 3
+        p.set(x, y, x === 1 || x === W - 2 ? PAL.woodDark : r === 0 ? PAL.woodLight : r === 1 ? PAL.wood : PAL.woodDark)
+      }
+    rect(p, 1, 21, W - 2, 1, PAL.woodGap)
+    post(1, 22, 3)
+    post(W - 3, 22, 3)
+    outline(p, PAL.woodGap)
+    return { img: p.toCanvas(), ax: W >> 1, ay: 0, r: 0 }
+  }
+  // the first plank, then posts in pairs going out, and a loose plank adrift
+  for (let x = 1; x < W - 1; x++) p.set(x, 0, PAL.woodLight), p.set(x, 1, PAL.wood), p.set(x, 2, PAL.woodDark)
+  post(1, 6, 4)
+  post(W - 3, 7, 3)
+  post(1, 15, 3)
+  post(W - 3, 17, 4)
+  rect(p, 4, 12, 5, 1, PAL.woodLight)
+  rect(p, 4, 13, 5, 1, PAL.woodDark)
   outline(p, PAL.woodGap)
-  return { img: p.toCanvas(), ax: 0, ay: 8, r: 0 }
+  return { img: p.toCanvas(), ax: W >> 1, ay: 0, r: 0 }
 }
 
 const cache = new Map<string, DecorArt>()

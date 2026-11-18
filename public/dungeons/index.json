@@ -10,5 +10,17 @@
  {
   "id": "ember-crater",
   "name": "Ember Crater"
+ },
+ {
+  "id": "blossom-meadow",
+  "name": "Blossom Meadow"
+ },
+ {
+  "id": "snowdrift-woods",
+  "name": "Snowdrift Woods"
+ },
+ {
+  "id": "palm-shore",
+  "name": "Palm Shore"
  }
 ]

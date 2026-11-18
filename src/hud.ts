@@ -6,8 +6,9 @@
 import type { CloudState, Friend, FriendRequest, Me, Trade } from './cloud'
 import { click, sfx } from './audio'
 import { GUIDE } from './guide'
+import { INTROS, introKey } from './intros'
 import { CATALOG, SLOTS, decorDef } from './decor'
-import { CUSTOM_MAX, CUSTOM_MIN, DEX_MILESTONES, BALLS, DESTINATIONS, RESTORE, STONES, berryExp, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
+import { CUSTOM_MAX, CUSTOM_MIN, DEX_MILESTONES, BALLS, DESTINATIONS, GUIDE_DEX, RESTORE, STONES, berryExp, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
 
 const BASE = import.meta.env.BASE_URL
 export const portraitUrl = (dex: number, emo = 'Normal') => `${BASE}sprites/${String(dex).padStart(4, '0')}/${emo}.png`
@@ -122,6 +123,8 @@ export interface HudHandlers {
   buyDecor: (id: string) => void
   placeDecor: (id: string) => void
   moveDecor: (id: string) => void
+  /** Arrange mode: drag decorations around the island. */
+  arrange: () => void
   storeDecor: (id: string) => void
   enableIdle: () => void
   buyBall: (ball: Ball, n: number) => void
@@ -540,7 +543,8 @@ export class Hud {
       <p class="sum-line hint">${roleText}. ${fmtMinutes(m.focusedMin)} together.</p>
       ${m.heldItem ? `<p class="sum-line hint">${icon(m.heldItem, 'ico-s')}Holding ${aStone(m.heldItem)}.</p>` : ''}
       <p class="sum-text hint">${this.evoText(m)}</p>
-      <div class="row-actions"><button class="px-btn small primary" data-s="pet">Pet</button><button class="px-btn small" data-s="feed" ${g.inSession || g.save.berries <= 0 ? 'disabled' : ''}>${icon('oran-berry', 'ico-s')}Feed</button><button class="px-btn small" data-s="more">More</button></div>`
+      <div class="row-actions"><button class="px-btn small primary" data-s="pet">Pet</button><button class="px-btn small" data-s="feed" ${g.inSession || g.save.berries <= 0 ? 'disabled' : ''}>${icon('oran-berry', 'ico-s')}Feed</button><button class="px-btn small" data-s="more">Jobs and trips</button></div>
+      <p class="sum-text hint">Pet it to say hello. Feeding uses an Oran Berry for EXP. Jobs and trips is where you send it to work, rest or travel.</p>`
     el.onclick = (e) => {
       const a = (e.target as HTMLElement).closest<HTMLElement>('[data-s]')?.dataset.s
       if (!a || !this.summaryId) return
@@ -702,11 +706,18 @@ export class Hud {
       <div class="px-panel sheet-panel">
         <div class="sheet-head">${small ? bar : `<p class="sheet-title">${title}</p>`}<button class="close-x" data-act="close" aria-label="Close"></button></div>
         ${small ? '' : bar}
-        <div class="sheet-body">${this.note ? `<p class="note flash">${esc(this.note)}</p>` : ''}${body}</div>
+        <div class="sheet-body">${this.introCard(introKey(this.tab, cur))}${this.note ? `<p class="note flash">${esc(this.note)}</p>` : ''}${body}</div>
         ${this.overlay}
       </div>`
     const sb = this.sheet.querySelector('.sheet-body')
     if (sb) sb.scrollTop = scroll
+  }
+
+  /** Wooper's card the first time a view is opened (intros.ts); Got it puts it away for good. */
+  private introCard(key: string) {
+    const text = INTROS[key]
+    if (!text || this.game.save.tips?.includes(`tab:${key}`)) return ''
+    return `<div class="intro-card"><img class="intro-face" src="${portraitUrl(GUIDE_DEX)}" alt="" /><div><p>${text}</p><button class="px-btn small primary" data-introok="${key}">Got it</button></div></div>`
   }
 
   // Pokémon, in sub-tabs: Party, Helpers, Box, Eggs, Bag
@@ -797,19 +808,30 @@ export class Hud {
       const usable = g.evolutionOptions(m).filter((e: Evolution) => e.item && (s.bag[e.item] ?? 0) > 0)
       const btn = (attrs: string, label: string, dis = false, primary = false) => `<button class="px-btn small${primary ? ' primary' : ''}" ${attrs} ${dis ? 'disabled' : ''}>${label}</button>`
       const away = role === 'expedition' || g.isPartner(m.id) // your partner always stays with you
-      const roleBtns = away
+      const busy = locked || (role === 'party' && s.party.length <= 1)
+      // where it stays: each choice with the one sentence that says what it does (Paul, 2026-11-18:
+      // what a Pokémon can do was not explained)
+      const stays: { b: string; why: string }[] = away
+        ? []
+        : [
+            role !== 'party' ? { b: btn(`data-role="${m.id}|party"`, lives ? 'Move here' : 'Party', locked || s.party.length >= PARTY_MAX), why: 'Party: it lives on this island and earns EXP while you focus.' } : null,
+            role !== 'box' ? { b: btn(`data-role="${m.id}|box"`, 'Box', busy), why: 'Box: it rests and earns nothing.' } : null,
+            role !== 'daycare' ? { b: btn(`data-role="${m.id}|daycare"`, 'Day Care', busy || !s.daycare.ids.includes(null)), why: `Day Care: two Pokémon there lay an egg every ${DAYCARE_EVERY} focused minutes.` } : null,
+            ...JOBS.filter((j) => g.canDoJob(m, j.id) && role !== `job:${j.id}`).map((j) => ({
+              b: btn(`data-role="${m.id}|job:${j.id}"`, j.name, busy || !!s.jobs[j.id]),
+              why: `${j.name}: ${j.does.toLowerCase()} every ${jobEvery(j, m.level)} focused minutes, for half EXP.`,
+            })),
+          ].filter((x): x is { b: string; why: string } => !!x)
+      // trips: named by where it goes and for how long, not "Trip 30"
+      const far = [...DESTINATIONS].reverse().find((d) => m.level >= d.level)
+      const tripBtns = away
         ? ''
         : [
-            role !== 'party' ? btn(`data-role="${m.id}|party"`, lives ? 'Move here' : 'Party', locked || s.party.length >= PARTY_MAX) : '',
-            role !== 'box' ? btn(`data-role="${m.id}|box"`, 'Box', locked || (role === 'party' && s.party.length <= 1)) : '',
-            role !== 'daycare' ? btn(`data-role="${m.id}|daycare"`, 'Day Care', locked || !s.daycare.ids.includes(null) || (role === 'party' && s.party.length <= 1)) : '',
-            ...JOBS.filter((j) => g.canDoJob(m, j.id) && role !== `job:${j.id}`).map((j) => btn(`data-role="${m.id}|job:${j.id}"`, j.name, locked || !!s.jobs[j.id] || (role === 'party' && s.party.length <= 1))),
-            btn(`data-trip="${m.id}|0"`, 'Trip 30', locked || !!s.expedition || (role === 'party' && s.party.length <= 1)),
-            btn(`data-trip="${m.id}|1"`, 'Trip 90', locked || !!s.expedition || (role === 'party' && s.party.length <= 1)),
-            // the furthest destination this one is strong enough for (L8)
-            ...[...DESTINATIONS].reverse().filter((d) => m.level >= d.level).slice(0, 1).map((d) => btn(`data-trip="${m.id}|${d.id}"`, `${d.name} ${d.minutes}`, locked || !!s.expedition || (role === 'party' && s.party.length <= 1))),
+            btn(`data-trip="${m.id}|0"`, 'Shore, 30 min', busy || !!s.expedition),
+            btn(`data-trip="${m.id}|1"`, 'Far shore, 90 min', busy || !!s.expedition),
+            far ? btn(`data-trip="${m.id}|${far.id}"`, `${far.name}, ${far.minutes} min`, busy || !!s.expedition) : '',
           ].join('')
-      const partyBtn = roleBtns
+      const nextFar = DESTINATIONS.find((d) => m.level < d.level)
       const stoneRow =
         this.stonePick === m.id
           ? `<div class="row-actions">${usable.map((e) => btn(`data-give="${m.id}:${e.item}"`, `${icon(e.item!, 'ico-s')}${g.name(e.dex)}`)).join('')}${btn('data-stonecancel="1"', 'Cancel')}</div>`
@@ -817,15 +839,19 @@ export class Hud {
       detail = `
         <div class="mon-detail">
           <p class="hint">${this.evoText(m)}</p>
+          <p class="act-label">Care</p>
           <div class="row-actions">
             ${btn(`data-feed="${m.id}"`, `${icon('oran-berry', 'ico-s')}Feed +${berryExp(m.level)} EXP`, locked || s.berries <= 0, true)}
             ${usable.length && !m.heldItem ? btn(`data-stones="${m.id}"`, 'Give a stone', locked) : ''}
             ${m.heldItem ? btn(`data-take="${m.id}"`, 'Take stone', locked) : ''}
             ${m.noEvolve ? btn(`data-allow="${m.id}"`, 'Let it evolve') : ''}
             ${g.canSailorTrade(m.id) ? btn(`data-sailor="${m.id}"`, "Sailor's trade", locked, true) : ''}
-            ${partyBtn}
           </div>
+          <p class="act-why">Feeding uses one Oran Berry.${usable.length && !m.heldItem ? ' A stone makes it evolve.' : ''}</p>
           ${stoneRow}
+          ${stays.length ? `<p class="act-label">Where it stays</p><div class="row-actions">${stays.map((x) => x.b).join('')}</div>${stays.map((x) => `<p class="act-why">${x.why}</p>`).join('')}` : ''}
+          ${tripBtns ? `<p class="act-label">Send on a trip</p><div class="row-actions">${tripBtns}</div><p class="act-why">It is away for that many focused minutes and comes back with shells and finds.${nextFar ? ` At Lv${nextFar.level} it can reach ${nextFar.name}.` : ''}</p>` : ''}
+          ${locked ? '<p class="act-why">These open again at your next break.</p>' : ''}
         </div>`
     }
     return `
@@ -973,7 +999,8 @@ export class Hud {
     const view = this.subOf('island')
     const wallet = `<p class="inv"><span title="Shells">${icon('shoal-shell')}<b>×${g.save.shells}</b></span><span title="Star Pieces">${icon('star-piece')}<b>×${g.save.starPieces}</b></span></p>${locked ? '<p class="note">Locked while focusing.</p>' : ''}`
     if (view === 'habitats') return `${wallet}${habitats}`
-    if (view === 'decor') return `${wallet.replace('</p>', `<span>${free} of ${open.length} spots free</span></p>`)}<div class="decor-grid">${rows}</div>`
+    if (view === 'decor')
+      return `${wallet.replace('</p>', `<span>${free} of ${open.length} spots free</span></p>`)}<div class="row-actions"><button class="px-btn small primary" data-arrange="1" ${locked ? 'disabled' : ''}>Arrange the island</button></div><p class="act-why">Drag decorations anywhere they fit. More spots open with focused hours and the Pokédex.</p><div class="decor-grid">${rows}</div>`
     const upgrades = UPGRADES.map((u) => {
       const have = g.save.upgrades.includes(u.id)
       const act = have ? `<span class="hint">Built</span>` : `<button class="px-btn small${g.save.starPieces >= u.stars ? ' primary' : ''}" data-upgrade="${u.id}" ${g.save.starPieces < u.stars || locked ? 'disabled' : ''}>${star}${u.stars}</button>`
@@ -1348,6 +1375,12 @@ export class Hud {
       this.stonePick = null
       return this.renderSheet()
     }
+    const ok = at('introok')
+    if (ok) {
+      this.game.save.tips = [...(this.game.save.tips ?? []), `tab:${ok}`]
+      this.game.persist()
+      return this.renderSheet()
+    }
     const id = (k: string) => at(k)
     let v: string | undefined
     if ((v = id('party'))) {
@@ -1365,6 +1398,7 @@ export class Hud {
     else if ((v = id('buy'))) this.h.buyDecor(v)
     else if ((v = id('place'))) this.h.placeDecor(v)
     else if ((v = id('move'))) this.h.moveDecor(v)
+    else if (id('arrange')) this.h.arrange()
     else if ((v = id('store'))) this.h.storeDecor(v)
     else if ((v = id('dex'))) this.dexPick = Number(v)
     else if ((v = id('accept')) || (v = id('decline'))) {

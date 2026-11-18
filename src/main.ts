@@ -6,17 +6,19 @@ import { Creature } from './creature'
 import * as cloud from './cloud'
 import { CATALOG, SLOTS, decorDef } from './decor'
 import { BALLS, Ball, DESTINATIONS, FOODS, Find, GUIDE_DEX, isMeteorWeek, seasonOf, Game, GameEvent, RESTORE, dayKey, HABITATS, Haul, ISLANDS, JOBS, Mon, RARE_LONG, Role, Roster, STONES, Weather, Wild, aStone, loadSave, stoneName } from './game'
-import { CRATER_SPOT, LANDMARK_SPOTS, craterArt, landmarkArt } from './landmarks'
+import { CRATER_SPOT, DRAWN_LANDMARKS, LANDMARK_SPOTS, craterArt, landmarkArt } from './landmarks'
 import { HABITAT_SPOTS } from './habitats'
 import { CatchAnim } from './catch'
 import { Intro } from './intro'
 import { Tour, blackScreen, liftBlack, runPrologue } from './tutorial'
-import { Hud, fmtMinutes, hudScale } from './hud'
-import { H, W, seaCss, seaEdge, useIsland, useSeason } from './island'
+import { Dialog, Hud, fmtMinutes, hudScale } from './hud'
+import { createArrange } from './arrange'
+import { H, SEA_ROCKS, W, seaCss, seaEdge, useIsland, useSeason } from './island'
+import { loadNature } from './nature'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
 import { applyVolume, audioState, initAudio, listenIn, sfx, syncMusic, wantsMusic, type SfxName } from './audio'
 import { NEST, Scene, lightAt, nightness } from './scene'
-import { nextTip } from './guide'
+import { GUIDE, TIPS_PER_BREAK, nextTip } from './guide'
 import { Manifest, Species, loadManifest, loadSpecies } from './sprites'
 
 const params = new URLSearchParams(location.search)
@@ -56,9 +58,12 @@ const g = canvas.getContext('2d', { willReadFrequently: true })! // the night li
 let manifest: Manifest
 let game: Game
 let hud: Hud
+let arrange: ReturnType<typeof createArrange>
 // the island you are on decides the palette before anything is painted
 useIsland(visitData ? visitData.scene.island : (loadSave().island ?? 'home'))
 useSeason(seasonOf(Date.now()), visitData ? visitData.scene.island : (loadSave().island ?? 'home'))
+// the nature pieces (Flurmimon's tileset) load before anything is painted
+await loadNature()
 const scene = new Scene()
 scene.overlay = (gg) => catching?.draw(gg)
 // every load opens under a bank of clouds that part to reveal the island. They are drawn on
@@ -327,7 +332,7 @@ function syncLandmarks() {
   const next = game.nextLandmark
   const ready = !!next && game.restoreProgress(next.id).ready
   scene.setLandmarks(
-    RESTORE.map((r) => {
+    RESTORE.filter((r) => DRAWN_LANDMARKS.has(r.id)).map((r) => {
       const art = landmarkArt(r.id, game.restored(r.id), r.id === 'lighthouse' && game.lighthouseLit)
       // the one you can rebuild now catches the light now and then: a slow gold glint above it
       return { ...LANDMARK_SPOTS[r.id], art: ready && next!.id === r.id ? { ...art, live: readyGlint(art.ay) } : art }
@@ -349,12 +354,24 @@ const readyGlint = (h: number) => (g: CanvasRenderingContext2D, x: number, y: nu
   g.globalAlpha = 1
 }
 /** The landmark (Home only) whose picture is under this point, if any. */
+/** The walkable point closest to (x, y), for jobs tied to something out at sea. */
+function nearestLand(p: { x: number; y: number }) {
+  let best = { x: 120, y: 92 }
+  let bd = Infinity
+  for (let y = 0; y < H; y += 2)
+    for (let x = 0; x < W; x += 2) {
+      const d = Math.hypot(x - p.x, y - p.y)
+      if (d < bd && scene.island.walkable(x, y)) (bd = d), (best = { x, y })
+    }
+  return best
+}
 function landmarkAt(x: number, y: number) {
   if (game.save.island !== 'home') return null
   for (const r of RESTORE) {
+    if (!DRAWN_LANDMARKS.has(r.id)) continue
     const s = LANDMARK_SPOTS[r.id]
     const a = landmarkArt(r.id, game.restored(r.id), r.id === 'lighthouse' && game.lighthouseLit)
-    if (x >= s.x - a.ax && x < s.x - a.ax + a.img.width && y >= s.y - a.ay && y <= s.y + 2) return r
+    if (x >= s.x - a.ax && x < s.x - a.ax + a.img.width && y >= s.y - a.ay && y <= s.y - a.ay + a.img.height) return r
   }
   return null
 }
@@ -393,7 +410,8 @@ function showLandmark(r: (typeof RESTORE)[number]) {
 }
 function anchorFor(role: Role): { x: number; y: number; r: number } | undefined {
   if (role === 'daycare') return { x: NEST.x + 13, y: NEST.y + 3, r: 5 }
-  if (role === 'job:generator' && game.save.island === 'home') return { x: LANDMARK_SPOTS.lighthouse.x + 10, y: LANDMARK_SPOTS.lighthouse.y + 4, r: 4 }
+  // the lighthouse stands on a rock in the sea, so its generator runs from the nearest beach
+  if (role === 'job:generator' && game.save.island === 'home') return { ...nearestLand(LANDMARK_SPOTS.lighthouse), r: 4 }
   if (role === 'job:bush') return { x: scene.island.bush.x - 10, y: scene.island.bush.y + 4, r: 6 }
   if (role === 'job:lookout') {
     const d = scene.island.dock
@@ -590,6 +608,38 @@ function syncWild() {
     if (c.wildId && c !== catching?.c && c.state !== 'leave' && !game.save.wild.some((w) => w.id === c.wildId)) wildLeaves(c)
   scene.markWild = !game.inSession && !catching
 }
+/** Bubbles and floating things in the water (2026-11-18), from the save. */
+function syncSea() {
+  if (visitData) return
+  // each gets its own spot, at least a little way from the others
+  // the sea rocks count as taken, so nothing floats against them
+  const taken: { x: number; y: number }[] = (SEA_ROCKS[game.save.island] ?? SEA_ROCKS.home).map(([x, y]) => ({ x, y: y - 6 }))
+  const spot = (id: string) => {
+    const p = scene.seaSpot(id, taken)
+    taken.push(p)
+    return p
+  }
+  scene.seaBubbles = (game.save.sea ?? []).map((w) => ({ id: w.id, ...spot(w.id) }))
+  scene.seaFloats = (game.save.floats ?? []).map((f) => ({ id: f.id, kind: f.kind, ...spot(f.id) }))
+}
+/** Tap the bubbles: the water Pokémon swims to the nearest beach and climbs out to wait. */
+async function surfaceSea(id: string, at: { x: number; y: number }) {
+  if (game.inSession) return hud.toast('Something is under the water. It will wait for your break.')
+  const w = game.surface(id)
+  if (!w) return hud.toast('The island is full. Catch someone first.')
+  syncSea()
+  sfx('blip')
+  const sp = await ensure(w.dex)
+  const shore = nearestLand(at)
+  const c = scene.add(sp, shore.x, shore.y)
+  c.wildId = w.id
+  c.enter('emerge', 99)
+  const p = scene.freeSpot({ x: shore.x, y: shore.y })
+  c.walkTo(p.x, p.y)
+  syncShiny()
+  hud.say({ dex: w.dex, text: `A wild ${game.name(w.dex)} climbed out of the water.`, auto: 4500 })
+  game.note('visit', `A wild ${game.name(w.dex)} came out of the sea.`, { dex: w.dex })
+}
 function syncFinds() {
   for (const f of game.save.finds) {
     if (f.x != null) continue
@@ -742,6 +792,20 @@ canvas.addEventListener('click', (e) => {
   const vis = scene.creatures.find((c) => c.visitor && c.state !== 'leave' && Math.abs(c.x - x) < 11 && y > c.y - 26 && y < c.y + 3)
   if (vis) return hud.say({ dex: Number(vis.sp.dex), text: `${vis.visitor}'s ${vis.name} is visiting. ${vis.visitor} is studying too.`, auto: 5000 })
   if (scene.gate && Math.abs(scene.gate.x - x) < 8 && y > scene.gate.y - 13 && y < scene.gate.y + 2) return askBattle()
+  if (onBoat(x, y)) return askExplore()
+  const sea = scene.seaAt(x, y)
+  if (sea?.kind === 'bubble') return void surfaceSea(sea.id, { x, y })
+  if (sea?.kind === 'float') {
+    const got = game.collectFloat(sea.id)
+    syncSea()
+    if (got) {
+      sfx('coin')
+      hud.toast(FIND_TEXT[got.kind](got.n))
+      game.note('find', `${FIND_TEXT[got.kind](got.n)} floated in.`)
+    }
+    hud.refreshSheet()
+    return
+  }
   const c = scene.creatures.find((c) => c.wildId && !c.hidden && c.state !== 'leave' && Math.abs(c.x - x) < 11 && y > c.y - 26 && y < c.y + 3)
   if (!c) {
     // one of yours: it hops, a heart floats up, it cries, and its summary opens
@@ -765,7 +829,9 @@ canvas.addEventListener('mousemove', (e) => {
     !!catching ||
     scene.finds.some((f) => Math.abs(f.x - x) < 6 && y > f.y - 9 && y < f.y + 3) ||
     scene.creatures.some((c) => (c.wildId || c.monId || c.visitor) && !c.hidden && Math.abs(c.x - x) < 11 && y > c.y - 26 && y < c.y + 3) ||
-    !!landmarkAt(x, y)
+    !!landmarkAt(x, y) ||
+    onBoat(x, y) ||
+    !!scene.seaAt(x, y)
   canvas.style.cursor = over ? 'pointer' : ''
 })
 window.addEventListener('keydown', (e) => {
@@ -811,6 +877,24 @@ function askBattle() {
     text: `${cleared ? `${game.name(g.dex)} is beaten, but the dungeon is still there.` : `${game.name(g.dex)} Lv${g.level} is ${g.where}, three floors down.`} Your party is ${partyLevels()}. ${lanternLine()}`,
     actions: [
       { label: 'Enter', primary: true, run: () => enterDungeon(`${import.meta.env.BASE_URL}dungeon.html?id=${isl.dungeon}&gate=${isl.id}`) },
+      { label: 'Not now', run: () => {} },
+    ],
+  })
+}
+/** The rowboat by the pier (2026-11-18): the way to this island's surface exploration. */
+const onBoat = (x: number, y: number) => !visitData && Math.abs(scene.island.boat.x - x) < 13 && y > scene.island.boat.y - 6 && y < scene.island.boat.y + 6
+function askExplore() {
+  const isl = game.islandDef
+  const ex = isl.explore
+  if (!ex) return
+  if (game.inSession) return hud.toast('Exploring is for breaks.')
+  if (game.totalHours() < ex.hours)
+    return hud.say({ dex: GUIDE_DEX, text: `The rowboat goes to ${ex.name}, a place to explore outdoors. It is ready after ${ex.hours} focused hours.`, auto: 6000 })
+  hud.say({
+    dex: GUIDE_DEX,
+    text: `Row over to ${ex.name}? It is three clearings and a heart to explore, with wooden crates that open for anyone. Your party is ${partyLevels()}.`,
+    actions: [
+      { label: 'Row over', primary: true, run: () => enterDungeon(`${import.meta.env.BASE_URL}dungeon.html?id=${ex.id}`) },
       { label: 'Not now', run: () => {} },
     ],
   })
@@ -865,7 +949,9 @@ function sailAway(to: string) {
 // ---------- friends (stage 5) ----------
 function currentScene(): cloud.Scene5 {
   const slots = Object.fromEntries(Object.entries(game.save.decor.slots).filter(([, v]) => v)) as Record<string, string>
-  return { island: game.save.island, habitats: game.save.habitats, decor: slots }
+  // where each decoration stands (arrange mode); servers before stage 9 drop it, and friends then see the default spots
+  const pos = Object.fromEntries(Object.entries(game.save.decor.pos ?? {}).filter(([k]) => slots[k]))
+  return { island: game.save.island, habitats: game.save.habitats, decor: slots, pos }
 }
 /** Friends studying now: their Pokémon visit, and you study together (double shells, better odds). */
 async function refreshFriends() {
@@ -1033,7 +1119,7 @@ async function sendGift(friendId: string, friendName: string, kind: cloud.GiftKi
 async function bootVisit(v: cloud.FriendScene & { id: string }) {
   scene.hour = clockHour()
   scene.setHabitats(v.scene.habitats.filter((h) => ['grass', 'rocks', 'pond', 'cave', 'spring'].includes(h)) as never)
-  scene.setDecor(v.scene.decor)
+  scene.setDecor(v.scene.decor, v.scene.pos)
   for (const p of v.party) {
     const sp = await ensure(p.dex)
     const q = scene.freeSpot()
@@ -1140,12 +1226,15 @@ function tellTip(tries = 0) {
   // the tour already explained focusing and the pond
   if (!game.save.tips) game.save.tips = ['focus', 'habitats']
   if (hud.busy || !hud.sheetHidden) return tries < 12 ? after(5, () => tellTip(tries + 1)) : undefined
-  const t = nextTip(game)
-  if (!t) return
-  const first = game.save.tips.length <= 2
-  game.save.tips = [...game.save.tips, t.id]
+  const first = !game.save.tips.some((id) => GUIDE.some((t) => t.id === id && id !== 'focus' && id !== 'habitats'))
+  // up to two at a break, so new things don't trickle out too slowly (2026-11-18)
+  for (let n = 0; n < TIPS_PER_BREAK; n++) {
+    const t = nextTip(game)
+    if (!t) break
+    game.save.tips = [...game.save.tips, t.id]
+    for (const line of t.text.split(/(?<=\.)\s+/)) hud.say({ dex: GUIDE_DEX, text: line, wait: true })
+  }
   game.persist()
-  for (const line of t.text.split(/(?<=\.)\s+/)) hud.say({ dex: GUIDE_DEX, text: line, wait: true })
   if (first) hud.say({ dex: GUIDE_DEX, text: 'I keep tips like this in More, under Guide.', wait: true })
 }
 
@@ -1208,6 +1297,7 @@ interface Evo {
   t: number
   swapped: boolean
   cancelled: boolean
+  line?: Dialog
 }
 const evoQueue: { mon: Mon; to: number }[] = []
 let evo: Evo | null = null
@@ -1227,7 +1317,9 @@ async function nextEvolution() {
   c.hold(true)
   const e: Evo = { ...job, c, t: 0, swapped: false, cancelled: false }
   evo = e
-  hud.say({
+  // kept so the swap closes this exact line: a bare dismiss() closed whatever was showing, so a
+  // line queued behind another stayed up with only Stop it (Paul, 2026-11-18: Geodude's)
+  e.line = {
     dex: job.mon.dex,
     emotion: 'Happy',
     text: `${game.name(job.mon)} is evolving.`,
@@ -1245,7 +1337,8 @@ async function nextEvolution() {
         },
       },
     ],
-  })
+  }
+  hud.say(e.line)
 }
 function stepEvolution(dt: number) {
   if (!evo) return
@@ -1266,7 +1359,7 @@ function stepEvolution(dt: number) {
       game.evolve(e.mon, e.to)
       e.c.setSpecies(species.get(e.to)!)
       publishParty()
-      hud.dismiss()
+      if (e.line) hud.close(e.line)
       calm('success')
       hud.say({ dex: e.to, emotion: 'Happy', text: `${from} evolved into ${game.name(e.to)}.`, auto: 5000 })
       game.note('evolve', `${from} evolved into ${game.name(e.to)}.`, { dex: e.to })
@@ -1283,6 +1376,8 @@ function stepEvolution(dt: number) {
 }
 function finishEvolution() {
   if (!evo) return
+  // never leave the "is evolving" line behind, however the evolution ended
+  if (evo.line) hud.close(evo.line)
   evolving.delete(evo.mon.id)
   if (evo.cancelled) evo.c.hold(false)
   evo = null
@@ -1315,19 +1410,10 @@ async function showWaves() {
 function decorSlotOf(id: string) {
   return Object.entries(game.save.decor.slots).find(([, v]) => v === id)?.[0]
 }
-function freeSlotAfter(from?: string) {
-  const ids = SLOTS.filter((s) => game.slotOpen(s)).map((s) => s.id)
-  const start = from ? ids.indexOf(from) + 1 : 0
-  for (let i = 0; i < ids.length; i++) {
-    const id = ids[(start + i) % ids.length]
-    if (!game.save.decor.slots[id]) return id
-  }
-  return undefined
-}
 function saveDecor() {
   game.persist()
   cloud.publishScene(currentScene())
-  scene.setDecor(game.save.decor.slots)
+  scene.setDecor(game.save.decor.slots, game.save.decor.pos)
   hud.refreshSheet()
 }
 
@@ -1371,6 +1457,9 @@ function onGame(e: GameEvent) {
       after(6, () => void showWaves())
       game.together = []
       after(8, () => void takeGifts())
+      break
+    case 'sea':
+      syncSea()
       break
     case 'passer':
       void spawnWild(e.wild, true)
@@ -1573,7 +1662,7 @@ function onGame(e: GameEvent) {
       syncParty()
       syncWild()
       syncFinds()
-      scene.setDecor(game.save.decor.slots)
+      scene.setDecor(game.save.decor.slots, game.save.decor.pos)
       syncLandmarks()
       hud.refreshSheet()
       publishParty()
@@ -1705,6 +1794,7 @@ window.addEventListener('storage', (e) => {
   syncSleep()
   syncWild()
   syncFinds()
+  syncSea()
 })
 
 // ---------- pop out ----------
@@ -1789,7 +1879,7 @@ const CHEATS: { title: string; items: [string, string][] }[] = [
   { title: 'Start', items: [['fresh', 'Play from the beginning'], ['endgame', 'Almost-finished island'], ['tour', 'Replay the island tour'], ['restore', 'Restore my save']] },
   { title: 'Focus', items: [['session', 'Start a session'], ['m10', '+10 focused min'], ['m30', '+30 focused min'], ['m60', '+60 focused min'], ['finish', 'Finish the session'], ['end', 'End it early']] },
   { title: 'Visitors', items: [['passer', 'A passer-by'], ['passer3', 'Three passers-by'], ['visit', 'Friendly visitor'], ['visit50', 'Visitor, 1-hour odds']] },
-  { title: 'Moments', items: [['find', 'A find'], ['w-rain', 'Rain'], ['w-fog', 'Fog'], ['w-sun', 'Sun'], ['w-snow', 'Snow'], ['w-clear', 'Clear sky']] },
+  { title: 'Moments', items: [['sea', 'Bubbles and flotsam'], ['find', 'A find'], ['w-rain', 'Rain'], ['w-fog', 'Fog'], ['w-sun', 'Sun'], ['w-snow', 'Snow'], ['w-clear', 'Clear sky']] },
   { title: 'Time', items: [['h-7', 'Morning'], ['h-13', 'Noon'], ['h-19', 'Dusk'], ['h-22', 'Night'], ['clock', 'My clock']] },
   { title: 'Growth', items: [['evolve', 'Lead ready to evolve'], ['stone', 'A stone washes ashore'], ['bond', 'Lead: 10 h bond'], ['lv20', 'Party to Lv 20'], ['strong', 'Party to Lv 34']] },
   { title: 'Eggs', items: [['egg', 'An egg'], ['daycare-egg', 'Day Care egg now'], ['hatch-now', 'Hatch eggs now'], ['jobs-now', 'Jobs pay out now'], ['expedition-back', 'Expedition returns']] },
@@ -1867,6 +1957,17 @@ function cheat(d: string) {
   }
   if (d === 'restore') return restoreSave()
   if (!game.hasStarter && d !== 'reset') return hud.toast('Pick a starter first.')
+  if (d === 'sea') {
+    // a water Pokémon under bubbles and something floating, as if a session had just finished
+    const sv = game.save
+    for (let i = 0; i < 40 && (sv.sea ?? []).length < 2; i++) {
+      const v = game.pickVisitor(1, Math.random, game.lure(), false)
+      if (game.species(v.dex)?.types?.includes('water')) (sv.sea ??= []).push({ id: Math.random().toString(36).slice(2, 10), dex: v.dex, level: v.level, tries: 0 })
+    }
+    ;(sv.floats ??= []).push({ id: Math.random().toString(36).slice(2, 10), kind: 'berry', n: 1 }, { id: Math.random().toString(36).slice(2, 10), kind: 'poke-ball', n: 1 })
+    game.persist()
+    return syncSea()
+  }
   const s = () => game.save.session
   const ensureSession = () => {
     if (!s()) game.startSession()
@@ -2108,29 +2209,24 @@ async function boot() {
         if (!game.spendShells(d.price)) return hud.toast('Not enough shells.')
         sfx('buy')
         game.save.decor.owned.push(id)
-        const slot = freeSlotAfter()
-        if (slot) game.save.decor.slots[slot] = id
-        hud.toast(slot ? `Placed.` : `Bought. Put something away to make room.`)
+        // a new decoration goes to the nearest open ground to the middle of the island
+        const placed = arrange.placeNew(id)
+        hud.toast(placed ? 'Placed. Arrange the island to move it.' : 'Bought. Put something away to make room.')
         saveDecor()
       },
       placeDecor: (id) => {
-        const slot = freeSlotAfter()
-        if (!slot || game.inSession) return
-        game.save.decor.slots[slot] = id
+        if (game.inSession) return
+        if (!arrange.placeNew(id)) return hud.toast('There is no room for it.')
         saveDecor()
+        arrange.open(id)
       },
-      moveDecor: (id) => {
-        const from = decorSlotOf(id)
-        const to = freeSlotAfter(from)
-        if (!from || !to || game.inSession) return hud.toast('No free spot.')
-        game.save.decor.slots[from] = null
-        game.save.decor.slots[to] = id
-        saveDecor()
-      },
+      moveDecor: (id) => arrange.open(id),
+      arrange: () => arrange.open(),
       storeDecor: (id) => {
         const from = decorSlotOf(id)
         if (!from || game.inSession) return
         game.save.decor.slots[from] = null
+        if (game.save.decor.pos) delete game.save.decor.pos[from]
         saveDecor()
       },
       cloud: {
@@ -2245,6 +2341,7 @@ async function boot() {
     },
     creditsHtml,
   )
+  arrange = createArrange({ canvas, scene, game, hud, save: saveDecor })
   if (popoutMode && !floatMode) hud.setSmall(true) // the plain pop-out page is itself the small window
   game.on(onGame)
   new ResizeObserver(() => hud.fit(canvas)).observe(canvas)
@@ -2312,7 +2409,7 @@ async function boot() {
       game.persist()
     }
   }
-  scene.setDecor(game.save.decor.slots)
+  scene.setDecor(game.save.decor.slots, game.save.decor.pos)
   syncLandmarks()
   scene.festival = game.festival
   scene.setHabitats(game.save.habitats)
@@ -2321,6 +2418,7 @@ async function boot() {
   game.hour = () => hourOverride ?? clockHour()
   syncWild()
   syncFinds()
+  syncSea()
   scene.weather = game.weather
   after(20, partyLife)
   if (clockOwner) game.beat() // settles any time that passed while the island was closed
@@ -2347,7 +2445,7 @@ function creditsHtml() {
   const rows = Object.values(manifest.species)
     .map((s) => `<li><strong>${s.name}</strong> ${names(s.credits.sprite)} / ${names(s.credits.portrait)}</li>`)
     .join('')
-  return `<p>PMD Sprite Repository, CC BY-NC 4.0. Cries and page sprites: Pokémon Showdown. Data and item icons: PokéAPI. Sound effects: Case Portman Audio (Cute & Cozy UI Audio). Music: Mayra, Free Ambient Music (Loop), mayragandra.itch.io. Sprite / portrait artists:</p><ul>${rows}</ul>`
+  return `<p>PMD Sprite Repository, CC BY-NC 4.0. Cries and page sprites: Pokémon Showdown. Data and item icons: PokéAPI. Sound effects: Case Portman Audio (Cute & Cozy UI Audio). Music: Mayra, Free Ambient Music (Loop), mayragandra.itch.io. Island trees, grass, flowers and rocks: Flurmimon, Flurmimon's Tileset - Nature (DeviantArt). Sprite / portrait artists:</p><ul>${rows}</ul>`
 }
 
 window.__island = {

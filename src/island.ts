@@ -5,6 +5,7 @@
 // gentle 3/4 top-down, like the PMD overworld: you see the grassy top and a
 // short cliff face on the south side.
 import { Pix, RGB, bayer, distanceField, hash2, hex, noise } from './pixel'
+import { piece, pixels, recolor } from './nature'
 
 export const W = 240
 export const H = 180
@@ -78,7 +79,10 @@ export const TUFT = { out: '#24602c', dark: '#3b8735', mid: '#4fa13f', light: '#
  * the island, props and decorations all paint with these colours.
  */
 export function useIsland(id: string) {
+  islandId = id
   LOBES = scaleLobes([...BASE_LOBES, ...(EXTRA_LOBES[id] ?? [])])
+  // Home's greens are Flurmimon's grass tiles' own, so tufts, shading and ruins match the ground
+  if (id === 'home') Object.assign(PAL, { grassLight: hex('#a3da9a'), grass: hex('#89cf7e'), grassDark: hex('#5ebe50'), grassDeep: hex('#469b39') })
   if (id === 'ember') return useEmber()
   if (id !== 'frost') return
   const F: Partial<Record<keyof typeof PAL, string>> = {
@@ -108,12 +112,28 @@ function useEmber() {
  * warms a little. Applied after useIsland and before the scene is built.
  */
 export function useSeason(season: string, id: string) {
+  currentSeason = season
   if (id !== 'home' || season !== 'autumn') return
   const A: Partial<Record<keyof typeof PAL, string>> = {
     leaf: '#c0702e', leafMid: '#d88a3c', leafLight: '#eeb054', leafDeep: '#8e4a22',
     grassLight: '#b4d466', grass: '#92bf52', grassDark: '#74a442', grassDeep: '#5a8a36',
   }
   for (const [k, v] of Object.entries(A)) PAL[k as keyof typeof PAL] = hex(v!)
+}
+
+let islandId = 'home'
+/** The island the scene is being painted for. */
+export const islandName = () => islandId
+let currentSeason = 'summer'
+
+/**
+ * Home Island's lighthouse stands on its own small rock in the south-east sea (Paul, 2026-11-18:
+ * the ruins crowded the lawn). Pokémon can't walk there; it is painted, not part of the top.
+ */
+export const ISLET = { x: 219, y: 163, rx: 14, ry: 5 }
+/** Small rocks in the shallows, in window pixels (bottom centre), clear of the land and the pier. */
+export const SEA_ROCKS: Record<string, [number, number][]> = {
+  home: [[14, 142], [26, 150], [228, 58]],
 }
 
 /** The open-sea colour, for the page behind the canvas. */
@@ -123,11 +143,11 @@ export const seaEdge = () => PAL.abyss
 
 // ---------- shape ----------
 /**
- * The island is drawn 14% bigger than it was first laid out, about its centre, so the
- * Pokémon read smaller against it (Paul, 2026-11-11). Every fixed spot on it (props,
+ * The island is drawn 24% bigger than it was first laid out, about its centre, so the
+ * Pokémon read smaller against it (Paul, 2026-11-11: 14%; 2026-11-18: 24%, more land). Every fixed spot on it (props,
  * habitats, decoration slots, the nest, the shallows' rocks) goes through `onIsland`.
  */
-export const ISLAND_SCALE = 1.14
+export const ISLAND_SCALE = 1.24
 export const onIsland = (x: number, y: number) => ({ x: Math.round(120 + (x - 120) * ISLAND_SCALE), y: Math.round(92 + (y - 92) * ISLAND_SCALE) })
 const BASE_LOBES: [number, number, number, number][] = [
   [120, 90, 76, 42],
@@ -169,6 +189,7 @@ export interface IslandLayout {
   bush: { x: number; y: number }
   dock: { x: number; y0: number; y1: number; w: number }
   lantern: { x: number; y: number }
+  boat: { x: number; y: number } // the rowboat to the surface exploration
   walkable: (x: number, y: number) => boolean
   blockers: { x: number; y: number; r: number }[] // decorations, kept clear
   shoreline: { x: number; y: number }[] // foam pixels, just outside the footprint
@@ -179,6 +200,7 @@ export interface IslandLayout {
  * ground's tufts and flowers stay off them.
  */
 export function buildIsland(keepClear: { x: number; y: number; r: number }[] = []): IslandLayout {
+  groundTiles()
   const top = new Uint8Array(W * H)
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) top[y * W + x] = inTop(x, y) ? 1 : 0
   const edge = distanceField(top, W, H)
@@ -216,6 +238,8 @@ export function buildIsland(keepClear: { x: number; y: number; r: number }[] = [
   // steps cut into the cliff, then a pier on the water
   const dock = { x: dockX, y0: lip - 2, y1: lip + 34, w: DW }
   const lantern = { x: dockX + DW - 2, y: dock.y1 + 1 }
+  // the rowboat, moored to the right of the pier near its end
+  const boat = { x: dockX + DW + 16, y: dock.y1 - 10 }
 
   const p = new Pix(W, H)
 
@@ -230,14 +254,21 @@ export function buildIsland(keepClear: { x: number; y: number; r: number }[] = [
       // pale shallows, the island's water, a deep ring, then the open sea. A slow wave keeps the
       // ring edges from looking ruled. The canvas edge is always exactly the open sea's colour,
       // the page's, so no frame shows.
-      const r = Math.hypot((x - 120) / 120, (y - 92) / 90)
+      // (2026-11-18, Paul: "rings around rings". The rings now wander: slow noise pushes the deep
+      // and open-sea edges in and out by up to a tenth, and the shallows by a few pixels, so they
+      // read as shelves under the water rather than ellipses)
+      const r0 = Math.hypot((x - 120) / 120, (y - 92) / 90)
+      const r = r0 + (noise(x / 34, y / 26, 21) - 0.5) * 0.2 + (noise(x / 11, y / 9, 23) - 0.5) * 0.04
       const edge = Math.min(x, W - 1 - x, y, H - 1 - y)
       const wave = Math.sin(x * 0.35 + y * 0.2) * 0.6
+      // (2026-11-18, Paul: the inner rings were too thin and too close: the pale shallows are now
+      // about 7 px, the next band about 9 more, and the deep ring starts further out)
+      const shelf = (noise(x / 16, y / 12, 25) - 0.5) * 8
       let c: RGB = PAL.sea
-      if (r > 0.84 + wave * 0.01) c = PAL.deep
-      if (r > 0.95 || edge < 6) c = PAL.dusk
-      if (d < 9 + wave) c = PAL.shallow
-      if (d < 4 + wave * 0.5) c = PAL.shallow2
+      if (r > 0.9 + wave * 0.01) c = PAL.deep
+      if (r > 1.02 || edge < 5) c = PAL.dusk
+      if (d < 16 + wave + shelf) c = PAL.shallow
+      if (d < 7 + wave * 0.5 + shelf * 0.35) c = PAL.shallow2
       // a few short ripple dashes on the island's water
       if (c === PAL.sea && hash2(x >> 2, y, 17) < 0.03 && (x & 3) !== 3) c = PAL.seaRipple
       p.set(x, y, c)
@@ -268,58 +299,133 @@ export function buildIsland(keepClear: { x: number; y: number; r: number }[] = [
         p.set(x, y, e <= 1 ? PAL.sandLight : e > sandW - 1 ? PAL.sandDark : PAL.sand)
         continue
       }
-      // grass: the old lighting (lit from the top-left, shaded to the south-east) and its slow
-      // noise, but cut into clean-edged regions of three greens instead of dithered into dots
-      // (Paul, 2026-11-18: the flat version was too plain; the dots were the problem)
-      const nx = (x - 120) / 80
-      const ny = (y - 88) / 46
-      const v = 0.52 + (-nx * 0.35 - ny * 0.55) * 0.32 + (noise(x / 13, y / 9, 13) - 0.5) * 0.45
-      const c = v < 0.4 ? PAL.grassDark : v < 0.7 ? PAL.grass : PAL.grassLight
-      p.set(x, y, e <= sandW + 1.5 ? PAL.grassDark : c)
+      // grass: Flurmimon's two grass tiles (2026-11-18), repeated on a 16px grid. The old lighting
+      // (lit from the top-left, shaded to the south-east) and its slow noise still cut the lawn
+      // into clean-edged regions: the darker tile in the shade and just inside the sand
+      // (2026-11-18, Paul: the dark patches were "too random and abrupt", with sharp flat edges.
+      // The shade now follows the light: the island darkens toward its south-east and along that
+      // rim, with only slow, wide wobble, and a middle tone two or three pixels wide between the
+      // two greens so no edge is a hard step)
+      const nx = (x - 120) / 95
+      const ny = (y - 88) / 55
+      const toward = nx * 0.45 + ny * 0.75 // + toward the south-east, away from the light
+      const rimShade = Math.max(0, toward) * Math.max(0, 1 - e / 22)
+      const v = 0.6 - toward * 0.22 - rimShade * 0.35 + (noise(x / 30, y / 20, 13) - 0.5) * 0.22
+      const t = (v < 0.4 ? groundDark : v < 0.45 || e <= sandW + 1 ? groundMid : groundLight).data
+      const j = ((y & 15) * 16 + (x & 15)) * 4
+      p.set(x, y, [t[j], t[j + 1], t[j + 2]])
     }
 
-  // ---------- grass particles: tufts and flowers, placed on purpose ----------
-  // small tufts and clusters of three flowers, on open lawn away from everything that stands there
-  const busy = [...keepClear, { ...tree, r: 22 }, { ...bush, r: 12 }, { ...lantern, r: 8 }, { x: grassPatch.x, y: grassPatch.y, r: grassPatch.r + 8 }]
+  // ---------- grass particles: Flurmimon's tufts and small flowers, placed on purpose ----------
+  // on open lawn away from everything that stands there
+  const busy = [...keepClear, { ...tree, r: 26 }, { ...bush, r: 12 }, { ...lantern, r: 8 }, { x: grassPatch.x, y: grassPatch.y, r: grassPatch.r + 8 }]
   const open = (x: number, y: number, pad = 0) => T(x, y) && edge[y * W + x] > 7 + pad && !busy.some((b) => Math.hypot(x - b.x, (y - b.y) * 1.4) < b.r * 0.75 + pad)
   let seed = 3
   const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647
-  const TUFT = ['.L.L.', 'LdLdL', 'dDdDd']
-  const tuftCol: Record<string, RGB> = { L: PAL.grassLight, d: PAL.grassDark, D: PAL.grassDeep }
-  for (let n = 0, tries = 0; tries < 1200 && n < 34; tries++) {
-    const x = Math.round(30 + rnd() * 180)
-    const y = Math.round(45 + rnd() * 95)
-    if (!open(x, y)) continue
-    TUFT.forEach((row, r) => [...row].forEach((ch, c) => ch !== '.' && p.set(x - 2 + c, y - 2 + r, tuftCol[ch])))
-    n++
-  }
-  const petals = [PAL.flowerA, PAL.flowerB, PAL.flowerC]
-  const heart = hex('#ffe680')
-  for (let f = 0, tries = 0; tries < 1200 && f < 12; tries++) {
-    const x = Math.round(35 + rnd() * 170)
-    const y = Math.round(50 + rnd() * 85)
-    if (!open(x, y, 2)) continue
-    for (const [ox, oy] of [[0, 0], [4, 1], [2, 3]]) {
-      p.set(x + ox, y + oy + 1, PAL.grassDark)
-      for (const dx of [-1, 0, 1]) p.set(x + ox + dx, y + oy, petals[f % 3])
-      p.set(x + ox, y + oy - 1, petals[f % 3])
-      p.set(x + ox, y + oy, heart)
+  const scatter = (names: string[], n: number, pad: number) => {
+    for (let k = 0, tries = 0; tries < 1500 && k < n; tries++) {
+      const x = Math.round(24 + rnd() * 192)
+      const y = Math.round(40 + rnd() * 108)
+      if (!open(x, y, pad)) continue
+      const im = particle(names[k % names.length])
+      blit(p, im, x - (im.width >> 1), y - im.height + 1)
+      k++
     }
-    f++
+  }
+  const warm = currentSeason === 'autumn' && islandId === 'home'
+  scatter(['tuft'], 30, 0)
+  if (islandId === 'home') {
+    scatter(warm ? ['small3', 'small5', 'small0'] : ['small0', 'small1', 'small2', 'small3', 'small4', 'small5'], 14, 1)
+    scatter(warm ? ['leaves-orange', 'leaves-heap'] : ['flower1', 'flower3', 'flower0'], 3, 4)
   }
 
-  // soft contact shadows painted into the grass (tree, bush)
-  const shade = (cx: number, cy: number, rx: number, ry: number) => {
-    for (let y = cy - ry; y <= cy + ry; y++)
-      for (let x = cx - rx; x <= cx + rx; x++) {
-        const dx = (x - cx) / rx
-        const dy = (y - cy) / ry
-        const d = dx * dx + dy * dy
-        if (d < 1 && T(x, y)) p.set(x, y, PAL.grassDark) // a clean shape, no dithering
+  // ---------- the water's layers (after Kimo's water thread, 2026-11-18) ----------
+  // water uses a few fixed tones and each layer swaps one for another, never blends
+  const WT: RGB[] = [PAL.abyss, PAL.dusk, PAL.deep, PAL.sea, PAL.seaRipple, PAL.shallow, PAL.shallow2, PAL.foam]
+  const toneAt = (x: number, y: number) => {
+    const j = (y * W + x) * 4
+    return WT.findIndex((c) => p.data[j] === c[0] && p.data[j + 1] === c[1] && p.data[j + 2] === c[2])
+  }
+  const wet = (x: number, y: number) => x >= 0 && y >= 0 && x < W && y < H && !footprint[y * W + x] && toneAt(x, y) >= 0
+  // the south cliff mirrored into the sea: flipped, squashed to 80%, cut into three dark water
+  // tones by brightness, each row shifted a pixel or two on a sine; the darker of reflection and
+  // water wins, so it never lightens the sea
+  const src = p.data.slice()
+  for (let x = 0; x < W; x++) {
+    let foot = -1
+    for (let y = H - 2; y > 0; y--)
+      if (footprint[y * W + x] && !top[y * W + x] && wet(x, y + 1)) {
+        foot = y
+        break
+      }
+    if (foot < 0) continue
+    let lipY = foot
+    while (lipY > 0 && footprint[(lipY - 1) * W + x] && !top[(lipY - 1) * W + x]) lipY--
+    const rh = Math.max(1, Math.round((foot - lipY + 1) * 0.8))
+    for (let r = 0; r < rh; r++) {
+      const shift = r < 2 ? 0 : Math.round(Math.sin(r * 0.9 + x * 0.15) * (r < 4 ? 1 : 1.5))
+      const sy = foot - Math.floor(r / 0.8)
+      const sx = Math.min(W - 1, Math.max(0, x - shift))
+      if (sy < lipY) break
+      const ty = foot + 1 + r
+      if (!wet(x, ty)) continue
+      const si = (sy * W + sx) * 4
+      const l = 0.3 * src[si] + 0.59 * src[si + 1] + 0.11 * src[si + 2]
+      const tone = l < 95 ? 0 : l < 140 ? 1 : 2
+      if (tone < toneAt(x, ty)) p.set(x, ty, WT[tone])
+    }
+  }
+  // the cliff's last row is damp where it meets the water
+  for (let y = 1; y < H - 1; y++)
+    for (let x = 0; x < W; x++) {
+      const i = y * W + x
+      if (footprint[i] && !top[i] && wet(x, y + 1)) p.set(x, y, PAL.earthWet)
+    }
+  // short light dashes lapping two pixels off the shore
+  for (let y = 1; y < H - 1; y++)
+    for (let x = 1; x < W - 1; x++) {
+      const i = y * W + x
+      if (footprint[i] || !(footprint[i - 1] || footprint[i + 1] || footprint[i - W] || footprint[i + W])) continue
+      const qx = x + (x < 120 ? -2 : 2)
+      const qy = y + (y < 92 ? -1 : 2)
+      const v2 = Math.sin(x * 0.45 + y * 0.3) + Math.sin(x * 0.13 - y * 0.21) * 0.6
+      if (v2 > 0.7 && wet(qx, qy)) p.set(qx, qy, PAL.shallow2)
+    }
+  // in autumn on Home, a few leaves float by the shore, each with a one-pixel shadow
+  if (warm)
+    for (let n = 0, tries = 0; n < 6 && tries < 600; tries++) {
+      const x = Math.round(10 + rnd() * 220)
+      const y = Math.round(10 + rnd() * 160)
+      if (!wet(x, y) || !wet(x + 1, y + 1) || !wet(x + 4, y) || seaDist[y * W + x] > 6 || seaDist[y * W + x] < 3) continue
+      p.set(x + 1, y + 1, PAL.deep)
+      p.set(x, y, hex('#e8843c'))
+      p.set(x + 1, y, hex('#cc602c'))
+      n++
+    }
+
+  // ---------- the lighthouse's rock (Home only) ----------
+  // a low rocky outcrop: a lit stone top with a tuft of grass, a darker rock face, a wet foot and
+  // a ring of foam, wider than the tower so it stands on something
+  if (islandId === 'home') {
+    const { x: cx, y: cy, rx, ry } = ISLET
+    const lump = (x: number, y: number) => (noise(x / 4, y / 3, 61) - 0.5) * 0.35
+    const inside = (x: number, y: number, k = 1) => ((x + 0.5 - cx) / (rx * k)) ** 2 + ((y + 0.5 - cy) / (ry * k)) ** 2 < 1 + lump(x, y)
+    const DROP = 5
+    for (let y = cy - ry - 2; y <= cy + ry + DROP + 4; y++)
+      for (let x = cx - rx - 4; x <= cx + rx + 4; x++) {
+        if (inside(x, y)) {
+          const lit = (x - cx) / rx + (y - cy) / ry < -0.3
+          const grassy = inside(x, y, 0.55) && x < cx + 2 && y < cy + 1
+          p.set(x, y, grassy ? PAL.grassDark : lit ? PAL.stoneLight : PAL.stone)
+          continue
+        }
+        let k = 0
+        for (let d = 1; d <= DROP; d++) if (inside(x, y - d)) { k = d; break }
+        if (k) p.set(x, y, k === 1 ? PAL.stone : k === DROP ? PAL.earthWet : (x + k) % 5 === 0 ? PAL.stone : PAL.stoneDark)
+        else if (inside(x, y - DROP, 1.15) || inside(x, y, 1.12)) p.set(x, y, PAL.foam)
+        else if (inside(x, y - DROP, 1.3)) p.set(x, y, PAL.shallow2)
       }
   }
-  shade(tree.x + 4, tree.y + 1, 15, 5)
-  shade(bush.x + 2, bush.y + 1, 9, 3)
 
   // ---------- dock: wooden steps down the cliff, then a pier with posts ----------
   const { y0, y1, w } = dock
@@ -367,28 +473,47 @@ export function buildIsland(keepClear: { x: number; y: number; r: number }[] = [
     p.set(px + 2, y1 + 6, PAL.shallow2)
   }
 
-  // ---------- rocks in the shallows ----------
-  const rock = (cx: number, cy: number, r: number) => {
-    for (let y = cy - r; y <= cy + r; y++)
-      for (let x = cx - r - 1; x <= cx + r + 1; x++) {
-        const dx = (x - cx) / (r + 1)
-        const dy = (y - cy) / r
-        const d = dx * dx + dy * dy
-        if (d > 1) continue
-        const lit = dx + dy < -0.4
-        p.set(x, y, d > 0.7 ? PAL.stoneDark : lit ? PAL.stoneLight : PAL.stone)
+  // ---------- the rowboat tied beside the pier, for the surface explorations (2026-11-18) ----------
+  {
+    const bx = boat.x
+    const by = boat.y
+    // seen from above at the island's angle: a pointed hull with a light rim, the dark inside,
+    // two seats across, the side below the rim, and its shadow on the water
+    const rimC = hex('#d8a468')
+    const side = hex('#8c5a35')
+    const sideDark = hex('#5e3a20')
+    const inside = hex('#6e4426')
+    const seat = hex('#c88a54')
+    const RX = 12
+    const RY = 4.5
+    const inHull = (x: number, y: number, k = 1) => {
+      // pointed at the bow (right): the half-width narrows toward +x
+      const t = x / (RX * k)
+      const half = RY * k * Math.sqrt(Math.max(0, 1 - t * t)) * (t > 0 ? 1 - t * 0.35 : 1)
+      return Math.abs(y) <= half
+    }
+    for (let y = -6; y <= 9; y++)
+      for (let x = -RX - 1; x <= RX + 1; x++) {
+        if (inHull(x, y - 3)) p.set(bx + x, by + y, y - 3 > 0 ? sideDark : side) // the side, three pixels lower
       }
-    for (let x = cx - r; x <= cx + r; x++) p.set(x, cy + r + 1, PAL.shallow2)
+    for (let x = -RX - 1; x <= RX + 1; x++) if (inHull(x, 2)) p.set(bx + x, by + 6, PAL.deep) // shadow
+    for (let y = -6; y <= 6; y++)
+      for (let x = -RX - 1; x <= RX + 1; x++) {
+        if (!inHull(x, y)) continue
+        p.set(bx + x, by + y, inHull(x, y, 0.78) ? inside : rimC)
+      }
+    for (const sx of [-5, 3]) for (let y = -3; y <= 3; y++) if (inHull(sx, y, 0.78)) p.set(bx + sx, by + y, seat), p.set(bx + sx + 1, by + y, seat)
+    // an oar resting across, and the rope to the pier
+    for (let k = 0; k < 10; k++) p.set(bx - 4 + k, by - 2 + (k >> 2), hex('#e8c890'))
+    p.set(bx - RX - 2, by, hex('#e8d8a8'))
+    p.set(bx - RX - 3, by - 1, hex('#e8d8a8'))
+    // foam where the hull meets the water
+    for (const x of [-10, -4, 2, 8]) p.set(bx + x, by + 8, PAL.foam)
   }
-  for (const [x, y, r] of [
-    [34, 128, 3],
-    [40, 132, 2],
-    [210, 62, 3],
-    [198, 146, 2],
-  ]) {
-    const q = onIsland(x, y)
-    rock(q.x, q.y, r)
-  }
+
+  // ---------- rocks in the shallows: Flurmimon's small rocks with their foam rim ----------
+  const seaRock = pixels(islandId === 'frost' ? 'rock-s4' : 'rock-snow-s')
+  for (const [x, y] of SEA_ROCKS[islandId] ?? SEA_ROCKS.home) blit(p, seaRock, x - (seaRock.width >> 1), y - seaRock.height + 1)
 
   // shoreline pixels for the animated foam
   const shoreline: { x: number; y: number }[] = []
@@ -408,7 +533,7 @@ export function buildIsland(keepClear: { x: number; y: number; r: number }[] = [
     x = Math.round(x)
     y = Math.round(y)
     if (!T(x, y) || edge[y * W + x] < 5) return false
-    if (Math.hypot((x - tree.x) / 1.6, y - tree.y) < 7) return false
+    if (Math.hypot((x - tree.x) / 2.2, y - tree.y) < 8) return false
     if (Math.hypot((x - bush.x) / 1.4, y - bush.y) < 6) return false
     if (Math.hypot(x - grassPatch.x, (y - grassPatch.y) * 1.3) < grassPatch.r + 2) return false
     for (const b of blockers) if (b.r && Math.hypot((x - b.x) / 1.3, y - b.y) < b.r + 3) return false
@@ -430,89 +555,54 @@ export function buildIsland(keepClear: { x: number; y: number; r: number }[] = [
       fp.data[j + 3] = 255
     }
 
-  return { base: p.toCanvas(), floatBase: fp.toCanvas(), top, edge, footprint, grassPatch, tree, bush, dock, lantern, walkable, blockers, shoreline }
+  return { base: p.toCanvas(), floatBase: fp.toCanvas(), top, edge, footprint, grassPatch, tree, bush, dock, lantern, boat, walkable, blockers, shoreline }
 }
 
 // ---------- props (drawn per frame so they y-sort with the Pokémon) ----------
 
-/** The tree, as its own small canvas; ground point is the trunk base. */
+/**
+ * The tree, as its own small canvas; ground point is the trunk base. Flurmimon's tree in the
+ * season's leaves on Home Island (pink in spring, green in summer, orange in autumn, snow-capped
+ * in winter), under snow on Frost Isle, and a coconut palm on Ember Cove.
+ */
 export function paintTree(): { img: HTMLCanvasElement; ax: number; ay: number } {
-  const w = 40
-  const h = 46
-  const p = new Pix(w, h)
-  const ax = 20
-  const ay = 44
-  // trunk
-  for (let y = 26; y <= ay; y++)
-    for (let x = ax - 3; x <= ax + 2; x++) {
-      const flare = y > ay - 3 ? 1 : 0
-      if (x < ax - 3 + (flare ? 0 : 1) || x > ax + 2 - (flare ? 0 : 1)) continue
-      p.set(x, y, x <= ax - 2 ? PAL.trunkDark : x >= ax + 1 ? PAL.trunkDark : PAL.trunk)
-    }
-  p.set(ax - 4, ay, PAL.trunkDark)
-  p.set(ax + 3, ay, PAL.trunkDark)
-  // canopy: overlapping puffs lit from the top-left
-  const puffs: [number, number, number][] = [
-    [20, 17, 12],
-    [11, 22, 8],
-    [29, 22, 8],
-    [15, 11, 8],
-    [26, 11, 8],
-    [20, 26, 8],
-  ]
-  const inside = (x: number, y: number) => puffs.some(([cx, cy, r]) => (x - cx) ** 2 + (y - cy) ** 2 < r * r)
-  for (let y = 0; y < h; y++)
-    for (let x = 0; x < w; x++) {
-      if (!inside(x, y)) continue
-      // shade per puff: lit side of whichever puff is nearest the light
-      let best = -9
-      for (const [cx, cy, r] of puffs) {
-        const d = ((x - cx) ** 2 + (y - cy) ** 2) / (r * r)
-        if (d >= 1) continue
-        const l = (-(x - cx) * 0.6 - (y - cy) * 0.8) / r
-        best = Math.max(best, l * (1 - d * 0.4))
-      }
-      const t = best + (y / h) * -0.5 + 0.25 + (bayer(x, y) - 0.5) * 0.35
-      const c = t > 0.45 ? PAL.leafLight : t > 0.05 ? PAL.leafMid : t > -0.3 ? PAL.leaf : PAL.leafDeep
-      p.set(x, y, c)
-    }
-  // outline in the deepest leaf colour (never flat black)
-  const out: [number, number][] = []
-  for (let y = 0; y < h; y++)
-    for (let x = 0; x < w; x++)
-      if (!p.alpha(x, y) && (p.alpha(x - 1, y) || p.alpha(x + 1, y) || p.alpha(x, y - 1) || p.alpha(x, y + 1))) out.push([x, y])
-  for (const [x, y] of out) if (y < 34) p.set(x, y, PAL.leafDeep)
-  return { img: p.toCanvas(), ax, ay }
+  const name =
+    islandId === 'frost' ? 'tree-snow'
+    : islandId === 'ember' ? 'palm-coco'
+    : ({ spring: 'tree-pink', summer: 'tree-green', autumn: 'tree-orange', winter: 'tree-snowcap' } as Record<string, string>)[currentSeason] ?? 'tree-green'
+  const img = piece(name)
+  return { img, ax: img.width >> 1, ay: img.height - 6 }
 }
 
+/** Flurmimon's tall grass, in the island's tall-grass colours off Home Island. */
+export function paintTallGrass(): HTMLCanvasElement {
+  // the whole sprite; each tuft cuts its own top off by a few rows (scene.ts addTufts)
+  return islandId === 'home' ? piece('tallgrass') : recolor('tallgrass', [hex(TUFT.out), hex(TUFT.dark), hex(TUFT.mid), hex(TUFT.light)])
+}
+
+/** The berry bush: two of Flurmimon's bushes side by side, with the island's berries in them. */
 export function paintBush(): { img: HTMLCanvasElement; ax: number; ay: number } {
-  const w = 20
-  const h = 15
-  const p = new Pix(w, h)
-  const puffs: [number, number, number][] = [
-    [10, 8, 6],
-    [5, 10, 4.5],
-    [15, 10, 4.5],
-  ]
-  for (let y = 0; y < h; y++)
-    for (let x = 0; x < w; x++) {
-      if (!puffs.some(([cx, cy, r]) => (x - cx) ** 2 + (y - cy) ** 2 < r * r)) continue
-      const t = (-(x - 10) * 0.5 - (y - 8) * 0.8) / 7 + (bayer(x, y) - 0.5) * 0.4
-      p.set(x, y, t > 0.4 ? PAL.leafLight : t > -0.1 ? PAL.leafMid : t > -0.6 ? PAL.leaf : PAL.leafDeep)
-    }
-  for (const [bx, by] of [[6, 7], [12, 5], [14, 10], [8, 11], [4, 11]]) {
-    p.set(bx, by, PAL.berry)
-    p.set(bx + 1, by, PAL.berry)
-    p.set(bx, by + 1, PAL.berry)
-    p.set(bx + 1, by + 1, hex('#b63c47'))
-    p.set(bx, by, PAL.berryLight)
+  const frost = islandId === 'frost'
+  const a = piece(frost ? 'bush-frost' : 'bush')
+  const b = piece(frost ? 'bush2-frost' : 'bush2')
+  const c = document.createElement('canvas')
+  c.width = 26
+  c.height = 17
+  const g = c.getContext('2d')!
+  g.drawImage(b, 10, 1)
+  g.drawImage(a, 0, 2)
+  const px = (x: number, y: number, col: RGB) => {
+    g.fillStyle = `rgb(${col.join(',')})`
+    g.fillRect(x, y, 1, 1)
   }
-  const out: [number, number][] = []
-  for (let y = 0; y < h; y++)
-    for (let x = 0; x < w; x++)
-      if (!p.alpha(x, y) && (p.alpha(x - 1, y) || p.alpha(x + 1, y) || p.alpha(x, y - 1))) out.push([x, y])
-  for (const [x, y] of out) p.set(x, y, PAL.leafDeep)
-  return { img: p.toCanvas(), ax: 10, ay: 14 }
+  for (const [bx, by] of [[5, 6], [10, 9], [16, 5], [20, 9], [13, 13]]) {
+    px(bx, by, PAL.berry)
+    px(bx + 1, by, PAL.berry)
+    px(bx, by + 1, PAL.berry)
+    px(bx + 1, by + 1, hex('#b63c47'))
+    px(bx, by, PAL.berryLight)
+  }
+  return { img: c, ax: 13, ay: 15 }
 }
 
 /** The dock lantern on its post: a peaked iron cap, amber glass, a collar and an iron post.
@@ -547,4 +637,44 @@ export function paintLantern(): { img: HTMLCanvasElement; ax: number; ay: number
   }
   for (let x = 1; x <= 4; x++) p.set(x, 20, iron)
   return { img: p.toCanvas(), ax: 3, ay: 20, flame: { x: 3, y: 4 } }
+}
+
+// ---------- Flurmimon pieces in the island's colours ----------
+/** The two ground tiles (shade, light), in the current island's greens. */
+let groundDark: ImageData
+let groundMid: ImageData
+let groundLight: ImageData
+function groundTiles() {
+  const dark = recolor('grass2', [PAL.grassDeep, PAL.grassDark, PAL.grass])
+  const light = recolor('grass', [PAL.grassDark, PAL.grass, PAL.grassLight])
+  groundDark = dark.getContext('2d')!.getImageData(0, 0, 16, 16)
+  groundLight = light.getContext('2d')!.getImageData(0, 0, 16, 16)
+  // the middle tone: the two tiles averaged pixel by pixel, so it keeps their texture
+  groundMid = new ImageData(16, 16)
+  for (let i = 0; i < groundMid.data.length; i++) groundMid.data[i] = Math.round((groundDark.data[i] + groundLight.data[i]) / 2)
+}
+/** Tufts on Frost Isle and Ember Cove take the island's tall-grass colours; flowers keep their own. */
+function particle(name: string): ImageData {
+  if (islandId !== 'home' && name.startsWith('tuft')) {
+    const c = recolor(name, [hex(TUFT.out), hex(TUFT.dark), hex(TUFT.mid), hex(TUFT.light)])
+    return c.getContext('2d')!.getImageData(0, 0, c.width, c.height)
+  }
+  return pixels(name)
+}
+/** Alpha-composite a piece into a Pix. */
+function blit(p: Pix, im: ImageData, x0: number, y0: number) {
+  for (let y = 0; y < im.height; y++)
+    for (let x = 0; x < im.width; x++) {
+      const i = (y * im.width + x) * 4
+      const a = im.data[i + 3]
+      if (!a) continue
+      const X = x0 + x
+      const Y = y0 + y
+      if (X < 0 || Y < 0 || X >= p.w || Y >= p.h) continue
+      const j = (Y * p.w + X) * 4
+      const k = a / 255
+      p.data[j] = Math.round(p.data[j] * (1 - k) + im.data[i] * k)
+      p.data[j + 1] = Math.round(p.data[j + 1] * (1 - k) + im.data[i + 1] * k)
+      p.data[j + 2] = Math.round(p.data[j + 2] * (1 - k) + im.data[i + 2] * k)
+    }
 }

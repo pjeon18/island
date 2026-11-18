@@ -1,0 +1,298 @@
+{
+ "v": 1,
+ "id": "snowdrift-woods",
+ "name": "Snowdrift Woods",
+ "theme": "snowwood",
+ "w": 50,
+ "h": 32,
+ "dark": 0,
+ "pieces": [
+  {
+   "id": "sno0",
+   "type": "room",
+   "x": 2,
+   "y": 14,
+   "w": 8,
+   "h": 4
+  },
+  {
+   "id": "sno1",
+   "type": "cavern",
+   "x": 8,
+   "y": 4,
+   "w": 32,
+   "h": 24
+  },
+  {
+   "id": "sno2",
+   "type": "cavern",
+   "x": 36,
+   "y": 10,
+   "w": 11,
+   "h": 11
+  },
+  {
+   "id": "sno3",
+   "type": "pond",
+   "x": 21,
+   "y": 9,
+   "w": 9,
+   "h": 5
+  },
+  {
+   "id": "sno4",
+   "type": "grass",
+   "x": 12,
+   "y": 18,
+   "w": 8,
+   "h": 5
+  },
+  {
+   "id": "sno5",
+   "type": "grass",
+   "x": 29,
+   "y": 19,
+   "w": 7,
+   "h": 4
+  }
+ ],
+ "props": [
+  {
+   "id": "sno6",
+   "kind": "tree",
+   "x": 12,
+   "y": 7
+  },
+  {
+   "id": "sno7",
+   "kind": "tree2",
+   "x": 17,
+   "y": 5
+  },
+  {
+   "id": "sno8",
+   "kind": "tree",
+   "x": 33,
+   "y": 6
+  },
+  {
+   "id": "sno9",
+   "kind": "tree2",
+   "x": 37,
+   "y": 9
+  },
+  {
+   "id": "sno10",
+   "kind": "tree",
+   "x": 11,
+   "y": 24
+  },
+  {
+   "id": "sno11",
+   "kind": "tree",
+   "x": 19,
+   "y": 26
+  },
+  {
+   "id": "sno12",
+   "kind": "tree2",
+   "x": 30,
+   "y": 25
+  },
+  {
+   "id": "sno13",
+   "kind": "tree",
+   "x": 36,
+   "y": 23
+  },
+  {
+   "id": "sno14",
+   "kind": "flower",
+   "x": 14,
+   "y": 11
+  },
+  {
+   "id": "sno15",
+   "kind": "flower",
+   "x": 18,
+   "y": 14
+  },
+  {
+   "id": "sno16",
+   "kind": "flower",
+   "x": 25,
+   "y": 16
+  },
+  {
+   "id": "sno17",
+   "kind": "flower",
+   "x": 31,
+   "y": 13
+  },
+  {
+   "id": "sno18",
+   "kind": "flower",
+   "x": 34,
+   "y": 16
+  },
+  {
+   "id": "sno19",
+   "kind": "flower",
+   "x": 16,
+   "y": 22
+  },
+  {
+   "id": "sno20",
+   "kind": "flower",
+   "x": 26,
+   "y": 22
+  },
+  {
+   "id": "sno21",
+   "kind": "flower",
+   "x": 38,
+   "y": 13
+  },
+  {
+   "id": "sno22",
+   "kind": "flower",
+   "x": 22,
+   "y": 7
+  },
+  {
+   "id": "sno23",
+   "kind": "bush",
+   "x": 20,
+   "y": 20
+  },
+  {
+   "id": "sno24",
+   "kind": "bush",
+   "x": 33,
+   "y": 11
+  },
+  {
+   "id": "sno25",
+   "kind": "bush",
+   "x": 13,
+   "y": 15
+  },
+  {
+   "id": "sno26",
+   "kind": "rock",
+   "x": 28,
+   "y": 7
+  },
+  {
+   "id": "sno27",
+   "kind": "rock",
+   "x": 24,
+   "y": 24
+  }
+ ],
+ "entities": [
+  {
+   "id": "sno28",
+   "kind": "start",
+   "x": 4,
+   "y": 15
+  },
+  {
+   "id": "sno29",
+   "kind": "exit",
+   "x": 44,
+   "y": 15
+  },
+  {
+   "id": "sno30",
+   "kind": "enemy",
+   "x": 16,
+   "y": 9,
+   "dex": 220,
+   "level": 38
+  },
+  {
+   "id": "sno31",
+   "kind": "enemy",
+   "x": 26,
+   "y": 14,
+   "dex": 221,
+   "level": 43
+  },
+  {
+   "id": "sno32",
+   "kind": "enemy",
+   "x": 31,
+   "y": 9,
+   "dex": 459,
+   "level": 39
+  },
+  {
+   "id": "sno33",
+   "kind": "enemy",
+   "x": 18,
+   "y": 17,
+   "dex": 460,
+   "level": 44
+  },
+  {
+   "id": "sno34",
+   "kind": "enemy",
+   "x": 27,
+   "y": 19,
+   "dex": 361,
+   "level": 40
+  },
+  {
+   "id": "sno35",
+   "kind": "enemy",
+   "x": 35,
+   "y": 14,
+   "dex": 215,
+   "level": 42
+  },
+  {
+   "id": "sno36",
+   "kind": "enemy",
+   "x": 39,
+   "y": 17,
+   "dex": 225,
+   "level": 41
+  },
+  {
+   "id": "sno37",
+   "kind": "chest",
+   "x": 41,
+   "y": 12,
+   "big": true,
+   "free": true
+  },
+  {
+   "id": "sno38",
+   "kind": "chest",
+   "x": 15,
+   "y": 25,
+   "free": true
+  },
+  {
+   "id": "sno39",
+   "kind": "chest",
+   "x": 33,
+   "y": 20,
+   "free": true
+  },
+  {
+   "id": "sno40",
+   "kind": "pot",
+   "x": 10,
+   "y": 13
+  },
+  {
+   "id": "sno41",
+   "kind": "pot",
+   "x": 23,
+   "y": 18
+  }
+ ],
+ "paint": {}
+}

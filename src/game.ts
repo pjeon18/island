@@ -95,13 +95,15 @@ export const ISLANDS: {
   name: string
   guardian: { dex: number; level: number; where: string }
   dungeon: string // the gate dungeon (public/dungeons/<id>.json); the guardian is its boss
+  /** The surface exploration the rowboat goes to (2026-11-18): outdoors, no guardian. */
+  explore?: { id: string; name: string; hours: number }
   unlock?: { from: IslandId; share: number; hours: number; landmark?: string }
   wildLevel?: number // passers-by here are this many levels higher (L2: levels rise island to island)
 }[] = [
-  { id: 'home', name: 'Home Island', guardian: { dex: 143, level: 36, where: 'asleep at the bottom of Pier Hollow' }, dungeon: 'pier-hollow' },
-  { id: 'frost', name: 'Frost Isle', guardian: { dex: 131, level: 58, where: 'resting at the bottom of Glacier Grotto' }, dungeon: 'glacier-grotto', unlock: { from: 'home', share: 0.7, hours: 20 }, wildLevel: 6 },
+  { id: 'home', name: 'Home Island', guardian: { dex: 143, level: 36, where: 'asleep at the bottom of Pier Hollow' }, dungeon: 'pier-hollow', explore: { id: 'blossom-meadow', name: 'Blossom Meadow', hours: 2 } },
+  { id: 'frost', name: 'Frost Isle', guardian: { dex: 131, level: 58, where: 'resting at the bottom of Glacier Grotto' }, dungeon: 'glacier-grotto', explore: { id: 'snowdrift-woods', name: 'Snowdrift Woods', hours: 0 }, unlock: { from: 'home', share: 0.7, hours: 20 }, wildLevel: 6 },
   // the third island (L2, 2026-11-12): reached from the restored old pier, after Lapras
-  { id: 'ember', name: 'Ember Cove', guardian: { dex: 59, level: 75, where: 'at the mouth of the crater' }, dungeon: 'ember-crater', unlock: { from: 'frost', share: 0.6, hours: 50, landmark: 'pier' }, wildLevel: 12 },
+  { id: 'ember', name: 'Ember Cove', guardian: { dex: 59, level: 75, where: 'at the mouth of the crater' }, dungeon: 'ember-crater', explore: { id: 'palm-shore', name: 'Palm Shore', hours: 0 }, unlock: { from: 'frost', share: 0.6, hours: 50, landmark: 'pier' }, wildLevel: 12 },
 ]
 /** The island grows with your total focused hours. */
 export const GROWTH: { hours: number; text: string }[] = [
@@ -111,7 +113,7 @@ export const GROWTH: { hours: number; text: string }[] = [
 /** Each island keeps its own habitats, decorations, finds and food. */
 export interface IslandState {
   habitats: Habitat[]
-  decor: { owned: string[]; slots: Record<string, string | null> }
+  decor: { owned: string[]; slots: Record<string, string | null>; pos?: Record<string, { x: number; y: number }> }
   finds: Find[]
   bait: string | null
 }
@@ -142,6 +144,13 @@ export const JOBS: { id: JobId; name: string; types: string[]; every: number; fl
 ]
 export const jobEvery = (job: (typeof JOBS)[number], level: number) => Math.max(job.floor, Math.round(job.every - level / 2))
 export const EGG_MAX = 3
+/** The sea (2026-11-18, Paul: water Pokémon visiting as bubbles, and items floating to collect). */
+export const SEA_MAX = 2 // bubbles waiting at once
+export const FLOATS_MAX = 3
+export const SEA_CHANCE = 0.45 // a finished session brings bubbles this often (more after an hour)
+export const FLOAT_CHANCE = 0.5
+/** Shells a day can bring from dungeon chests (2026-11-18): about two focused hours' worth. */
+export const DUNGEON_SHELLS_DAY = 120
 export const DAYCARE_EVERY = 90 // focused minutes with two Pokémon in the Day Care → an egg (review 2 B9: was 45)
 export const EXPEDITIONS = [
   { id: 'short', name: 'Short trip', minutes: 30 },
@@ -252,7 +261,7 @@ export interface Save {
   shells: number
   berries: number
   bag: Record<string, number> // stones
-  decor: { owned: string[]; slots: Record<string, string | null> }
+  decor: { owned: string[]; slots: Record<string, string | null>; pos?: Record<string, { x: number; y: number }> }
   visits: { day: string; count: number }
   stonesPaid: string[] // `${day}:${streak}` milestones already paid
   breakUntil: number | null
@@ -286,6 +295,12 @@ export interface Save {
   restored?: string[] // landmarks restored (RESTORE, docs/CONTENT_PLAN.md L1)
   dexPaid?: string[] // Pokédex milestones already paid, as `${island}:${percent}` (L5)
   extraSlots?: number // decoration spots from Pokédex milestones (decor.ts SLOTS milestone)
+  /** Water Pokémon waiting under bubbles in the island's water (2026-11-18); tap to bring one ashore. */
+  sea?: Wild[]
+  /** Things floating near the island, from finished sessions; tap to pick one up. */
+  floats?: Find[]
+  /** Shells found in dungeons today; capped by DUNGEON_SHELLS_DAY so focus stays the main income. */
+  dungeonShells?: { day: string; n: number }
   shinies?: number[] // species you have caught shiny
   tideSeen?: number // the week whose tide Wooper last announced
   forgeTarget?: string // the stone the Ember forge makes
@@ -499,6 +514,7 @@ export function loadSave(): Save {
 }
 
 export type GameEvent =
+  | { type: 'sea' }
   | { type: 'levelUp'; mon: Mon }
   | { type: 'evolveReady'; mon: Mon; to: number }
   | { type: 'boxEvolved'; mon: Mon; from: string }
@@ -1020,12 +1036,60 @@ export class Game {
       this.save.berries = Math.min(BERRIES_MAX, this.save.berries + berries)
       // a finished session of 30 minutes or more lights a Lantern charge for the dungeons
       if (s.credited >= SHORT_SESSION) this.save.lanterns = Math.min(LANTERN_MAX, (this.save.lanterns ?? 0) + 1)
+      this.seaRoll(s.credited >= LONG_SESSION)
       this.save.breakUntil = this.now() + BREAK_SECONDS * 1000
     }
     this.persist()
     this.emit({ type: 'sessionEnd', minutes: s.granted, complete, berries, balls, capped })
     // the old end-of-session visitor is now a minor extra; passers-by are the main way in
     if (complete && Math.random() < FRIENDLY_VISIT_CHANCE) this.requestVisit(s.length && s.length >= LONG_SESSION ? RARE_LONG : 1, this.lure(s))
+  }
+
+  /** At a finished session: maybe bubbles (a water Pokémon) and maybe something floating. */
+  private seaRoll(long: boolean) {
+    const sea = (this.save.sea ??= [])
+    const floats = (this.save.floats ??= [])
+    if (sea.length < SEA_MAX && Math.random() < SEA_CHANCE * (long ? 1.5 : 1)) {
+      // the island's own visitor odds, kept to water types (lures and the time of day still count)
+      for (let i = 0; i < 30; i++) {
+        const v = this.pickVisitor(long ? RARE_LONG : 1, Math.random, this.lure(), false)
+        if (!this.species(v.dex)?.types?.includes('water')) continue
+        sea.push({ id: Math.random().toString(36).slice(2, 10), dex: v.dex, level: v.level, tries: 0 })
+        this.emit({ type: 'sea' })
+        break
+      }
+    }
+    if (floats.length < FLOATS_MAX && Math.random() < FLOAT_CHANCE) {
+      const r = Math.random()
+      const f: Find = { id: Math.random().toString(36).slice(2, 10), kind: r < 0.35 ? 'poke-ball' : r < 0.65 ? 'berry' : r < 0.97 ? 'shells' : 'star-piece', n: 1 }
+      if (f.kind === 'shells') f.n = 4 + Math.floor(Math.random() * 7)
+      floats.push(f)
+      this.emit({ type: 'sea' })
+    }
+  }
+  /** Bring a water Pokémon ashore from its bubbles: it joins the ones waiting on the island. */
+  surface(id: string) {
+    const sea = this.save.sea ?? []
+    const i = sea.findIndex((w) => w.id === id)
+    if (i < 0 || this.save.wild.length >= this.wildMax) return null
+    const [w] = sea.splice(i, 1)
+    this.mark(w.dex, false)
+    this.save.wild.push(w)
+    this.persist()
+    return w
+  }
+  /** Pick up something floating. */
+  collectFloat(id: string) {
+    const fl = this.save.floats ?? []
+    const i = fl.findIndex((f) => f.id === id)
+    if (i < 0) return null
+    const [f] = fl.splice(i, 1)
+    if (f.kind === 'shells') this.save.shells += f.n
+    if (f.kind === 'berry') this.save.berries = Math.min(BERRIES_MAX, this.save.berries + f.n)
+    if (f.kind === 'poke-ball') this.save.balls['poke-ball'] += f.n
+    if (f.kind === 'star-piece') this.save.starPieces += f.n
+    this.persist()
+    return f
   }
 
   private requestVisit(rareMult: number, _lure?: Lure) {
@@ -1166,7 +1230,7 @@ export class Game {
     // jobs tied to a decoration on the island you leave stop until you return
     const next = s.stash[to] ?? { habitats: [], decor: { owned: s.decor.owned, slots: {} }, finds: [], bait: null }
     s.habitats = next.habitats
-    s.decor = { owned: s.decor.owned, slots: next.decor.slots }
+    s.decor = { owned: s.decor.owned, slots: next.decor.slots, pos: next.decor.pos ?? {} }
     s.finds = next.finds
     s.bait = next.bait
     s.wild = []

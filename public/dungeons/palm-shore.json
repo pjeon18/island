@@ -1,0 +1,298 @@
+{
+ "v": 1,
+ "id": "palm-shore",
+ "name": "Palm Shore",
+ "theme": "shore",
+ "w": 50,
+ "h": 32,
+ "dark": 0,
+ "pieces": [
+  {
+   "id": "pal0",
+   "type": "room",
+   "x": 2,
+   "y": 14,
+   "w": 8,
+   "h": 4
+  },
+  {
+   "id": "pal1",
+   "type": "cavern",
+   "x": 8,
+   "y": 4,
+   "w": 32,
+   "h": 24
+  },
+  {
+   "id": "pal2",
+   "type": "cavern",
+   "x": 36,
+   "y": 10,
+   "w": 11,
+   "h": 11
+  },
+  {
+   "id": "pal3",
+   "type": "pond",
+   "x": 21,
+   "y": 9,
+   "w": 9,
+   "h": 5
+  },
+  {
+   "id": "pal4",
+   "type": "grass",
+   "x": 12,
+   "y": 18,
+   "w": 8,
+   "h": 5
+  },
+  {
+   "id": "pal5",
+   "type": "grass",
+   "x": 29,
+   "y": 19,
+   "w": 7,
+   "h": 4
+  }
+ ],
+ "props": [
+  {
+   "id": "pal6",
+   "kind": "tree",
+   "x": 12,
+   "y": 7
+  },
+  {
+   "id": "pal7",
+   "kind": "tree",
+   "x": 17,
+   "y": 5
+  },
+  {
+   "id": "pal8",
+   "kind": "tree",
+   "x": 33,
+   "y": 6
+  },
+  {
+   "id": "pal9",
+   "kind": "tree2",
+   "x": 37,
+   "y": 9
+  },
+  {
+   "id": "pal10",
+   "kind": "tree",
+   "x": 11,
+   "y": 24
+  },
+  {
+   "id": "pal11",
+   "kind": "tree",
+   "x": 19,
+   "y": 26
+  },
+  {
+   "id": "pal12",
+   "kind": "tree2",
+   "x": 30,
+   "y": 25
+  },
+  {
+   "id": "pal13",
+   "kind": "tree",
+   "x": 36,
+   "y": 23
+  },
+  {
+   "id": "pal14",
+   "kind": "flower",
+   "x": 14,
+   "y": 11
+  },
+  {
+   "id": "pal15",
+   "kind": "flower",
+   "x": 18,
+   "y": 14
+  },
+  {
+   "id": "pal16",
+   "kind": "flower",
+   "x": 25,
+   "y": 16
+  },
+  {
+   "id": "pal17",
+   "kind": "flower",
+   "x": 31,
+   "y": 13
+  },
+  {
+   "id": "pal18",
+   "kind": "flower",
+   "x": 34,
+   "y": 16
+  },
+  {
+   "id": "pal19",
+   "kind": "flower",
+   "x": 16,
+   "y": 22
+  },
+  {
+   "id": "pal20",
+   "kind": "flower",
+   "x": 26,
+   "y": 22
+  },
+  {
+   "id": "pal21",
+   "kind": "flower",
+   "x": 38,
+   "y": 13
+  },
+  {
+   "id": "pal22",
+   "kind": "flower",
+   "x": 22,
+   "y": 7
+  },
+  {
+   "id": "pal23",
+   "kind": "bush",
+   "x": 20,
+   "y": 20
+  },
+  {
+   "id": "pal24",
+   "kind": "bush",
+   "x": 33,
+   "y": 11
+  },
+  {
+   "id": "pal25",
+   "kind": "bush",
+   "x": 13,
+   "y": 15
+  },
+  {
+   "id": "pal26",
+   "kind": "rock",
+   "x": 28,
+   "y": 7
+  },
+  {
+   "id": "pal27",
+   "kind": "rock",
+   "x": 24,
+   "y": 24
+  }
+ ],
+ "entities": [
+  {
+   "id": "pal28",
+   "kind": "start",
+   "x": 4,
+   "y": 15
+  },
+  {
+   "id": "pal29",
+   "kind": "exit",
+   "x": 44,
+   "y": 15
+  },
+  {
+   "id": "pal30",
+   "kind": "enemy",
+   "x": 16,
+   "y": 9,
+   "dex": 37,
+   "level": 52
+  },
+  {
+   "id": "pal31",
+   "kind": "enemy",
+   "x": 26,
+   "y": 14,
+   "dex": 77,
+   "level": 53
+  },
+  {
+   "id": "pal32",
+   "kind": "enemy",
+   "x": 31,
+   "y": 9,
+   "dex": 104,
+   "level": 52
+  },
+  {
+   "id": "pal33",
+   "kind": "enemy",
+   "x": 18,
+   "y": 17,
+   "dex": 105,
+   "level": 57
+  },
+  {
+   "id": "pal34",
+   "kind": "enemy",
+   "x": 27,
+   "y": 19,
+   "dex": 231,
+   "level": 53
+  },
+  {
+   "id": "pal35",
+   "kind": "enemy",
+   "x": 35,
+   "y": 14,
+   "dex": 322,
+   "level": 54
+  },
+  {
+   "id": "pal36",
+   "kind": "enemy",
+   "x": 39,
+   "y": 17,
+   "dex": 228,
+   "level": 56
+  },
+  {
+   "id": "pal37",
+   "kind": "chest",
+   "x": 41,
+   "y": 12,
+   "big": true,
+   "free": true
+  },
+  {
+   "id": "pal38",
+   "kind": "chest",
+   "x": 15,
+   "y": 25,
+   "free": true
+  },
+  {
+   "id": "pal39",
+   "kind": "chest",
+   "x": 33,
+   "y": 20,
+   "free": true
+  },
+  {
+   "id": "pal40",
+   "kind": "pot",
+   "x": 10,
+   "y": 13
+  },
+  {
+   "id": "pal41",
+   "kind": "pot",
+   "x": 23,
+   "y": 18
+  }
+ ],
+ "paint": {}
+}

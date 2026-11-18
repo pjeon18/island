@@ -8,7 +8,8 @@ export default defineConfig({
   define: { __BUILD__: JSON.stringify(Date.now().toString(36)) },
   server: { port: 5600, strictPort: true },
   // three pages: the island, the dungeon (dungeon.html) and the map editor (editor.html)
-  build: { rollupOptions: { input: { main: 'index.html', dungeon: 'dungeon.html', editor: 'editor.html' } } },
+  // es2022 for the top-level await that loads the nature atlas before the island is painted
+  build: { target: 'es2022', rollupOptions: { input: { main: 'index.html', dungeon: 'dungeon.html', editor: 'editor.html' } } },
   plugins: [
     {
       // Dev only: POST a PNG data URL to /__shot?name=x and it lands in shots/x.png,

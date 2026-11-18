@@ -1,5 +1,37 @@
 # Validation
 
+## Daylight in the explorations (2026-11-18)
+- Palm Shore, Blossom Meadow and Snowdrift Woods render with no lantern glow, fire glow or cave tint; the shore is warm and bright, the meadow clear, the snow bright and cool (checked on screen). Generated outdoor floors roll only Restless, Echo or Rich. The corner label reads "Clearing 1".
+
+## Visual polish, the lighthouse, the sea (2026-11-18)
+- **Reviewed on screen, day and 21:30, on the late-game save:** the tall grass rises from the ground as a soft mound with ragged tops (no flat box edges); the ground's darker green follows the light toward the south-east with a middle tone between, instead of random blobs; the umbrella stands on a pole with a shadow (its sand disc is gone); the lighthouse stands about 54 px on its own rock in the south-east sea, ruined (broken at the gallery) or restored (gallery, glass lamp room, red dome; warm glass when lit). The old pier ruin is posts beside the dock.
+- **Decoration spots:** every one of the 18 decorations fits on land at all nine spots, and no spot hides another's foot even with the tallest decoration in front (measured). Arrange mode refuses a spot that would hide or be hidden.
+- **The sea:** the "Bubbles and flotsam" cheat put a Poliwag and a Psyduck under bubbles and a bottle and a crate in the water, each in its own spot in the island's light water, off the north strip, the pier, the boat, the lighthouse, the sea rocks and the HUD's corners. Tapping the bubbles brought Poliwag ashore at the nearest beach as a waiting wild Pokémon (the wild list went from 0 to 1); tapping the bottle gave an Oran Berry.
+- `npx tsc --noEmit` and `npm run build` pass.
+- **Not checked:** how often the sea fills over real sessions (45% bubbles, 50% an item per finished session, up to 2 and 3), and catching a sea visitor by hand.
+
+## Feedback round: guide, arrange mode, explorations, loot (2026-11-18)
+- **Fixed:** an evolution's "is evolving" line could stay up for good. The swap closed whatever line was showing instead of its own, so a line queued behind another was left with only Stop it. It now closes its own line, at the swap and whenever the evolution ends.
+- **Measured in the browser (the late-game save):**
+  - Arrange mode: the island shows with no Pokémon. Dragging the umbrella to open lawn kept it there (gold ring); dragging it into the sea showed a faded red ghost, said "It doesn't fit there." and put it back. Positions save in `save.decor.pos` and go to friends as `pos`.
+  - The Pokémon menu shows Care, Where it stays and Send on a trip, each with one sentence per choice. Trips read "Shore, 30 min", "Far shore, 90 min" and the furthest destination with its minutes.
+  - The Party view showed Wooper's card the first time; Got it puts it away for good.
+  - Pier Hollow B1 had two wooden crates; both opened with no charge and paid 12 and 13 shells and a Poké Ball each. The sealed chest stayed shut. The day's dungeon shells counted 25 of 120.
+  - Blossom Meadow, Snowdrift Woods and Palm Shore each load in daylight with their own trees, ground, tall grass, flowers and woods; the entrance says "3, then the heart of it". The rowboat by the pier offers Row over on Home.
+  - The sea's rings now wander instead of forming ellipses.
+  - `npx tsc --noEmit` and `npm run build` pass; no console errors on the exploration pages.
+- **Not checked:** a full exploration run by hand (the heart's exit, the end message), arrange mode by touch and in the small window, the guide's two-tips-a-break pacing over real sessions, and `supabase/island_stage9.sql` (Paul runs it; until then friends see decorations on their default spots).
+
+## Flurmimon's pieces and a bigger island (2026-11-18)
+- **Measured in the browser (the late-game save):**
+  - Every decoration at every one of the nine spots stands fully on land: for each of the 18 decorations, every column of its art meets the island's top at its ground row. Before the spots were re-solved, three spots failed (d, f, g), and the umbrella would have hung 7 to 13 columns over the beach.
+  - The tree, bush and habitats pass the same check. The lighthouse stands on its own rock in the sea and the pier at the shore, both on purpose.
+  - Spots never overlap each other, the tree's canopy, a habitat, the nest, the tall grass or the pier steps (solved, not hand-placed).
+  - Day, dusk and 22:00 render with the night lighting and the lantern glow on the new pieces.
+  - Frost Isle, Ember Cove and Home in spring, summer and winter painted from fresh scenes: the tree, grass tiles, tufts and tall grass change with each.
+  - `npx tsc --noEmit` and `npm run build` pass (build target es2022, for the top-level await that loads the atlas).
+- **Not checked:** hand play on the bigger island (walking paths, catching near the new tall grass), the pop-out window, and the live site.
+
 ## Playtest round (2026-11-17)
 - **In the browser (local test saves):**
   - A click on an empty part of the prologue moved the text on; a click during a question did nothing.

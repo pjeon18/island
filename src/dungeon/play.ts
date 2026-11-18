@@ -10,7 +10,8 @@
 // so a run can be left and picked up at the next break. A miniboss guards the
 // stairs on B2 and B3. Traps show only in the light. Pots hold healing for this
 // run; chests hold loot for the island, but only open on a run lit by a Lantern
-// charge (one per finished session of 30 minutes or more). Dungeons give no EXP and no shells.
+// charge (one per finished session of 30 minutes or more). Supply chests open without one
+// (2026-11-18). Dungeons give no EXP; chests give shells up to DUNGEON_SHELLS_DAY a day.
 // After a charged clear, a special Pokémon may appear for one throw.
 //
 // Content pass (2026-11-12, docs/REVIEW2.md section 6): bosses have twice the HP and
@@ -25,12 +26,15 @@
 import './play.css'
 import { click, initAudio, sfx } from '../audio'
 import { effectiveness, MOVES } from '../battle'
-import { BALLS, Ball, DEEP, Game, ISLANDS, IslandId, Roster, SAVE_KEY, loadSave } from '../game'
+import { BALLS, Ball, DEEP, DUNGEON_SHELLS_DAY, Game, ISLANDS, IslandId, Roster, SAVE_KEY, dayKey, loadSave } from '../game'
 import { Light, applyLighting, normalMapFor } from '../lighting'
 import { Species, dirFrom, drawFrame, frameAt, loadManifest, loadSpecies } from '../sprites'
 import { generateFloor } from './gen'
-import { DungeonMap, Entity, Modifier, T, TILE, TrapKind, bakeMap, walkableTile } from './map'
+import { loadNature } from '../nature'
+import { DungeonMap, Entity, Modifier, OUTDOOR, T, TILE, TrapKind, bakeMap, walkableTile } from './map'
 import { type Event as NetEvent, type Hello, type Input, type Net, type Snap, type Start, type TeamMon, connectRoom, makeRoomCode } from './net'
+// the outdoor explorations draw Flurmimon's pieces, so the atlas loads before any floor is baked
+await loadNature()
 
 const VW = 320
 const VH = 180
@@ -287,6 +291,7 @@ interface Thing {
   y: number
   open: boolean
   big?: boolean // the miniboss's or boss's chest
+  free?: boolean // a supply chest: opens without a Lantern charge
   key: string // saved in the run once opened, so leaving and continuing can't refill it
 }
 type Items = { oran: number; sitrus: number; seed: number; elixir: number }
@@ -1318,6 +1323,15 @@ function updateThings() {
       if (got) run.items[got]++
       if (got) sfx('coin')
       toast(got ? `Found ${ITEM_NAME[got]}.` : 'The pot was empty.')
+    } else if (th.free) {
+      // a supply chest opens for anyone, charge or not, and each player rolls their own
+      th.open = true
+      sfx('coin')
+      if (!test) {
+        const lines = lootSupply()
+        run.found.push(...lines)
+        toast(lines.join(' '))
+      } else toast('Test play: nothing inside.')
     } else {
       // a chest opens if anyone in the room lit a charge; each player rolls loot on their own charge
       const anyCharged = run.charged || [...guests.values()].some((g) => g.charged)
@@ -1345,7 +1359,51 @@ function updateThings() {
 let sealedToast = -10
 const ITEM_NAME: Record<keyof Items, string> = { oran: 'an Oran Berry', sitrus: 'a Sitrus Berry', seed: 'a Reviver Seed', elixir: 'a Max Elixir' }
 const ITEM_SHORT: Record<keyof Items, string> = { oran: 'Oran Berry', sitrus: 'Sitrus Berry', seed: 'Reviver Seed', elixir: 'Max Elixir' }
-/** Loot for the island, worth roughly what the session that lit the charge paid (no shells, no EXP). */
+/**
+ * How rich a dungeon's chests are (2026-11-18, Paul: better loot and shells in some dungeons):
+ * Pier Hollow 1, Glacier Grotto 2, Ember Crater 3; the deep floors one more.
+ */
+function lootTier() {
+  const t = run.dungeon === 'ember-crater' || run.dungeon === 'palm-shore' ? 3 : run.dungeon === 'glacier-grotto' || run.dungeon === 'snowdrift-woods' ? 2 : 1
+  return t + (run.floor > 4 ? 1 : 0)
+}
+/** Shells into the island's purse, within the day's cap. Returns the line to show, or ''. */
+function giveShells(s: ReturnType<typeof latest>, n: number) {
+  const day = dayKey()
+  const got = s.dungeonShells?.day === day ? s.dungeonShells.n : 0
+  const k = Math.max(0, Math.min(n, DUNGEON_SHELLS_DAY - got))
+  s.dungeonShells = { day, n: got + k }
+  if (!k) return ''
+  s.shells += k
+  return k < n ? `${k} shells, the last for today.` : `${k} shells.`
+}
+/** A supply chest: shells (within the day's cap) and something useful, no charge needed. */
+function lootSupply(): string[] {
+  const s = latest()
+  const tier = lootTier()
+  const out: string[] = []
+  const sh = giveShells(s, Math.round((6 + tier * 6) * (0.8 + Math.random() * 0.4)))
+  if (sh) out.push(sh)
+  const r = Math.random()
+  if (r < 0.35) {
+    s.balls['poke-ball']++
+    out.push('A Poké Ball.')
+  } else if (r < 0.5) {
+    s.berries = Math.min(9, s.berries + 1)
+    out.push('An Oran Berry for the island.')
+  } else if (r < 0.6 + tier * 0.03) {
+    const f = ['honey', 'cheri-berry', 'pecha-berry', 'chesto-berry'][Math.floor(Math.random() * 4)]
+    s.foods[f] = (s.foods[f] ?? 0) + 1
+    out.push('Some food for the island.')
+  } else if (r < 0.62 + tier * 0.05) {
+    s.balls['great-ball']++
+    out.push('A Great Ball.')
+  }
+  if (!out.length) out.push('A few loose shells, but today’s are all found.')
+  game.persist()
+  return out
+}
+/** Loot for the island, worth roughly what the session that lit the charge paid (no EXP). */
 // review 2 B3, B4: chests poured out Ultra Balls and Star Pieces. A miniboss's chest now gives a
 // Great Ball (10% a Star Piece); only the boss's gives an Ultra Ball, half the time (25% a Star Piece).
 function lootChest(big: boolean): string[] {
@@ -1387,6 +1445,16 @@ function lootChest(big: boolean): string[] {
     s.starPieces++
     out.push('A Star Piece!')
   } else out.push('Only dust.')
+  // shells too (2026-11-18): more in the richer dungeons, most from the boss
+  const tier = lootTier()
+  const sh = giveShells(s, Math.round((big ? (boss ? 30 : 15) : 8) * tier * (0.8 + Math.random() * 0.4)))
+  if (sh) out.push(sh)
+  // the richer dungeons turn the empty roll into a Great Ball
+  const dust = out.indexOf('Only dust.')
+  if (dust >= 0 && tier >= 2) {
+    s.balls['great-ball']++
+    out[dust] = 'A Great Ball.'
+  }
   game.persist()
   return out
 }
@@ -1696,7 +1764,7 @@ function snapshot(): Snap {
     r: rings.filter((r) => r.t < 0.5).map((r) => [Math.round(r.x), Math.round(r.y), r.max, r.col, +r.t.toFixed(2)]),
     p: pops.map((p) => [Math.round(p.x), Math.round(p.y), p.text, +p.t.toFixed(2), p.col]),
     tr: traps.map((t) => [+t.t.toFixed(2), +t.cd.toFixed(1), t.used ? 1 : 0]),
-    th: things.map((t) => [t.kind === 'pot' ? 0 : 1, t.open ? 1 : 0, t.big ? 1 : 0, Math.round(t.x), Math.round(t.y)]),
+    th: things.map((t) => [t.kind === 'pot' ? 0 : t.free ? 2 : 1, t.open ? 1 : 0, t.big ? 1 : 0, Math.round(t.x), Math.round(t.y)]),
     bd: bossDown ? 1 : 0,
     it: run.items,
     f: run.floor,
@@ -1749,9 +1817,12 @@ const bossName = () => {
   return b?.dex ? game.name(b.dex) : 'the guardian'
 }
 /** "B2", or the boss floor by its guardian. */
-const floorLabel = (n: number) => (n === FLOORS ? `${bossName()}'s floor` : `B${n}`)
+/** A surface exploration (2026-11-18): an outdoor area whose last map has no guardian. */
+const isExplore = () => !hand.entities.some((e) => e.kind === 'boss')
+const floorLabel = (n: number) => (isExplore() ? (n === FLOORS ? 'the heart of it' : `clearing ${n}`) : n === FLOORS ? `${bossName()}'s floor` : `B${n}`)
 /** The line on arriving at floor n: its name, and its modifier. */
 function arrival(n: number, extra = '') {
+  if (isExplore() && !test) return n === FLOORS ? `${hand.name}: the heart of it.` : `${hand.name}, clearing ${n}.${extra}${map.modifier ? ` ${MOD_LINE[map.modifier]}` : ''}`
   if (n === FLOORS && !test) return `${hand.name}: ${bossName()}'s floor.`
   const mod = map.modifier ? ` ${MOD_LINE[map.modifier]}` : ''
   return `${hand.name} B${n}.${extra}${mod}`
@@ -1793,9 +1864,9 @@ async function loadFloor(n: number) {
   exit = ex ? { x: ex.x * TILE + 8, y: ex.y * TILE + 8 } : null
   bossDown = !foes.some((f) => f.boss)
   floorExtras(n)
-  const spots: { kind: 'pot' | 'chest'; x: number; y: number; big?: boolean }[] = map.entities.filter((e) => e.kind === 'pot' || e.kind === 'chest').map((e) => ({ kind: e.kind as 'pot' | 'chest', x: e.x * TILE + 8, y: e.y * TILE + 10, big: e.big }))
+  const spots: { kind: 'pot' | 'chest'; x: number; y: number; big?: boolean; free?: boolean }[] = map.entities.filter((e) => e.kind === 'pot' || e.kind === 'chest').map((e) => ({ kind: e.kind as 'pot' | 'chest', x: e.x * TILE + 8, y: e.y * TILE + 10, big: e.big, free: e.free }))
   // review 2 B10: the boss floor gets a few pots of its own
-  if (map === hand && !test) spots.push(...bossFloorPots(start))
+  if (map === hand && !test) spots.push(...bossFloorPots(start), ...bossFloorSupplies(start))
   things = spots.map((t, i) => {
     const key = `${n}:${i}`
     return { ...t, key, open: !!run.opened?.includes(key) }
@@ -1804,10 +1875,18 @@ async function loadFloor(n: number) {
   warnings = []
   hudKey = ''
 }
+/** Two supply chests on the boss floor, further in than the pots (2026-11-18). */
+function bossFloorSupplies(start: { x: number; y: number }) {
+  const pots = bossFloorPots(start)
+  return bossFloorPots(start, 9)
+    .filter((p) => pots.every((q) => Math.hypot(p.x - q.x, p.y - q.y) > 24))
+    .slice(0, 2)
+    .map((p) => ({ ...p, kind: 'chest' as const, free: true }))
+}
 /** Three pots on the boss floor, on open ground a few steps from the start, the same each time for a run. */
-function bossFloorPots(start: { x: number; y: number }) {
+function bossFloorPots(start: { x: number; y: number }, salt = 0) {
   const out: { kind: 'pot'; x: number; y: number }[] = []
-  let seed = run.seed % 2147483647 || 7
+  let seed = (run.seed + salt * 7919) % 2147483647 || 7
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
   for (let tries = 0; tries < 400 && out.length < 3; tries++) {
     const tx = start.x + Math.round((rnd() - 0.5) * 16)
@@ -1986,7 +2065,7 @@ function applySnap(raw: Snap) {
   s.tr.forEach(([t, cd, used], i) => {
     if (traps[i]) Object.assign(traps[i], { t, cd, used: !!used })
   })
-  things = s.th.map(([chest, open, big, x, y], i) => ({ kind: chest ? ('chest' as const) : ('pot' as const), open: !!open, big: !!big, x, y, key: String(i) }))
+  things = s.th.map(([chest, open, big, x, y], i) => ({ kind: chest ? ('chest' as const) : ('pot' as const), free: chest === 2, open: !!open, big: !!big, x, y, key: String(i) }))
   bossDown = !!s.bd
   run.items = s.it
   shake = Math.max(shake, s.sh)
@@ -2285,6 +2364,19 @@ function drawThing(g: CanvasRenderingContext2D, th: Thing, cx: number, cy: numbe
     g.fillRect(x - 2, y - 10, 4, 2)
     return
   }
+  if (th.free) {
+    // a supply chest: a plain wooden crate with two rope bands, so it reads apart from the sealed ones
+    g.fillStyle = '#3a2410'
+    g.fillRect(x - 6, y - 10, 12, 10)
+    g.fillStyle = th.open ? '#5a3a1c' : '#b88a52'
+    g.fillRect(x - 5, y - (th.open ? 6 : 9), 10, th.open ? 5 : 8)
+    if (!th.open) {
+      g.fillStyle = '#e8d8a8'
+      g.fillRect(x - 3, y - 9, 1, 8)
+      g.fillRect(x + 2, y - 9, 1, 8)
+    }
+    return
+  }
   const w = th.big ? 16 : 12
   g.fillStyle = '#3a2410'
   g.fillRect(x - w / 2, y - 10, w, 10)
@@ -2346,6 +2438,13 @@ function render() {
   for (const s of shots) if (s.type === 'fire') own.push({ x: s.x - cx, y: s.y - cy, z: 8, r: 22, color: [1, 0.6, 0.3], power: 1.2 })
   for (const fp of firePools) own.push({ x: fp.x - cx, y: fp.y - cy - 4, z: 8, r: 34, color: [1, 0.5, 0.2], power: 1.0 * Math.min(1, (fp.until - time) / 0.8) })
   for (const s of shots) if (s.type === 'electric') lights.push({ x: s.x - cx, y: s.y - cy, z: 8, r: 22, color: [1, 0.95, 0.5], power: 1.2 })
+  // outdoors there is no light pass at all: the explorations are in daylight, graded per place
+  // (2026-11-18, Paul: the caves' lantern light was still on outside, and the beach should be
+  // brighter, in warm sun)
+  if (OUTDOOR[map.theme]) {
+    sunlight(fg, map.theme)
+    return afterLight(cx, cy)
+  }
   const amb = 1 - map.dark * 0.92
   const dark = map.special?.kind === 'dark' ? map.special : null
   const dx0 = dark ? (dark.x - 1) * TILE - cx : 0
@@ -2367,6 +2466,38 @@ function render() {
     fg.drawImage(dcv, 0, 0)
     fg.restore()
   }
+  afterLight(cx, cy)
+}
+/**
+ * Daylight for the surface explorations (2026-11-18): no lights or lantern, just a grade for the
+ * place. The shore is warm and bright with a soft sun from the top-left; the meadow is clear and
+ * a little warm; the snowy woods bright and cool.
+ */
+const SUN: Record<string, { tint: string; a: number; sun: string; sunA: number }> = {
+  shore: { tint: '#ffcf70', a: 0.3, sun: '#fff0c0', sunA: 0.42 },
+  meadow: { tint: '#ffe8b0', a: 0.12, sun: '#fff8e0', sunA: 0.26 },
+  snowwood: { tint: '#e8f4ff', a: 0.06, sun: '#ffffff', sunA: 0.18 },
+}
+function sunlight(g: CanvasRenderingContext2D, theme: string) {
+  const s = SUN[theme]
+  if (!s) return
+  g.save()
+  // a warm wash over everything, then a soft brightening from the top-left where the sun is
+  g.globalCompositeOperation = 'soft-light'
+  g.globalAlpha = s.a
+  g.fillStyle = s.tint
+  g.fillRect(0, 0, VW, VH)
+  g.globalCompositeOperation = 'screen'
+  const sun = g.createRadialGradient(-VW * 0.1, -VH * 0.2, 10, -VW * 0.1, -VH * 0.2, VW * 1.15)
+  sun.addColorStop(0, s.sun)
+  sun.addColorStop(1, 'rgba(0,0,0,0)')
+  g.globalAlpha = s.sunA
+  g.fillStyle = sun
+  g.fillRect(0, 0, VW, VH)
+  g.restore()
+}
+/** Everything drawn over the light: warnings, bursts, HP bars, numbers. */
+function afterLight(cx: number, cy: number) {
   // drawn after the light, so they always read: warnings, bursts, HP bars, numbers
   for (const w of warnings) {
     const k = w.t / w.at
@@ -2495,7 +2626,7 @@ function renderHud() {
     <div class="dg-panel dg-move${me.pp >= 2 ? '' : ' off'}"><p><b>2</b> ${word(t)}</p><p>${BURST[t] ?? 'Hyper Voice'}</p></div>
     <div class="dg-panel dg-move${two && two.pp >= 2 ? '' : ' off'}"><p><b>3</b> ${two ? two.name : ''}</p><p>${two ? BURST[two.types[0]] ?? 'Hyper Voice' : 'None left'}</p>${two ? pips(two) : ''}</div>`
   const mod = map.modifier ? `<p class="dg-dim">${{ fog: 'Fog', flooded: 'Flooded', restless: 'Restless', echo: 'Echo', rich: 'Rich' }[map.modifier]}</p>` : ''
-  hud.querySelector('.dg-floor')!.innerHTML = `<p>${map === hand ? 'Boss floor' : `B${run.floor}`}</p>${mod}<p class="dg-dim">${run.charged ? 'Lantern lit' : 'No charge'}</p>`
+  hud.querySelector('.dg-floor')!.innerHTML = `<p>${isExplore() ? (map === hand ? 'The heart' : `Clearing ${run.floor}`) : map === hand ? 'Boss floor' : `B${run.floor}`}</p>${mod}<p class="dg-dim">${run.charged ? 'Lantern lit' : 'No charge'}</p>`
   hud.querySelector('.dg-items')!.innerHTML = `<p><b>Q</b> Berries ${it.oran}${it.sitrus ? ` +${it.sitrus}` : ''}</p><p><b>E</b> Elixirs ${it.elixir}</p><p class="dg-dim">Seeds ${it.seed}</p>`
 }
 function message(html: string, buttons: { label: string; gold?: boolean; run: () => void }[]) {
@@ -2552,7 +2683,7 @@ function end(win: boolean) {
     return
   }
   const boss = foes.find((f) => f.boss)
-  let text = `<p>You cleared ${hand.name}!</p>`
+  let text = isExplore() ? `<p>You explored ${hand.name}!</p>` : `<p>You cleared ${hand.name}!</p>`
   const g = run.gate
   if (g && latest().island === g && !game.save.guardians.includes(g)) {
     game.save.guardians.push(g)
@@ -2808,17 +2939,28 @@ async function boot() {
     const yesNo = (attr: string, on: boolean) =>
       `<span class="dg-seg"><button class="dg-btn${on ? ' on' : ''}" data-${attr}="1">Yes</button><button class="dg-btn${on ? '' : ' on'}" data-${attr}="0">No</button></span>`
     const row = (label: string, value: string) => `<div class="dg-kv"><span>${label}</span><b>${value}</b></div>`
+    const firstVisit = !latest().tips?.includes('tab:dungeon')
     const lantern = kept?.charged
       ? row('Lantern', 'Still lit')
       : charges && !test
         ? row(`Light a charge (${charges} left)`, yesNo('light', light))
         : row('Lantern', 'None')
-    const intro = `<p>${hand.name}</p><div class="dg-kvs">${row('Floors', test ? '1, a test' : `3, then ${boss ? `${game.name(boss.dex!)} Lv${boss.level}` : 'the deepest'}`)}${row('Levels', `${Math.min(...lv) - 6} to ${Math.max(...lv)}`)}${lantern}${berries ? row(`Bring ${berries} Oran Berr${berries === 1 ? 'y' : 'ies'}`, yesNo('bring', bring)) : ''}</div>${
+    const intro = `<p>${hand.name}</p><div class="dg-kvs">${row(isExplore() ? 'Clearings' : 'Floors', test ? '1, a test' : isExplore() ? '3, then the heart of it' : `3, then ${boss ? `${game.name(boss.dex!)} Lv${boss.level}` : 'the deepest'}`)}${row('Levels', `${Math.min(...lv) - 6} to ${Math.max(...lv)}`)}${lantern}${berries ? row(`Bring ${berries} Oran Berr${berries === 1 ? 'y' : 'ies'}`, yesNo('bring', bring)) : ''}</div>${
       !kept?.charged && !charges && !test ? '<p class="dg-dim">Chests stay shut without a lit charge. A finished 30-minute session lights one.</p>' : ''
+    }${
+      // the first visit explains the run (2026-11-18, Paul: every window should be explained)
+      firstVisit && !test
+        ? '<p class="dg-dim">Your three strongest Pokémon go in. Walk with WASD, dash with Space, use moves with 1, 2 and 3, and switch who you steer with Tab. Pots heal you during the run. Wooden crates open for anyone; sealed chests open on a lit run. Stairs heal your party and save the run.</p>'
+        : ''
     }`
     const enter = () => {
       if (starting) return // one Enter only, even if the lobby redraws (review 2 D12)
       starting = true
+      if (firstVisit) {
+        const sv = latest()
+        sv.tips = [...(sv.tips ?? []), 'tab:dungeon']
+        game.persist()
+      }
       coop = mode === 'host' && guests.size > 0
       coopGuests = guests.size
       const r = fresh()

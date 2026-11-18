@@ -2,12 +2,13 @@
 // changes who comes (game.ts HABITATS) and is painted here in the island's
 // palette. The tall grass habitat reuses the island's tuft drawing in scene.ts.
 import type { Habitat } from './game'
-import { PAL, onIsland } from './island'
+import { PAL, islandName, onIsland } from './island'
+import { piece } from './nature'
 import { Pix, bayer, hash2, hex } from './pixel'
 
 /** Fixed spots, chosen from the island map so they clear the props and decoration slots. */
 export const HABITAT_SPOTS: Record<Habitat, { x: number; y: number; r: number }> = {
-  pond: { ...onIsland(118, 84), r: 13 },
+  pond: { ...onIsland(118, 84), r: 15 },
   rocks: { ...onIsland(64, 76), r: 9 },
   grass: { ...onIsland(146, 92), r: 9 },
   cave: { ...onIsland(66, 118), r: 9 },
@@ -57,30 +58,28 @@ function spring(): HabitatArt {
   }
 }
 
-/** An oval pond: a stony rim, shallow edges, deeper middle, one lily pad. */
+/** An oval pond: a stony rim, shallow edges, deeper middle, and one of Flurmimon's lily pads. */
 function pond(): HabitatArt {
-  const rx = 13
-  const ry = 6.5
-  const p = new Pix(30, 16)
-  const cx = 15
-  const cy = 8
-  for (let y = 0; y < 16; y++)
-    for (let x = 0; x < 30; x++) {
+  const rx = 16
+  const ry = 8
+  const p = new Pix(34, 18)
+  const cx = 17
+  const cy = 9
+  for (let y = 0; y < 18; y++)
+    for (let x = 0; x < 34; x++) {
       const d = Math.hypot((x + 0.5 - cx) / rx, (y + 0.5 - cy) / ry)
       if (d > 1) continue
-      let c = d > 0.86 ? (bayer(x, y) > 0.5 ? PAL.stone : PAL.stoneLight) : d > 0.7 ? PAL.shallow2 : d > 0.45 ? PAL.shallow : PAL.sea
+      // clean rings, no dithering: a stone rim lit on the far side, pale shallows, the deep middle
+      let c = d > 0.86 ? (y < cy ? PAL.stoneLight : PAL.stone) : d > 0.7 ? PAL.shallow2 : d > 0.45 ? PAL.shallow : PAL.sea
       // the far (north) inside edge sits in shadow, which reads as depth
       if (d <= 0.86 && d > 0.6 && y < cy - 1) c = PAL.sea
-      if (d > 0.86 && y > cy && hash2(x, y, 5) < 0.35) c = PAL.stoneDark
+      if (d > 0.93 && y > cy + 2) c = PAL.stoneDark
       p.set(x, y, c)
     }
-  // lily pad with a notch
-  const leaf = hex('#3f9a45')
-  for (const [x, y] of [[7, 9], [8, 9], [9, 9], [7, 10], [8, 10], [9, 10], [10, 10]] as [number, number][]) p.set(x, y, leaf)
-  p.set(8, 9, PAL.shallow)
-  p.set(9, 10, hex('#5dbb5a'))
+  const c = p.toCanvas()
+  if (islandName() !== 'frost') c.getContext('2d')!.drawImage(piece('lily'), 5, 3)
   return {
-    img: p.toCanvas(),
+    img: c,
     ax: cx,
     ay: cy,
     flat: true,
@@ -96,32 +95,18 @@ function pond(): HabitatArt {
   }
 }
 
-/** Three boulders with a dark outline taken from the stone itself. */
+/** Flurmimon's boulders: a big one with a small one in front, in each island's stone. */
 function rocks(): HabitatArt {
-  const p = new Pix(24, 16)
-  const boulder = (cx: number, cy: number, r: number) => {
-    for (let y = cy - r; y <= cy + r; y++)
-      for (let x = cx - r - 1; x <= cx + r + 1; x++) {
-        const dx = (x - cx) / (r + 1)
-        const dy = (y - cy) / r
-        const d = dx * dx + dy * dy
-        if (d > 1 || x < 0 || y < 0 || x >= 24 || y >= 16) continue
-        let c = PAL.stone
-        if (dy < -0.3 && dx < 0.4) c = PAL.stoneLight
-        if (dy > 0.45 || dx > 0.65) c = PAL.stoneDark
-        if (d > 0.82) c = hex('#5e5c58')
-        p.set(x, y, c)
-      }
-  }
-  boulder(8, 10, 5)
-  boulder(16, 11, 4)
-  boulder(13, 5, 3)
-  // a tuft of grass between them
-  const g1 = PAL.grassDark
-  p.set(20, 14, g1)
-  p.set(21, 13, g1)
-  p.set(3, 14, g1)
-  return { img: p.toCanvas(), ax: 12, ay: 14, flat: false }
+  const id = islandName()
+  const big = piece(id === 'frost' ? 'rock-snow' : id === 'ember' ? 'rock-brown' : 'rock-grey')
+  const small = piece(id === 'frost' ? 'rock-s4' : 'rock-s1')
+  const c = document.createElement('canvas')
+  c.width = 38
+  c.height = 30
+  const g = c.getContext('2d')!
+  g.drawImage(big, 0, 0)
+  g.drawImage(small, 23, 16)
+  return { img: c, ax: 15, ay: 27, flat: false }
 }
 
 /** A rocky mound with a dark mouth: the cave (opens at 10 focused hours). */

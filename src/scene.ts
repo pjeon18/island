@@ -1,13 +1,13 @@
 // The living island: static base + y-sorted props and Pokémon + calm ambient
 // layers (water glints, lapping foam, swaying tall grass, day/night light).
 import { Creature } from './creature'
-import { H, ISLAND_SCALE, IslandLayout, PAL, TUFT, W, buildIsland, onIsland, paintBush, paintLantern, paintTree } from './island'
+import { H, ISLAND_SCALE, IslandLayout, PAL, TUFT, W, buildIsland, onIsland, paintBush, paintLantern, paintTallGrass, paintTree } from './island'
 import { hash2, rng } from './pixel'
 import { DecorArt, SLOTS, decorArt } from './decor'
 import type { Species } from './sprites'
 import type { FindKind, Habitat, Weather } from './game'
 import { HABITAT_SPOTS, HabitatArt, baitArt, habitatArt, paintGate } from './habitats'
-import { CRATER_SPOT, LANDMARK_SPOTS } from './landmarks'
+import { CRATER_SPOT, DRAWN_LANDMARKS, LANDMARK_SPOTS } from './landmarks'
 import { FLAT, Light, applyLighting, normalMapFor } from './lighting'
 import type { Intro } from './intro'
 import { drawFrame, frameAt } from './sprites'
@@ -48,7 +48,8 @@ interface Tuft {
   x: number
   y: number
   phase: number
-  blades: { dx: number; h: number; tone: number }[]
+  flip: boolean
+  cut: number // how far the tuft sinks into the ground: more at the patch's rim, so it slopes down
 }
 interface Glint {
   x: number
@@ -115,13 +116,14 @@ export class Scene {
   private mask = document.createElement('canvas')
   private tree = paintTree()
   private bush = paintBush()
+  private tall = paintTallGrass()
   private lantern = paintLantern()
   private tufts: Tuft[] = []
   private glints: Glint[] = []
   private rustle = 0
   private rand = rng(7)
   private seaPts: { x: number; y: number }[] = []
-  private decor: { x: number; y: number; art: DecorArt }[] = []
+  private decor: { x: number; y: number; art: DecorArt; slot?: string }[] = []
   finds: { id: string; kind: FindKind; x: number; y: number }[] = []
   weather: Weather = 'clear'
   private wk = 0 // how far the current weather has rolled in, 0..1
@@ -156,7 +158,7 @@ export class Scene {
     this.island = buildIsland([
       ...SLOTS.map((sl) => ({ x: sl.x, y: sl.y, r: 13 })),
       ...Object.values(HABITAT_SPOTS).map((h) => ({ x: h.x, y: h.y, r: Math.max(h.r * 1.4, 14) })),
-      ...Object.values(LANDMARK_SPOTS).map((l) => ({ x: l.x, y: l.y, r: 16 })),
+      ...Object.entries(LANDMARK_SPOTS).filter(([id]) => DRAWN_LANDMARKS.has(id)).map(([, l]) => ({ x: l.x, y: l.y, r: 16 })),
       { x: CRATER_SPOT.x, y: CRATER_SPOT.y, r: 20 },
       { x: NEST.x, y: NEST.y, r: 12 },
     ])
@@ -172,21 +174,28 @@ export class Scene {
     for (let i = 0; i < 22; i++) this.spawnGlint(true)
   }
 
-  /** Tall grass: tufts on a staggered grid inside an ellipse, like route grass. */
+  /**
+   * Tall grass: Flurmimon's tall grass on a jittered, staggered grid inside a wobbly oval. Tufts
+   * near the rim are cut shorter and every top is a little ragged, so the patch rises from the
+   * ground in a soft mound instead of standing as a box (Paul, 2026-11-18: flat box edges).
+   */
   private addTufts(gp: { x: number; y: number; r: number }) {
+    const rx = gp.r + 2
+    const ry = gp.r * 0.6 + 2
     let row = 0
-    for (let y = gp.y - gp.r * 0.62; y <= gp.y + gp.r * 0.62; y += 4, row++) {
-      for (let x = gp.x - gp.r - 2 + (row % 2) * 3.5; x <= gp.x + gp.r + 2; x += 7) {
-        const dx = (x - gp.x) / (gp.r + 1)
-        const dy = (y - gp.y) / (gp.r * 0.62 + 1)
-        if (dx * dx + dy * dy > 1) continue
-        const i = this.tufts.length
-        const blades = [
-          { dx: 0, h: 8 + Math.floor(hash2(i, 0, 5) * 2), tone: 0 },
-          { dx: -3, h: 6 + Math.floor(hash2(i, 1, 5) * 2), tone: 1 },
-          { dx: 3, h: 6 + Math.floor(hash2(i, 2, 5) * 2), tone: 1 },
-        ]
-        this.tufts.push({ x: Math.round(x), y: Math.round(y), phase: hash2(i, 3, 90) * 6.28, blades })
+    for (let y = gp.y - ry; y <= gp.y + ry; y += 4, row++) {
+      for (let x = gp.x - rx + (row % 2) * 5; x <= gp.x + rx; x += 9) {
+        const i = this.tufts.length + Math.round(x * 7 + y * 13)
+        const jx = Math.round((hash2(i, 5, 90) - 0.5) * 4)
+        const jy = Math.round((hash2(i, 6, 90) - 0.5) * 2)
+        const px = x + jx
+        const py = y + jy
+        const wob = (hash2(Math.round(px / 6), Math.round(py / 4), 91) - 0.5) * 0.3
+        const d = ((px - gp.x) / rx) ** 2 + ((py - gp.y) / ry) ** 2
+        if (d > 1 + wob) continue
+        const rim = Math.max(0, (Math.sqrt(d) - 0.55) / 0.45) // 0 inside, 1 at the edge
+        const cut = Math.round(2 + rim * 9 + hash2(i, 7, 90) * 3)
+        this.tufts.push({ x: Math.round(px), y: Math.round(py), phase: hash2(i, 3, 90) * 6.28, flip: hash2(i, 4, 90) < 0.5, cut })
       }
     }
   }
@@ -204,22 +213,157 @@ export class Scene {
   }
 
   /** Place decorations by slot; also keeps their footprints clear of wandering Pokémon. */
-  setDecor(slots: Record<string, string | null>) {
+  setDecor(slots: Record<string, string | null>, pos: Record<string, { x: number; y: number }> = {}) {
     this.slotDecor = []
     for (const sl of SLOTS) {
       const id = slots[sl.id]
       const art = id ? decorArt(id) : undefined
       if (!art) continue
-      this.slotDecor.push({ x: sl.x, y: sl.y, art })
+      // a decoration stands where you put it (arrange mode, 2026-11-18), else on its spot's default
+      const p = pos[sl.id] ?? sl
+      this.slotDecor.push({ x: p.x, y: p.y, art, slot: sl.id })
     }
     this.mergeDecor()
+  }
+  // ---------- the sea's visitors and flotsam (2026-11-18) ----------
+  /** Bubbles over a water Pokémon waiting under the surface, and things floating; set by main.ts. */
+  seaBubbles: { id: string; x: number; y: number }[] = []
+  seaFloats: { id: string; kind: string; x: number; y: number }[] = []
+  private nearWater: { x: number; y: number }[] | null = null
+  /**
+   * A spot in the island's own light water for something with this id: the same every time, a
+   * few pixels off the shore, clear of the pier, the boat, the lighthouse's rock and the corners
+   * the HUD covers.
+   */
+  seaSpot(id: string, taken: { x: number; y: number }[] = []) {
+    if (!this.nearWater) {
+      const { footprint: fp, dock, boat } = this.island
+      const dist = (x: number, y: number) => {
+        for (let r = 1; r <= 18; r++)
+          for (const [dx, dy] of [[r, 0], [-r, 0], [0, r], [0, -r], [r, r], [-r, r], [r, -r], [-r, -r]])
+            if (fp[Math.min(H - 1, Math.max(0, y + dy)) * W + Math.min(W - 1, Math.max(0, x + dx))]) return r
+        return 99
+      }
+      this.nearWater = []
+      for (let y = 8; y < H - 10; y += 3)
+        for (let x = 12; x < W - 12; x += 3) {
+          if (fp[y * W + x]) continue
+          const d = dist(x, y)
+          if (d < 6 || d > 15) continue
+          if (x > dock.x - 8 && x < dock.x + dock.w + 8 && y > dock.y0 - 4) continue
+          if (Math.abs(x - boat.x) < 20 && Math.abs(y - boat.y) < 12) continue
+          if (x > 196 && y > 95) continue // the lighthouse and its rock
+          if ((x < 70 && y < 34) || (x > 160 && y < 40) || (x < 80 && y > 150)) continue // under the HUD
+          // not just north of the land, where rocks and trees on the shore hang over the water
+          let behind = false
+          for (let k = 1; k <= 28 && !behind; k += 2) behind = !!fp[Math.min(H - 1, y + k) * W + x]
+          if (behind) continue
+          this.nearWater.push({ x, y })
+        }
+    }
+    let h = 0
+    for (const c of id) h = (h * 31 + c.charCodeAt(0)) >>> 0
+    const n = Math.max(1, this.nearWater.length)
+    // the same spot every time, unless something else already floats there
+    for (let k = 0; k < n; k++) {
+      const p = this.nearWater[(h + k * 37) % n]
+      if (p && taken.every((q) => Math.hypot(q.x - p.x, q.y - p.y) > 22)) return p
+    }
+    return this.nearWater[h % n] ?? { x: 30, y: 90 }
+  }
+  /** What is under the pointer in the water, if anything. */
+  seaAt(x: number, y: number) {
+    const b = this.seaBubbles.find((b) => Math.abs(b.x - x) < 8 && Math.abs(b.y - y) < 7)
+    if (b) return { kind: 'bubble' as const, id: b.id }
+    const f = this.seaFloats.find((f) => Math.abs(f.x - x) < 6 && Math.abs(f.y - y) < 6)
+    if (f) return { kind: 'float' as const, id: f.id }
+    return null
+  }
+  private drawSea(g: CanvasRenderingContext2D) {
+    const t = this.time
+    const px = (x: number, y: number, c: string, a = 1) => {
+      g.globalAlpha = a
+      g.fillStyle = c
+      g.fillRect(Math.round(x), Math.round(y), 1, 1)
+    }
+    for (const b of this.seaBubbles) {
+      let ph = 0
+      for (const c of b.id) ph += c.charCodeAt(0)
+      // a slow ring spreading where something moves under the surface
+      const k = ((t * 0.35 + ph * 0.13) % 1)
+      g.globalAlpha = 0.5 * (1 - k)
+      g.strokeStyle = '#e6f6fb'
+      g.lineWidth = 1
+      g.beginPath()
+      g.ellipse(b.x + 0.5, b.y + 0.5, 3 + k * 9, 1.5 + k * 4, 0, 0, Math.PI * 2)
+      g.stroke()
+      // a darker patch where it moves under the surface
+      g.globalAlpha = 0.25
+      g.fillStyle = '#1d4a7c'
+      g.beginPath()
+      g.ellipse(b.x + Math.sin(t * 0.7 + ph) * 1.5, b.y + 2, 5, 2, 0, 0, Math.PI * 2)
+      g.fill()
+      // four bubbles rising and popping, each on its own clock
+      for (let i = 0; i < 4; i++) {
+        const q = ((t * 0.9 + i * 0.37 + ph * 0.07) % 1)
+        const bx = b.x - 4 + i * 3 + Math.sin(t * 2 + i) * 0.6
+        const by = b.y - q * 5
+        if (q < 0.85) {
+          px(bx, by, '#ffffff', 0.9)
+          if (i === 1) px(bx + 1, by, '#cfeaf5', 0.8), px(bx, by - 1, '#cfeaf5', 0.8)
+        } else px(bx - 1, by, '#ffffff', 0.5), px(bx + 1, by, '#ffffff', 0.5)
+      }
+    }
+    for (const f of this.seaFloats) {
+      let ph = 0
+      for (const c of f.id) ph += c.charCodeAt(0)
+      const bob = Math.round(Math.sin(t * 1.4 + ph) * 0.8)
+      const x = f.x
+      const y = f.y + bob
+      // a little ripple under it
+      g.globalAlpha = 0.55
+      g.fillStyle = '#e6f6fb'
+      g.fillRect(x - 4, f.y + 3, 2, 1)
+      g.fillRect(x + 3, f.y + 3, 2, 1)
+      g.globalAlpha = 1
+      if (f.kind === 'poke-ball') {
+        // a small crate, rope-tied
+        g.fillStyle = '#5e3a20'
+        g.fillRect(x - 3, y - 3, 7, 6)
+        g.fillStyle = '#b88a52'
+        g.fillRect(x - 2, y - 2, 5, 4)
+        g.fillStyle = '#e8d8a8'
+        g.fillRect(x, y - 2, 1, 4)
+      } else {
+        // a bottle on its side: green glass, a light glint, a cork
+        g.fillStyle = '#2f6a50'
+        g.fillRect(x - 4, y - 1, 7, 3)
+        g.fillStyle = '#5cb08a'
+        g.fillRect(x - 3, y - 1, 5, 2)
+        g.fillStyle = '#c8f0dc'
+        g.fillRect(x - 2, y - 1, 2, 1)
+        g.fillStyle = '#b88a52'
+        g.fillRect(x + 3, y, 2, 1)
+        // a rolled note inside, for a star piece
+        if (f.kind === 'star-piece') px(x - 1, y, '#f8d060')
+      }
+    }
+    g.globalAlpha = 1
+  }
+
+  /** Arrange mode: the island without Pokémon, with a marker drawn by arrange.ts. */
+  arranging = false
+  arrangeOverlay?: (g: CanvasRenderingContext2D) => void
+  /** Placed decorations (for arrange mode's hit tests). */
+  get placedDecor() {
+    return this.slotDecor
   }
   /** Home Island's landmarks, ruined or restored (L1); drawn, lit and blocked like decorations. */
   setLandmarks(list: { x: number; y: number; art: DecorArt }[]) {
     this.landmarks = list
     this.mergeDecor()
   }
-  private slotDecor: { x: number; y: number; art: DecorArt }[] = []
+  private slotDecor: { x: number; y: number; art: DecorArt; slot?: string }[] = []
   private landmarks: { x: number; y: number; art: DecorArt }[] = []
   private mergeDecor() {
     this.decor = [...this.slotDecor, ...this.landmarks]
@@ -367,6 +511,18 @@ export class Scene {
   }
 
   render(g: CanvasRenderingContext2D, dt: number) {
+    // arrange mode shows the island alone: no Pokémon in the way of moving things
+    if (!this.arranging) return this.renderWorld(g, dt)
+    const keep = this.creatures
+    this.creatures = []
+    try {
+      this.renderWorld(g, dt)
+    } finally {
+      this.creatures = keep
+    }
+    this.arrangeOverlay?.(g)
+  }
+  private renderWorld(g: CanvasRenderingContext2D, dt: number) {
     const night = nightness(this.hour)
     g.imageSmoothingEnabled = false
     g.globalCompositeOperation = 'source-over'
@@ -378,6 +534,8 @@ export class Scene {
       g.drawImage(this.island.base, 0, 0)
       this.drawWater(g, night)
     }
+
+    if (!this.float) this.drawSea(g)
 
     // y-sorted world: props, tufts, Pokémon
     type Item = { y: number; draw: () => void; norm?: (n: CanvasRenderingContext2D) => void }
@@ -797,32 +955,22 @@ export class Scene {
     const calm = Math.sin(this.time * 0.8 + tf.phase) * 0.8
     const shake = r * Math.sin(this.time * 20 + tf.phase * 3) * 1.8
     const lean = calm + shake
-    const OUT = TUFT.out
-    const DARK = TUFT.dark
-    const MID = TUFT.mid
-    const LIGHT = TUFT.light
-    const px = (x: number, y: number, c: string) => {
-      g.fillStyle = c
-      g.fillRect(x, y, 1, 1)
+    const img = this.tall
+    const h = img.height
+    const x0 = tf.x - (img.width >> 1)
+    const y0 = tf.y - h + 1
+    // row by row, the tips leaning furthest and the roots still. A shorter tuft keeps its natural
+    // tips and sinks into the ground instead: its bottom `cut` rows are the ones left off
+    for (let i = 0; i < h - tf.cut; i++) {
+      const k = 1 - i / (h - tf.cut)
+      const off = Math.round(lean * k * k)
+      if (tf.flip) {
+        g.save()
+        g.translate(x0 + img.width + off, 0)
+        g.scale(-1, 1)
+        g.drawImage(img, 0, i, img.width, 1, 0, y0 + tf.cut + i, img.width, 1)
+        g.restore()
+      } else g.drawImage(img, 0, i, img.width, 1, x0 + off, y0 + tf.cut + i, img.width, 1)
     }
-    // back blade first, then the two front ones
-    for (const b of tf.blades) {
-      const cx = tf.x + b.dx
-      for (let i = 0; i < b.h; i++) {
-        // i = 0 is the tip; blades are 1 px wide for the top three rows, then 3
-        const k = 1 - i / b.h
-        const off = Math.round(lean * k * k)
-        const y = tf.y - b.h + 1 + i
-        const half = i < 3 ? 0 : 1
-        const x0 = cx - half + off
-        const x1 = cx + half + off
-        if (i === 0) px(cx + off, y - 1, OUT)
-        px(x0 - 1, y, OUT)
-        px(x1 + 1, y, OUT)
-        for (let x = x0; x <= x1; x++) px(x, y, x === x0 && i < b.h - 2 ? LIGHT : b.tone ? DARK : MID)
-      }
-    }
-    g.fillStyle = OUT
-    g.fillRect(tf.x - 5, tf.y + 1, 11, 1)
   }
 }
