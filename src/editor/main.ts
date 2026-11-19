@@ -8,6 +8,7 @@ import './editor.css'
 import { DungeonMap, Entity, EntityKind, PRESETS, Piece, PieceType, Prop, PropKind, T, TILE, Theme, bakeMap, compose, emptyMap, paintProp, uid, walkableTile } from '../dungeon/map'
 import { applyLighting } from '../lighting'
 import { loadNature } from '../nature'
+import '../cursors'
 // outdoor themes draw Flurmimon's pieces, so the atlas loads first
 await loadNature()
 
@@ -545,6 +546,8 @@ function renderMap1x() {
   map1.height = baked.color.height
   const g = map1.getContext('2d', { willReadFrequently: true })!
   g.drawImage(baked.color, 0, 0)
+  // trees are kept out of the floor for depth order in play; draw them here in the same order
+  for (const t of [...baked.tall].sort((a, b) => a.foot - b.foot)) g.drawImage(t.img, t.x, t.y)
   if (lit) {
     const lights = [...baked.lights]
     const start = map.entities.find((e) => e.kind === 'start')

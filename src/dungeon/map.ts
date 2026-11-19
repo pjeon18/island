@@ -18,6 +18,7 @@ export const enum T {
   Water = 2,
   Grass = 3,
   Wall = 4,
+  Sand = 5, // a beach (2026-11-18: explorations start on a coast)
 }
 export type PieceType = 'room' | 'cavern' | 'pond' | 'grass' | 'wall'
 export interface Piece {
@@ -28,7 +29,7 @@ export interface Piece {
   w: number
   h: number
 }
-export type PropKind = 'tree' | 'tree2' | 'rock' | 'torch' | 'crystal' | 'flower' | 'bush'
+export type PropKind = 'tree' | 'tree2' | 'rock' | 'torch' | 'crystal' | 'flower' | 'bush' | 'boat'
 export interface Prop {
   id: string
   kind: PropKind
@@ -48,7 +49,7 @@ export interface Entity {
   level?: number
   trap?: TrapKind
   big?: boolean // a big chest (a monster house's, or the deepest floor's)
-  free?: boolean // a supply chest: opens without a Lantern charge (2026-11-18)
+  free?: boolean // a wooden supply crate (2026-11-18)
   phase?: number // spikes: where in the cycle they start (a vault's gate spikes move together)
   dir?: 'h' | 'v' // boulders: the line they roll along
 }
@@ -90,6 +91,7 @@ export interface DungeonMap {
   special?: Special // generated floors only
   modifier?: Modifier
   wet?: { x: number; y: number; w: number; h: number }[] // Flooded: shallow water that slows everyone
+  dock?: { x: number; y: number } // a coast floor: the tile where the boat is moored (walk back to it to leave)
 }
 
 export const uid = () => Math.random().toString(36).slice(2, 9)
@@ -151,7 +153,7 @@ export function compose(m: DungeonMap) {
   return tiles
 }
 /** Tiles you can stand on. Water and walls block; tall grass does not. */
-export const walkableTile = (t: number) => t === T.Floor || t === T.Grass
+export const walkableTile = (t: number) => t === T.Floor || t === T.Grass || t === T.Sand
 
 // ---------- art ----------
 interface ThemePal {
@@ -186,11 +188,12 @@ function outdoorTile(theme: Theme, t: T, v: number, faceBelow: boolean): HTMLCan
   c.height = TILE
   const g = c.getContext('2d')!
   // the shore's floor is sand, painted like the island's beach band
-  if (theme === 'shore' && t !== T.Wall) {
+  if ((theme === 'shore' && t !== T.Wall) || t === T.Sand) {
+    const sand = theme === 'snowwood' ? [hex('#e8eef4'), hex('#d4dee8'), hex('#f8fbfd')] : [hex('#ead09a'), hex('#d4b47a'), hex('#f5e2ad')]
     for (let y = 0; y < TILE; y++)
       for (let x = 0; x < TILE; x++) {
         const k = hash2(x + v * 16, y, 3)
-        g.fillStyle = `rgb(${(k < 0.06 ? P.floor2 : k > 0.97 ? P.floorDot : P.floor).join(',')})`
+        g.fillStyle = `rgb(${(k < 0.06 ? sand[1] : k > 0.97 ? sand[2] : sand[0]).join(',')})`
         g.fillRect(x, y, 1, 1)
       }
   } else if (t !== T.Wall) g.drawImage(piece(O.ground), 0, 0) // one ground tile: alternating two made a checkerboard
@@ -253,8 +256,28 @@ export function paintTile(theme: Theme, t: T, v: number, faceBelow: boolean): HT
   return p.toCanvas()
 }
 
+/** The rowboat moored at a coast floor's beach: the same boat as at the island's pier. */
+function paintBoat() {
+  const p = new Pix(28, 16)
+  const RX = 12
+  const RY = 4.5
+  const cx = 14
+  const cy = 6
+  const inHull = (x: number, y: number, k = 1) => {
+    const t = x / (RX * k)
+    const half = RY * k * Math.sqrt(Math.max(0, 1 - t * t)) * (t > 0 ? 1 - t * 0.35 : 1)
+    return Math.abs(y) <= half
+  }
+  for (let y = -6; y <= 9; y++) for (let x = -RX - 1; x <= RX + 1; x++) if (inHull(x, y - 3)) p.set(cx + x, cy + y, y - 3 > 0 ? hex('#5e3a20') : hex('#8c5a35'))
+  for (let y = -6; y <= 6; y++) for (let x = -RX - 1; x <= RX + 1; x++) if (inHull(x, y)) p.set(cx + x, cy + y, inHull(x, y, 0.78) ? hex('#6e4426') : hex('#d8a468'))
+  for (const sx of [-5, 3]) for (let y = -3; y <= 3; y++) if (inHull(sx, y, 0.78)) p.set(cx + sx, cy + y, hex('#c88a54')), p.set(cx + sx + 1, cy + y, hex('#c88a54'))
+  for (let k = 0; k < 10; k++) p.set(cx - 4 + k, cy - 2 + (k >> 2), hex('#e8c890'))
+  return { img: p.toCanvas(), ax: 14, ay: 12 }
+}
+
 /** Props: drawn standing on their tile (anchor at the bottom centre). */
 export function paintProp(theme: Theme, kind: PropKind): { img: HTMLCanvasElement; ax: number; ay: number; light?: { color: [number, number, number]; r: number; y: number } } {
+  if (kind === 'boat') return paintBoat()
   const O = OUTDOOR[theme]
   if (O && kind !== 'torch' && kind !== 'crystal') {
     // outdoors, every prop is one of Flurmimon's pieces; flowers pick one of the theme's
@@ -326,13 +349,15 @@ export function bakeMap(m: DungeonMap) {
   const H = m.h * TILE
   const tiles = compose(m)
   const at = (x: number, y: number) => (x < 0 || y < 0 || x >= m.w || y >= m.h ? T.Void : tiles[y * m.w + x])
-  const open = (t: number) => t === T.Floor || t === T.Grass || t === T.Water
+  const open = (t: number) => t === T.Floor || t === T.Grass || t === T.Water || t === T.Sand
   const art = (t: T, v: number, face: boolean) => {
     const k = `${m.theme}:${t}:${v}:${face}`
     let c = tileCache.get(k)
     if (!c) tileCache.set(k, (c = paintTile(m.theme, t, v, face)))
     return c
   }
+  /** Tall things (trees) drawn each frame in depth order: top-left corner and the foot's y. */
+  const tall: { img: HTMLCanvasElement; x: number; y: number; foot: number }[] = []
   const color = document.createElement('canvas')
   color.width = W
   color.height = H
@@ -427,8 +452,12 @@ export function bakeMap(m: DungeonMap) {
         }
       }
     for (const st of stamps.sort((a, b) => a.y + a.img.height - (b.y + b.img.height))) {
-      g.drawImage(st.img, st.x, st.y)
-      ng.drawImage(normalMapFor(st.img), st.x, st.y)
+      // edge trees stand with Pokémon in depth order (drawn each frame); bushes stay in the floor
+      if (st.img.height > 24) tall.push({ img: st.img, x: st.x, y: st.y, foot: st.y + st.img.height - 3 })
+      else {
+        g.drawImage(st.img, st.x, st.y)
+        ng.drawImage(normalMapFor(st.img), st.x, st.y)
+      }
     }
   }
   const lights: Light[] = []
@@ -449,8 +478,13 @@ export function bakeMap(m: DungeonMap) {
     }
     const px = p.x * TILE + TILE / 2 - a.ax
     const py = p.y * TILE + TILE - a.ay - 1
-    g.drawImage(a.img, px, py)
-    ng.drawImage(normalMapFor(a.img), px, py)
+    // trees are tall: they are drawn each frame in depth order with the Pokémon, so you can walk
+    // behind one instead of over it (2026-11-18, Paul); everything else is part of the floor
+    if (p.kind === 'tree' || p.kind === 'tree2') tall.push({ img: a.img, x: px, y: py, foot: p.y * TILE + TILE - 2 })
+    else {
+      g.drawImage(a.img, px, py)
+      ng.drawImage(normalMapFor(a.img), px, py)
+    }
     if (a.light) lights.push({ x: p.x * TILE + TILE / 2, y: p.y * TILE + TILE + a.light.y, z: 18, r: a.light.r, color: a.light.color, power: 1.8 })
     if (p.kind === 'tree' || p.kind === 'tree2' || p.kind === 'rock') solid.push({ x: p.x * TILE + TILE / 2, y: p.y * TILE + TILE - 3, r: p.kind === 'rock' ? 6 : OUTDOOR[m.theme] ? 8 : 5 })
   }
@@ -459,5 +493,5 @@ export function bakeMap(m: DungeonMap) {
     for (let y = 0; y < m.h; y += 2)
       for (let x = (y / 2) % 3; x < m.w; x += 3)
         if (at(x, y) === T.Water) lights.push({ x: x * TILE + 8, y: y * TILE + 8, z: 10, r: 46, color: [1, 0.42, 0.18], power: 1.1 })
-  return { tiles, at, color, normal, lights, solid }
+  return { tiles, at, color, normal, lights, solid, tall }
 }

@@ -27,7 +27,10 @@ export interface FloorSpec {
   levels: [number, number] // enemy levels on this floor
   miniboss: boolean
   bigChest?: boolean // the deepest of the deep floors holds a big chest
+  coast?: boolean // the first clearing of an exploration: it starts on a beach with the boat (2026-11-18)
 }
+/** Tiles of sea and beach added on the west of a coast floor. */
+const COAST = 9
 export const MODIFIERS: Modifier[] = ['fog', 'flooded', 'restless', 'echo', 'rich']
 
 export const FLOOR_W = 58
@@ -47,6 +50,7 @@ export function generateFloor(spec: FloorSpec): DungeonMap {
   const r = rng(spec.seed * 7919 + spec.floor * 104729)
   const int = (a: number, b: number) => a + Math.floor(r() * (b - a + 1))
   const pick = <X>(xs: X[]) => xs[Math.floor(r() * xs.length)]
+  const ox = spec.coast ? COAST : 0 // a coast floor moves east to make room for the sea and beach
   const cw = Math.floor((FLOOR_W - 2) / GRID)
   const ch = Math.floor((FLOOR_H - 2) / GRID)
   const pieces: Piece[] = []
@@ -62,7 +66,7 @@ export function generateFloor(spec: FloorSpec): DungeonMap {
     const gy = Math.floor(c / GRID)
     const w = small.has(c) ? 4 : int(8, Math.min(13, cw - 3))
     const h = small.has(c) ? 4 : int(6, Math.min(9, ch - 3))
-    const x = 1 + gx * cw + int(1, Math.max(1, cw - w - 1))
+    const x = ox + 1 + gx * cw + int(1, Math.max(1, cw - w - 1))
     const y = 1 + gy * ch + int(1, Math.max(1, ch - h - 1))
     const cavern = spec.theme !== 'forest' && !small.has(c) && r() < 0.4
     rooms.push({ x, y, w, h, cell: c, cavern })
@@ -109,7 +113,9 @@ export function generateFloor(spec: FloorSpec): DungeonMap {
 
   // the start, and the stairs as far from it (along the tree) as possible
   const big = rooms.filter((rm) => !small.has(rm.cell))
-  const start = pick(big)
+  // a coast floor starts in the westmost column, beside the beach
+  const west = big.filter((rm) => rm.cell % GRID === 0)
+  const start = spec.coast && west.length ? pick(west) : pick(big)
   const dist = new Map<number, number>([[start.cell, 0]])
   const queue = [start.cell]
   while (queue.length) {
@@ -150,7 +156,7 @@ export function generateFloor(spec: FloorSpec): DungeonMap {
     id: `floor-${spec.seed}-${spec.floor}`,
     name: `${spec.name} B${spec.floor}`,
     theme: spec.theme,
-    w: FLOOR_W,
+    w: FLOOR_W + ox,
     h: FLOOR_H,
     dark: spec.dark,
     pieces,
@@ -159,13 +165,13 @@ export function generateFloor(spec: FloorSpec): DungeonMap {
     paint: {},
   }
   const used = new Set<string>()
-  const idx = (x: number, y: number) => y * FLOOR_W + x
+  const idx = (x: number, y: number) => y * map.w + x
   // a vault: the two rows (or columns) along one side of the room become an alcove behind a
   // wall with a 2-tile gate in the middle; only a side no corridor touches will do
   let vault: { at: (u: number, v: number) => { x: number; y: number }; len: number; depth: number } | null = null
   if (kind === 'vault' && sroom) {
     const t0 = compose(map)
-    const solid = (x: number, y: number) => x < 0 || y < 0 || x >= FLOOR_W || y >= FLOOR_H || t0[idx(x, y)] === T.Void || t0[idx(x, y)] === T.Wall
+    const solid = (x: number, y: number) => x < 0 || y < 0 || x >= map.w || y >= FLOOR_H || t0[idx(x, y)] === T.Void || t0[idx(x, y)] === T.Wall
     const { x, y, w, h } = sroom
     const sides = [
       { at: (u: number, v: number) => ({ x: x + v, y: y + u }), len: w, depth: h },
@@ -211,7 +217,7 @@ export function generateFloor(spec: FloorSpec): DungeonMap {
     for (let y = special.y - 1; y <= special.y + special.h; y++)
       for (let x = special.x - 1; x <= special.x + special.w; x++) {
         const inside = x >= special.x && x < special.x + special.w && y >= special.y && y < special.y + special.h
-        if (inside || x < 0 || y < 0 || x >= FLOOR_W || y >= FLOOR_H) continue
+        if (inside || x < 0 || y < 0 || x >= map.w || y >= FLOOR_H) continue
         const t = tiles[idx(x, y)]
         if (t === T.Floor || t === T.Grass) special.doors.push(idx(x, y))
       }
@@ -272,7 +278,19 @@ export function generateFloor(spec: FloorSpec): DungeonMap {
     }
   }
 
-  const s0 = spot(start, 2) ?? centre(start)
+  // a coast floor: sea along the west edge, a beach by the start room with a sandy path in, and the
+  // boat moored in the shallows; you land beside it and can walk back to it to row home
+  let s0 = spot(start, 2) ?? centre(start)
+  if (spec.coast) {
+    const cy = centre(start).y
+    for (let y = 0; y < map.h; y++) for (let x = 0; x < 4; x++) map.paint[`${x},${y}`] = T.Water
+    for (let y = Math.max(1, cy - 4); y <= Math.min(map.h - 2, cy + 5); y++) for (let x = 4; x < ox + 1; x++) map.paint[`${x},${y}`] = T.Sand
+    for (let y = cy; y <= cy + 1; y++) for (let x = ox; x < start.x + 1; x++) if (!map.paint[`${x},${y}`]) map.paint[`${x},${y}`] = T.Sand
+    map.dock = { x: 2, y: cy }
+    props.push({ id: uid(), kind: 'boat', x: 2, y: cy })
+    s0 = { x: 6, y: cy }
+    used.add(`6,${cy}`)
+  }
   add({ kind: 'start', ...s0 })
   const st = spot(end, 2) ?? centre(end)
   add({ kind: 'stairs', ...st })
@@ -305,7 +323,7 @@ export function generateFloor(spec: FloorSpec): DungeonMap {
     const trap = pick(kinds)
     if (p) add({ kind: 'trap', ...p, trap, ...(trap === 'boulders' ? { dir: r2() < 0.5 ? ('h' as const) : ('v' as const) } : {}) })
   }
-  // pots hold healing for the run; a chest or two holds loot (with a Lantern charge)
+  // pots hold healing for the run; a chest or two holds loot for the island
   for (let i = 0; i < 3 + int(0, 1); i++) {
     const p = spot(pick(rooms), 1)
     if (p) add({ kind: 'pot', ...p })
@@ -315,8 +333,8 @@ export function generateFloor(spec: FloorSpec): DungeonMap {
     const p = spot(rm, 1)
     if (p) add({ kind: 'chest', ...p })
   }
-  // supply chests (2026-11-18, Paul: more chests that open without a Lantern charge): one or two
-  // a floor, in rooms off the main path where they can be
+  // wooden supply crates (2026-11-18, Paul: more chests): one or two a floor, in rooms off the
+  // main path where they can be
   for (const rm of (leaves.length > 1 ? leaves.slice(1) : big.filter((x) => x !== start && x !== end)).slice(0, int(1, 2))) {
     const p = spot(rm, 1)
     if (p) add({ kind: 'chest', ...p, free: true })

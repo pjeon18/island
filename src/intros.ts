@@ -3,36 +3,26 @@
 // is for and what its buttons do. "Got it" puts it away for good (save.tips gets `tab:<key>`).
 // The key is `tab:sub` for views with sub-tabs, else the tab.
 export const INTROS: Record<string, string> = {
-  'mons:party':
-    'These are the Pokémon living on this island. They earn EXP while you focus. Tap one to feed it, give it a stone, or send it somewhere else.',
-  'mons:helpers':
-    'Helpers are Pokémon with a job or away on a trip. They work while you focus for half the EXP, and bring back berries, finds, shells or eggs.',
-  'mons:box':
-    'The Box holds everyone not living here. Pokémon in the Box rest and earn nothing. Tap one to bring it back or give it a job.',
-  'mons:eggs':
-    'Eggs warm in the nest while you focus and hatch into a new Pokémon. The bar shows how warm each one is. Eggs come from the Day Care, finds, streaks and trips.',
-  'mons:bag':
-    'Your Bag holds everything you carry: shells, Star Pieces, Oran Berries, balls, food and stones. Give a stone from a Pokémon\'s choices in Party or Box.',
-  dex: 'The Pokédex lists every Pokémon that can come to this island. Tap one to see what draws it: a habitat, a decoration, a food, the weather or the time of day.',
-  'island:habitats':
-    'Habitats change who comes to the island. Each one costs Star Pieces and shells and draws the types it lists. Some open after more focused hours.',
-  'island:decor':
-    'Decorations are bought with shells, and each one is loved by a few Pokémon, so they come more often. Press Arrange the island to drag them anywhere they fit.',
-  'island:shop':
-    'Spend shells on Poké Balls and food here. Set a food out before a session and it draws certain types until the session ends. Upgrades cost Star Pieces.',
-  'goals:islands':
-    'Each island has its own Pokémon and a guardian deep in its dungeon. Beat the guardian and fill enough of the Pokédex, and you can sail on.',
-  'goals:restore':
-    'The storm wrecked the hut, the lighthouse and the old pier. Rebuild them one at a time with focused hours, species and shells. Each one opens something new.',
-  'goals:milestones':
-    'Filling an island\'s Pokédex pays out at a quarter, a half, three quarters and all of it: a decoration, an egg, another decoration spot, and a gift.',
-  friends:
-    'Sign in with your Studdy email to add friends. When you study at the same time, a Together egg warms. On a break you can visit, wave, send a gift, trade, or go into a dungeon together.',
-  log: 'The Journal keeps everything that happened, newest first. The big numbers at the top count what is new since you last looked.',
-  'more:focus':
-    'Choose how long a session is: 30 minutes, an hour, or your own length. Idle detection pauses the clock when your screen locks; without it I ask if you are still studying every hour. The ring plays when a session ends.',
-  'more:guide': 'Every tip I have told you is kept here, so you can read them again.',
-  'more:settings': 'Turn sounds and music on or off and set the volume. Pop out puts the island in a small window that stays on top while you study.',
+  'mons:party': 'These Pokémon live on this island. They grow while you focus. Tap one to see what it can do. More, under Guide, explains each job and trip.',
+  'mons:helpers': 'Helpers are working or away on a trip. They get half the EXP and bring things back.',
+  'mons:box': 'The rest of your Pokémon wait in the Box. They don\'t grow here. Tap one to bring it back.',
+  'mons:eggs': 'Eggs hatch while you focus. The bar shows how close each one is.',
+  bag: 'This is everything you\'re carrying. Stones, balls and food all live here.',
+  dex: 'This is every Pokémon that visits this island. Tap one to see what it likes.',
+  'island:habitats': 'A habitat brings new kinds of Pokémon. Each one shows the types it draws.',
+  'island:decor': 'Some Pokémon love certain decorations and come more often. Press Arrange the island to move them around.',
+  'island:journal': 'This is everything that happened on the island. New lines are marked in gold.',
+  'island:shop': 'Balls and food cost shells. Set food out before a session to draw certain types. Upgrades cost Star Pieces.',
+  'goals:islands': 'Each island has its own Pokémon and a guardian at the bottom of its dungeon. Beat the guardian to sail on. The arrows at the sides of the screen take you between islands.',
+  'goals:restore': 'The storm wrecked the hut, the lighthouse and the old pier. Rebuilding each one opens something new.',
+  'goals:milestones': 'Filling in the Pokédex earns a reward at a quarter, a half, three quarters and all of it.',
+  friends: 'Sign in with your Studdy email to add friends. If you study at the same time, you warm a Together egg.',
+  'more:focus': 'Pick how long a session runs. With idle detection on, the clock pauses when your screen locks. Otherwise I check in every hour.',
+  'more:guide': 'This explains how things work and keeps every tip I\'ve told you.',
+  'more:settings': 'Pop out keeps the island in a small window on top of your work.',
 }
+
+/** Views that moved (2026-11-18): a card already put away under the old key stays away. */
+export const OLD_INTRO: Record<string, string> = { bag: 'mons:bag', 'island:journal': 'log' }
 
 export const introKey = (tab: string, sub: string) => (sub ? `${tab}:${sub}` : tab)

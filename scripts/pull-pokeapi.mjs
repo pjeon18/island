@@ -42,7 +42,11 @@ async function addSpecies(dex, extra) {
 
 const STONES = new Set(['thunder-stone', 'water-stone', 'fire-stone', 'leaf-stone', 'ice-stone', 'sun-stone', 'moon-stone', 'dawn-stone'])
 const HELD = new Set(['razor-claw'])
-const MAX_DEX = 493 // Gens 1–4 only (complete PMD Collab coverage)
+const MAX_DEX = 1025 // all nine generations (2026-11-18)
+/** Stages with no walking, idle or sleeping sprite in PMD Collab: a line stops before them. */
+// also: frames too big for the island (Tinkaton 88x96, Cetitan 88 wide), and evolutions that need
+// a regional form (Galarian Corsola's Cursola, Hisuian Sneasel's Sneasler, Paldean Wooper's Clodsire)
+const SKIP = new Set([520, 668, 732, 733, 735, 756, 838, 839, 929, 944, 945, 956, 959, 975, 864, 903, 980])
 
 /**
  * The evolution methods the island supports, in order of preference:
@@ -96,7 +100,7 @@ for (const line of LINES) {
     for (const next of node.evolves_to) {
       const to = idFromUrl(next.species.url)
       const m = method(next.evolution_details)
-      if (!m || to > MAX_DEX) continue
+      if (!m || to > MAX_DEX || SKIP.has(to)) continue
       species[from].evolvesTo.push({ dex: to, ...m })
       // a baby line (Pichu) evolves into a line that is already on the roster (Pikachu): link, don't overwrite
       if (species[to] && species[to].line !== line.dex) continue

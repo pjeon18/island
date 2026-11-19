@@ -24,6 +24,11 @@ export const STARTER_REGIONS: [string, number[]][] = [
   ['Johto', [152, 155, 158]],
   ['Hoenn', [252, 255, 258]],
   ['Sinnoh', [387, 390, 393]],
+  ['Unova', [495, 498, 501]],
+  ['Kalos', [650, 653, 656]],
+  ['Alola', [722, 725, 728]],
+  ['Galar', [810, 813, 816]],
+  ['Paldea', [906, 909, 912]],
   ['Partners', [25, 133]],
 ]
 export const STARTER_CHOICES = STARTER_REGIONS.flatMap(([, d]) => d)
@@ -285,7 +290,7 @@ export class Tour {
     await new Promise<void>((r) =>
       this.x.hud.say({
         dex: GUIDE_DEX,
-        text: 'Will you help me fix up the island, so new friends come to stay?',
+        text: 'Will you help me fix up the island? New friends might come to stay.',
         actions: [
           { label: "I'll help", primary: true, run: () => {} },
           { label: 'Skip the tour', run: () => (skip = true) },
@@ -362,8 +367,8 @@ export class Tour {
     await this.line("Here's the most important part. Pokémon only visit while you're focusing.")
     this.x.hud.guide = () => '[data-f="start"]'
     await this.line('Whenever you sit down to study, press Start focusing at the top left. Your team earns EXP for every minute.')
-    this.x.hud.guide = () => '[data-open-tab="log"]'
-    await this.line('Between sessions, catch whoever came by. Anything you miss is written in your Journal.')
+    this.x.hud.guide = () => '[data-open-tab="island"]'
+    await this.line('Between sessions, catch whoever came by. Anything you miss is written in the Journal, in the Island menu.')
     this.x.hud.guide = null
     await this.line("I'll stay and help out. Good luck with your first session!", { emotion: 'Happy' })
     this.finish()

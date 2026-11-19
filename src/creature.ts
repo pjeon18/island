@@ -249,7 +249,7 @@ export class Creature {
       case 'eat':
         return { a: A.Eat ?? A.Idle, t: this.t, loop: true }
       case 'lay':
-        return { a: A.Laying ?? A.Sleep, t: this.t, loop: true }
+        return { a: A.Laying ?? A.Sleep ?? A.Idle, t: this.t, loop: true }
       case 'look':
         return { a: A.LookUp ?? A.Idle, t: this.t, loop: false }
       case 'nod':
@@ -257,7 +257,7 @@ export class Creature {
       case 'hop':
         return { a: A.Hop ?? A.Idle, t: this.t, loop: false }
       case 'sleep':
-        return { a: A.Sleep, t: this.t, loop: true }
+        return { a: A.Sleep ?? A.Laying ?? A.Idle, t: this.t, loop: true }
       case 'still':
         return { a: A.Idle, t: this.t, loop: true }
       default:

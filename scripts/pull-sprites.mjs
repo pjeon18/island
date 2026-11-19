@@ -151,6 +151,7 @@ for (const [dex, name] of SPECIES) {
 
 await fs.writeFile(path.join(OUT, 'manifest.json'), JSON.stringify(manifest, null, 1))
 // sound (added 2026-11-12; the audio is built by scripts/build-audio.mjs)
+md.push('', '# Art credits', '', "- Island nature pieces (trees, palms, bushes, tall grass, grass tiles, tufts, flowers, rocks, lily pads, leaves, mushrooms, logs, snowman, umbrellas, stones and the stone pool): Flurmimon, Flurmimon's Tileset - Nature, https://www.deviantart.com/flurmimon/art/Flurmimons-Tileset-Nature-580160241. Credit required, non-commercial. Cut into public/art/nature.png by scripts/build-nature.py.")
 md.push('', '# Audio credits', '', '- Sound effects: Case Portman Audio, Cute & Cozy UI Audio (free sample), https://caseportman.itch.io/cute-cozy-ui-sfx. Royalty-free with attribution.', '- Music: Mayra (mayragandra), Free Ambient Music (Loop), https://mayragandra.itch.io/freeambientmusic. Free for any project with credit; looped by crossfading its end into its start.', '- Pokémon cries: Pokémon Showdown.')
 await fs.writeFile(path.join(ROOT, 'CREDITS.md'), md.join('\n') + '\n')
 console.log('wrote manifest.json and CREDITS.md')

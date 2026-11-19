@@ -9,17 +9,16 @@
 // Stairs are checkpoints: they heal everyone, revive anyone fainted and save the run,
 // so a run can be left and picked up at the next break. A miniboss guards the
 // stairs on B2 and B3. Traps show only in the light. Pots hold healing for this
-// run; chests hold loot for the island, but only open on a run lit by a Lantern
-// charge (one per finished session of 30 minutes or more). Supply chests open without one
-// (2026-11-18). Dungeons give no EXP; chests give shells up to DUNGEON_SHELLS_DAY a day.
-// After a charged clear, a special Pokémon may appear for one throw.
+// run; chests and wooden crates hold loot for the island. Every chest opens: Lantern charges
+// were removed (2026-11-18). Dungeons give no EXP; chests give shells up to DUNGEON_SHELLS_DAY a day.
+// After a clear, a special Pokémon may appear for one throw.
 //
 // Content pass (2026-11-12, docs/REVIEW2.md section 6): bosses have twice the HP and
 // open each phase with a guarded beat, a shake and their signature move; Lapras has
 // its own kit. Auto-attack hits only awake enemies, so rooms can be sneaked past.
 // Melee types hit harder and lunge; followers use move 1; 3 fires your second
 // Pokémon's burst. Generated floors carry a modifier and may hold a special room.
-// After a gate's first clear, a charged run can go deeper (B5 to B7).
+// After a gate's first clear, a run can go deeper (B5 to B7).
 //
 // Opened as dungeon.html?id=<map>&gate=<island> from the island, or
 // ?map=play from the editor's Play test (one floor, nothing is saved then).
@@ -31,6 +30,7 @@ import { Light, applyLighting, normalMapFor } from '../lighting'
 import { Species, dirFrom, drawFrame, frameAt, loadManifest, loadSpecies } from '../sprites'
 import { generateFloor } from './gen'
 import { loadNature } from '../nature'
+import '../cursors'
 import { DungeonMap, Entity, Modifier, OUTDOOR, T, TILE, TrapKind, bakeMap, walkableTile } from './map'
 import { type Event as NetEvent, type Hello, type Input, type Net, type Snap, type Start, type TeamMon, connectRoom, makeRoomCode } from './net'
 // the outdoor explorations draw Flurmimon's pieces, so the atlas loads before any floor is baked
@@ -43,16 +43,16 @@ const params = new URLSearchParams(location.search)
 const portrait = (dex: number) => `${BASE}sprites/${String(dex).padStart(4, '0')}/Normal.png`
 const RUN_KEY = 'island-dungeon-run'
 const FLOORS = 4 // three generated floors, then the hand-made boss floor
-const DEEP_LAST = FLOORS + 3 // after a gate's first clear, a charged run can go on to B5 to B7
+const DEEP_LAST = FLOORS + 3 // after a gate's first clear, a run can go on to B5 to B7
 const LAPRAS = 131 // Glacier Grotto's guardian has its own kit
 const ARCANINE = 59 // and Ember Crater's
 /** The arrival line for each floor modifier. */
 const MOD_LINE: Record<Modifier, string> = {
-  fog: 'Fog: your light reaches less far.',
-  flooded: 'Flooded: the water slows everyone down.',
-  restless: 'Restless: everything here is awake.',
-  echo: 'Echo: an alarm wakes the whole floor.',
-  rich: 'Rich: there is an extra chest.',
+  fog: 'Fog hangs here. Your light reaches less far.',
+  flooded: 'The floor is flooded. The water slows everyone down.',
+  restless: 'Everything here is awake.',
+  echo: 'An alarm here wakes the whole floor.',
+  rich: 'There is an extra chest here.',
 }
 // a run item, weighted like pots (Oran most often)
 function rollItem(): 'oran' | 'sitrus' | 'seed' | 'elixir' {
@@ -87,8 +87,11 @@ const COL: Record<string, string> = {
 type Role = 'fighter' | 'caster' | 'flier' | 'brute' | 'phantom' | 'hunter'
 
 /**
- * Move choices (2026-11-12): moves 1 and 2 share one charge of three pips (move 1 costs 1, move 2
- * costs 2, one pip comes back every PP_EVERY seconds), and every move leaves its type's status:
+ * Moves (2026-11-18, Paul: "one default normal attack, two special attacks, and that's it per
+ * Pokémon"): 1 is a normal attack (hold it to keep attacking), 2 is the Pokémon's strong typed
+ * move, 3 its burst around it. Each special has its own cooldown (SPECIAL_A_CD, SPECIAL_B_CD) shown
+ * on its button, and the buttons can be clicked. The Pokémon you steer attacks only when you press;
+ * the others fight on their own. Every special leaves its type's status:
  * - burn (fire) and poison (poison, bug) hurt over time;
  * - paralysis (electric) and slow (water) halve how fast it moves and winds up;
  * - freeze (ice) stops it for a moment, then slows it;
@@ -109,8 +112,9 @@ const STATUS_POP: Record<Status, [string, string]> = {
 }
 // the same colours, dark enough to read on the white move cards
 const STATUS_INK: Record<Status, string> = { burn: '#c8501e', poison: '#8a3cb0', para: '#9a7a00', freeze: '#2a88b8', slow: '#2a68b8', sleep: '#6a58b8', stagger: '#6a5a4a' }
-const PP_MAX = 3
-const PP_EVERY = 2.5 // seconds for one pip to come back
+const NORMAL_CD = 0.55 // seconds between normal attacks
+const SPECIAL_A_CD = 2.5 // the strong typed move
+const SPECIAL_B_CD = 5 // the burst
 /** Leave a status on an enemy, `k` of its full length (1 for move 1, 0.6 for a burst). */
 function applyStatus(from: Actor, to: Actor, type: string, k: number) {
   if (to.side !== 'foe' || to.dead) return
@@ -230,7 +234,8 @@ interface Actor {
   braceCd: number
   hide: number // a phantom's seconds faded out (it can't be hit or targeted)
   trick: number // seconds until its role move (dive, pounce, fade, charged shot) is ready
-  pp: number // your Pokémon's move charge: 0 to 3 pips, shared by moves 1 and 2 (move choices)
+  cdA: number // your Pokémon's strong move: seconds until it is ready
+  cdB: number // and its burst
   gcd: number // a short lockout after a move, so one press never fires twice
   burn: number // status seconds left (see STATUS)
   poison: number
@@ -291,7 +296,7 @@ interface Thing {
   y: number
   open: boolean
   big?: boolean // the miniboss's or boss's chest
-  free?: boolean // a supply chest: opens without a Lantern charge
+  free?: boolean // a wooden supply crate: shells and everyday things
   key: string // saved in the run once opened, so leaving and continuing can't refill it
 }
 type Items = { oran: number; sitrus: number; seed: number; elixir: number }
@@ -461,7 +466,8 @@ function makeActor(side: Actor['side'], dex: number, level: number, sp: Species,
     braceCd: 0,
     hide: 0,
     trick: 1 + Math.random() * 2,
-    pp: 3,
+    cdA: 0,
+    cdB: 0,
     gcd: 0,
     burn: 0,
     poison: 0,
@@ -674,6 +680,7 @@ function burst(a: Actor, mult: number, radius: number, label: string, at = { x: 
 const rings: { x: number; y: number; r: number; max: number; col: string; t: number }[] = []
 function warn(w: Omit<Warning, 't'>) {
   warnings.push({ ...w, t: 0 })
+  hint('warn', 'Red marks an attack about to land. Step out of it, or dash with Space.')
 }
 /** Is p inside a drawn warning ellipse (the same shape render() draws: r wide, 0.6 r tall)? */
 const inOval = (p: { x: number; y: number }, x: number, y: number, r: number) => ((p.x - x) / r) ** 2 + ((p.y - y) / (r * 0.6)) ** 2 < 1
@@ -1322,9 +1329,10 @@ function updateThings() {
       const got: keyof Items | null = r < 0.3 ? 'oran' : r < 0.5 ? 'elixir' : r < 0.6 ? 'seed' : r < 0.65 ? 'sitrus' : null
       if (got) run.items[got]++
       if (got) sfx('coin')
+      hint('pot', 'Pots hold berries and seeds for this run only.')
       toast(got ? `Found ${ITEM_NAME[got]}.` : 'The pot was empty.')
     } else if (th.free) {
-      // a supply chest opens for anyone, charge or not, and each player rolls their own
+      // a supply crate: each player rolls their own
       th.open = true
       sfx('coin')
       if (!test) {
@@ -1333,23 +1341,21 @@ function updateThings() {
         toast(lines.join(' '))
       } else toast('Test play: nothing inside.')
     } else {
-      // a chest opens if anyone in the room lit a charge; each player rolls loot on their own charge
-      const anyCharged = run.charged || [...guests.values()].some((g) => g.charged)
-      if (test || !anyCharged) {
+      // every chest opens (2026-11-18, Paul: Lantern charges are gone); each player rolls their own loot
+      if (test) {
         if (time - sealedToast > 4) {
           sealedToast = time
-          toast(test ? 'Test play: chests stay shut.' : 'Sealed. A Lantern charge opens chests.')
+          toast('Test play: chests stay shut.')
         }
         continue
       }
       th.open = true
       sfx(th.big ? 'unlock' : 'coin')
       if (mode === 'host' && guests.size) net?.sendEvent({ kind: 'chest', big: !!th.big })
-      if (run.charged) {
-        const lines = lootChest(!!th.big)
-        run.found.push(...lines)
-        toast(lines.join(' '))
-      } else toast('Your friend opened it. Light a charge next time to share the loot.')
+      const lines = lootChest(!!th.big)
+      run.found.push(...lines)
+      toast(lines.join(' '))
+      hint('chest', 'Chests and crates hold things to take home to the island.')
     }
     // saved at once, so leaving and continuing can't refill it (review 2 D1)
     ;(run.opened ??= []).push(th.key)
@@ -1377,7 +1383,7 @@ function giveShells(s: ReturnType<typeof latest>, n: number) {
   s.shells += k
   return k < n ? `${k} shells, the last for today.` : `${k} shells.`
 }
-/** A supply chest: shells (within the day's cap) and something useful, no charge needed. */
+/** A supply crate: shells (within the day's cap) and something useful. */
 function lootSupply(): string[] {
   const s = latest()
   const tier = lootTier()
@@ -1403,7 +1409,7 @@ function lootSupply(): string[] {
   game.persist()
   return out
 }
-/** Loot for the island, worth roughly what the session that lit the charge paid (no EXP). */
+/** Loot for the island (no EXP). */
 // review 2 B3, B4: chests poured out Ultra Balls and Star Pieces. A miniboss's chest now gives a
 // Great Ball (10% a Star Piece); only the boss's gives an Ultra Ball, half the time (25% a Star Piece).
 function lootChest(big: boolean): string[] {
@@ -1478,14 +1484,37 @@ function useBerry() {
 function useElixir() {
   if (run.items.elixir <= 0) return toast('No Elixirs left.')
   run.items.elixir--
-  for (const p of party) p.pp = PP_MAX
+  for (const p of party) p.cdA = p.cdB = 0
   pops.push({ x: party[lead].x, y: party[lead].y - 28, text: 'Max Elixir', t: 0, col: '#ffe080' })
   hudKey = ''
   saveRun()
 }
 
 // ---------- update ----------
+/** A coast floor's boat: walk away from it, then back, and it offers to row you home (2026-11-18). */
+let leftDock = false
+function dockCheck() {
+  if (!map.dock || mode !== 'solo' || state !== 'play' || hud.querySelector('.dg-msg')) return
+  const me = party[lead]
+  if (!me) return
+  const d = Math.hypot(me.x - (map.dock.x * TILE + 8), me.y - (map.dock.y * TILE + 8))
+  if (d > 70) leftDock = true
+  if (!leftDock || d > 46) return // the boat sits two tiles out; the water's edge is about 30 px from it
+  leftDock = false
+  state = 'paused'
+  message(`<p>Row back to the island?</p><p class="dg-dim">Your place here is kept.</p>`, [
+    { label: 'Row home', gold: true, run: home },
+    { label: 'Stay', run: () => (state = 'play') },
+  ])
+}
 function update(dt: number) {
+  showHints()
+  dockCheck()
+  // holding 1 keeps attacking
+  if (keys.has('1') && state === 'play' && party[lead]) {
+    if (mode === 'guest') guestActs.push('1')
+    else act(party[lead], '1')
+  }
   time += dt
   shake = Math.max(0, shake - dt)
   for (const a of [...party, ...foes]) {
@@ -1504,7 +1533,10 @@ function update(dt: number) {
     a.braceCd -= dt
     a.trick -= dt
     a.gcd -= dt
-    if (a.side === 'you' && !a.dead) a.pp = Math.min(PP_MAX, a.pp + dt / PP_EVERY)
+    if (a.side === 'you' && !a.dead) {
+      a.cdA = Math.max(0, a.cdA - dt)
+      a.cdB = Math.max(0, a.cdB - dt)
+    }
     if (a.side === 'foe' && !a.dead) updateStatus(a, dt)
     if (a.dead) a.fade = Math.min(1, a.fade + dt * 1.5)
   }
@@ -1568,10 +1600,13 @@ function update(dt: number) {
     p.moving = d > (safe || out ? 4 : foe ? range(p) - 8 : 14)
     if (p.moving) seek(p, tx, ty, d > 80 ? 70 : 58, dt, toLead)
     else walk(p, 0, 0, dt)
-    // followers use move 1 only from a full charge, so your key 3 usually has two pips left (D-F2)
-    if (p.pp >= PP_MAX && p.gcd <= 0) {
-      const t = nearest(p, foes.filter((f) => f.awake && f.sleep <= 0), reach1(p))
+    // followers use their specials as they come ready: the strong move at the nearest awake
+    // enemy, the burst when two or more are close
+    if (p.gcd <= 0) {
+      const awakeNear = foes.filter((f) => f.awake && !f.dead && f.sleep <= 0)
+      const t = p.cdA <= 0 ? nearest(p, awakeNear, reach1(p)) : undefined
       if (t) strong(p, t)
+      else if (p.cdB <= 0 && awakeNear.filter((f) => dist(p, f) < 44).length >= 2) spendBurst(p)
     }
     // a follower stuck far behind for a few seconds is brought back beside its lead (review 2 D11)
     const far = dist(p, L)
@@ -1586,8 +1621,10 @@ function update(dt: number) {
   // auto-attacks for the party: only at awake enemies, so a sleeping room can be sneaked past (D-F1)
   // and never at a sleeper: sleep holds an enemy out of the fight until you choose to hit it
   const awake = foes.filter((f) => f.awake && !f.dead && f.sleep <= 0)
+  const steered = leads()
   for (const p of party) {
-    if (p.dead || p.cd > 0 || p.sleep > 0) continue
+    // the Pokémon a player steers attacks when they press 1; the others fight on their own
+    if (p.dead || p.cd > 0 || p.sleep > 0 || steered.includes(p)) continue
     const target = nearest(p, awake, range(p))
     if (!target) continue
     p.cd = 0.8
@@ -1758,7 +1795,7 @@ function openNear(x: number, y: number) {
 function snapshot(): Snap {
   const flags = (a: Actor) => (a.moving ? 1 : 0) | (a.hop > 0 ? 2 : 0) | (a.hurt > 0 ? 4 : 0) | (a.dead ? 8 : 0) | (a.sleep > 0 ? 16 : 0) | (a.dash > 0 ? 32 : 0) | (a.lunge > 0.1 ? 64 : 0) | (a.guard > 0 ? 128 : 0) | (a.wind > 0 ? (a.windMult > 1.35 ? 2048 : 256) : 0) | (a.brace > 0 ? 512 : 0) | (a.hide > 0 ? 1024 : 0) | (a.burn > 0 ? 4096 : 0) | (a.poison > 0 ? 8192 : 0) | (a.para > 0 ? 16384 : 0) | (a.slow > 0 ? 32768 : 0) | (a.frozen > 0 ? 65536 : 0)
   return {
-    a: [...party, ...foes].map((a) => [a.id, a.side === 'you' ? 1 : 0, a.dex, Math.round(a.x), Math.round(a.y), a.dir, Math.round(a.hp), Math.round(a.maxHp), flags(a), a.level, a.boss ? 1 : a.mini ? 2 : 0, a.name, +a.fade.toFixed(2), a.side === 'you' ? +a.pp.toFixed(2) : +a.cd1.toFixed(1), +a.cd2.toFixed(1), a.awake ? 1 : 0]),
+    a: [...party, ...foes].map((a) => [a.id, a.side === 'you' ? 1 : 0, a.dex, Math.round(a.x), Math.round(a.y), a.dir, Math.round(a.hp), Math.round(a.maxHp), flags(a), a.level, a.boss ? 1 : a.mini ? 2 : 0, a.name, +a.fade.toFixed(2), a.side === 'you' ? +a.cdA.toFixed(1) : +a.cd1.toFixed(1), a.side === 'you' ? +a.cdB.toFixed(1) : +a.cd2.toFixed(1), a.awake ? 1 : 0]),
     s: shots.map((x) => [Math.round(x.x), Math.round(x.y), x.type]),
     w: warnings.map((w) => [WKINDS.indexOf(w.kind), Math.round(w.x), Math.round(w.y), w.r, Math.round(w.x2 ?? 0), Math.round(w.y2 ?? 0), +w.t.toFixed(2), w.at, w.col, w.r0 ?? 0]),
     r: rings.filter((r) => r.t < 0.5).map((r) => [Math.round(r.x), Math.round(r.y), r.max, r.col, +r.t.toFixed(2)]),
@@ -1809,7 +1846,7 @@ function floorMap(n: number): DungeonMap {
   // the deep floors (L10) are at the level the run chose when it went deeper
   const deep = n > FLOORS ? run.deepLevel ?? lo : 0
   const base = deep ? deep - 1 : lo - 6 + (n - 1) * 2
-  return generateFloor({ seed: run.seed, floor: n, name: hand.name, theme: hand.theme, dark: hand.dark, species: dexes, mini, levels: [base, base + 2], miniboss: n >= 2, bigChest: n === DEEP_LAST })
+  return generateFloor({ seed: run.seed, floor: n, name: hand.name, theme: hand.theme, dark: hand.dark, species: dexes, mini, levels: [base, base + 2], miniboss: n >= 2, bigChest: n === DEEP_LAST, coast: isExplore() && n === 1 })
 }
 /** The boss's name, for the boss floor's lines. */
 const bossName = () => {
@@ -1820,6 +1857,24 @@ const bossName = () => {
 /** A surface exploration (2026-11-18): an outdoor area whose last map has no guardian. */
 const isExplore = () => !hand.entities.some((e) => e.kind === 'boss')
 const floorLabel = (n: number) => (isExplore() ? (n === FLOORS ? 'the heart of it' : `clearing ${n}`) : n === FLOORS ? `${bossName()}'s floor` : `B${n}`)
+/**
+ * The title on arriving at a floor (2026-11-18, Paul: "like Legend of Zelda", not a box): the
+ * dungeon's name small, the floor large, and one short line under it, fading in at the top of the
+ * screen, holding, then fading away.
+ */
+function titleCard(n: number, extra = '') {
+  const big = isExplore() && !test ? (n === FLOORS ? 'The heart' : `Clearing ${n}`) : n === FLOORS && !test ? `${bossName()}'s floor` : n > FLOORS ? `Deep B${n}` : `B${n}`
+  const line = [extra.trim(), map.modifier ? MOD_LINE[map.modifier] : ''].filter(Boolean).join(' ')
+  hud.querySelector('.dg-title')?.remove()
+  const el = document.createElement('div')
+  el.className = 'dg-title'
+  el.innerHTML = `<p class="dg-title-name">${hand.name}</p><p class="dg-title-floor">${big}</p>${line ? `<p class="dg-title-line">${line}</p>` : ''}`
+  hud.append(el)
+  setTimeout(() => el.classList.add('show'), 30)
+  setTimeout(() => el.classList.remove('show'), 3200)
+  setTimeout(() => el.remove(), 4400)
+  toastKeep = performance.now() + 3600 // hints wait until the title has gone
+}
 /** The line on arriving at floor n: its name, and its modifier. */
 function arrival(n: number, extra = '') {
   if (isExplore() && !test) return n === FLOORS ? `${hand.name}: the heart of it.` : `${hand.name}, clearing ${n}.${extra}${map.modifier ? ` ${MOD_LINE[map.modifier]}` : ''}`
@@ -1936,11 +1991,12 @@ async function downstairs() {
   await new Promise((r) => setTimeout(r, 380))
   if (!(await loadSafely(run.floor))) return
   view.style.opacity = '1'
-  toast(arrival(run.floor, run.floor === FLOORS + 1 ? ` The deep floors, at about Lv${run.deepLevel}.` : mode === 'solo' ? ' The stairs saved your run.' : ''))
+  titleCard(run.floor, run.floor === FLOORS + 1 ? `The deep floors, at about Lv${run.deepLevel}.` : mode === 'solo' ? 'The stairs saved your run.' : '')
+  floorHints()
   state = 'play'
   stepping = false
 }
-/** After a charged clear of a gate already beaten once: three deeper floors (L10). No EXP, no shells. */
+/** After a clear of a gate already beaten once: three deeper floors (L10). No EXP. */
 function goDeeper() {
   hud.querySelectorAll('.dg-msg').forEach((m) => m.remove())
   run.deepLevel = Math.max(1, Math.max(...party.map((p) => p.level)) - 5)
@@ -2041,9 +2097,13 @@ function applySnap(raw: Snap) {
     a.brace = fl & 512 ? 0.1 : 0
     a.hide = fl & 1024 ? 0.1 : 0
     a.fade = fade
-    if (you) a.pp = cd1
-    else a.cd1 = cd1
-    a.cd2 = cd2
+    if (you) {
+      a.cdA = cd1
+      a.cdB = cd2
+    } else {
+      a.cd1 = cd1
+      a.cd2 = cd2
+    }
     a.burn = fl & 4096 ? 0.1 : 0
     a.poison = fl & 8192 ? 0.1 : 0
     a.para = fl & 16384 ? 0.1 : 0
@@ -2365,7 +2425,7 @@ function drawThing(g: CanvasRenderingContext2D, th: Thing, cx: number, cy: numbe
     return
   }
   if (th.free) {
-    // a supply chest: a plain wooden crate with two rope bands, so it reads apart from the sealed ones
+    // a supply crate: plain wood with two rope bands
     g.fillStyle = '#3a2410'
     g.fillRect(x - 6, y - 10, 12, 10)
     g.fillStyle = th.open ? '#5a3a1c' : '#b88a52'
@@ -2412,13 +2472,36 @@ function render() {
   for (const tr of traps) drawTrap(fg, tr, cx, cy)
   for (const th of things) drawThing(fg, th, cx, cy)
   drawFixtures(fg, cx, cy)
-  const bodies = [...foes, ...party].sort((a, b) => a.y - b.y)
-  for (const a of bodies) {
+  // Pokémon and trees in one depth order, so you walk behind a tree rather than over it; a tree
+  // that hides one of your Pokémon turns see-through (2026-11-18, Paul)
+  const items: { y: number; draw: () => void }[] = []
+  for (const a of [...foes, ...party]) {
     if (a.dead && a.fade >= 1) continue
     if (a.x < cx - 40 || a.x > cx + VW + 40 || a.y < cy - 40 || a.y > cy + VH + 60) continue
-    const { anim, f } = drawActor(fg, a, cx, cy)
-    drawFrame(ng, { ...anim, img: normalMapFor(anim.img) as unknown as HTMLImageElement }, f, a.dir, a.x - cx, a.y - cy)
+    items.push({
+      y: a.y,
+      draw: () => {
+        const { anim, f } = drawActor(fg, a, cx, cy)
+        drawFrame(ng, { ...anim, img: normalMapFor(anim.img) as unknown as HTMLImageElement }, f, a.dir, a.x - cx, a.y - cy)
+      },
+    })
   }
+  for (const t of baked.tall) {
+    const x = Math.round(t.x - cx)
+    const y = Math.round(t.y - cy)
+    if (x > VW || y > VH || x + t.img.width < 0 || y + t.img.height < 0) continue
+    items.push({
+      y: t.foot,
+      draw: () => {
+        const hides = party.some((p) => !p.dead && p.y < t.foot && p.y > t.y + 6 && p.x > t.x + 4 && p.x < t.x + t.img.width - 4)
+        fg.globalAlpha = hides ? 0.5 : 1
+        fg.drawImage(t.img, x, y)
+        fg.globalAlpha = 1
+        ng.drawImage(normalMapFor(t.img), x, y)
+      },
+    })
+  }
+  for (const it of items.sort((a, b) => a.y - b.y)) it.draw()
   for (const s of shots) {
     fg.fillStyle = COL[s.type] ?? '#fff'
     fg.fillRect(Math.round(s.x - cx - 2), Math.round(s.y - cy - 2), 4, 4)
@@ -2433,7 +2516,7 @@ function render() {
   for (const l of baked.lights) if (l.x > cx - l.r && l.x < cx + VW + l.r && l.y > cy - l.r && l.y < cy + VH + l.r) lights.push({ ...l, r: l.r * fog, x: l.x - cx, y: l.y - cy, power: l.power * (0.94 + 0.06 * Math.sin(time * 3 + l.x)) })
   if (shrine && !shrine.used) lights.push({ x: shrine.x - cx, y: shrine.y - cy - 10, z: 14, r: 34, color: [0.75, 1, 0.85], power: 1.1 })
   // only the lantern and fire light a dark room
-  const own: Light[] = [{ x: me.x - cx, y: me.y - cy - 10, z: 22, r: ((run?.charged ? 110 : 96) + 36 * gk) * (fog < 1 ? 0.65 : 1), color: [1, 0.93, 0.82], power: 1.25 + 0.35 * gk }]
+  const own: Light[] = [{ x: me.x - cx, y: me.y - cy - 10, z: 22, r: (110 + 36 * gk) * (fog < 1 ? 0.65 : 1), color: [1, 0.93, 0.82], power: 1.25 + 0.35 * gk }]
   for (const a of [...party, ...foes]) if (!a.dead && a.types.includes('fire')) own.push({ x: a.x - cx, y: a.y - cy - 8, z: 12, r: 40, color: [1, 0.6, 0.3], power: 1.1 })
   for (const s of shots) if (s.type === 'fire') own.push({ x: s.x - cx, y: s.y - cy, z: 8, r: 22, color: [1, 0.6, 0.3], power: 1.2 })
   for (const fp of firePools) own.push({ x: fp.x - cx, y: fp.y - cy - 4, z: 8, r: 34, color: [1, 0.5, 0.2], power: 1.0 * Math.min(1, (fp.until - time) / 0.8) })
@@ -2585,15 +2668,36 @@ function afterLight(cx: number, cy: number) {
 // ---------- HUD ----------
 let toastTimer = 0
 let toastKeep = 0 // an important line (a boss phase, the stairs) isn't covered by a minor one
-function toast(t: string, minor = false) {
+function toast(t: string, minor = false, ms = 2600) {
   const el = hud.querySelector<HTMLElement>('.dg-toast')
   if (!el) return
   if (minor && performance.now() < toastKeep) return
-  if (!minor) toastKeep = performance.now() + 2000
+  if (!minor) toastKeep = performance.now() + Math.min(2000, ms - 600)
   el.textContent = t
   el.classList.add('show')
   window.clearTimeout(toastTimer)
-  toastTimer = window.setTimeout(() => el.classList.remove('show'), 2600)
+  toastTimer = window.setTimeout(() => el.classList.remove('show'), ms)
+}
+/**
+ * First-time hints (2026-11-18, Paul: onboarding for the first dungeon). Each is shown once ever,
+ * queued so one never covers another, and held a little longer than a normal line.
+ */
+const hints: string[] = []
+function hint(id: string, text: string) {
+  if (test || mode === 'guest') return
+  const sv = latest()
+  if (sv.tips?.includes(`dg:${id}`)) return
+  sv.tips = [...(sv.tips ?? []), `dg:${id}`]
+  game.persist()
+  hints.push(text)
+}
+function showHints() {
+  if (hints.length && performance.now() > toastKeep + 900) toast(hints.shift()!, false, 4800)
+}
+/** The hints for a floor you just arrived on. */
+function floorHints() {
+  if (foes.some((f) => f.mini && !f.dead)) hint('mini', 'A strong Pokémon guards the stairs. Beat it to go down.')
+  if (map === hand && !isExplore()) hint('boss', `${bossName()} is ahead. Watch for its warnings and save your berries for the fight.`)
 }
 const hpClass = (p: number) => (p > 0.5 ? '' : p > 0.2 ? 'mid' : 'low')
 let hudKey = ''
@@ -2605,28 +2709,26 @@ function renderHud() {
   // move 1 is named for the type it would really use on the nearest awake enemy
   const near = nearest(me, foes.filter((f) => f.awake), 120)
   const t1 = near ? bestType(me, near) : (me.types[0] ?? 'normal')
-  const two = second(me)
-  const key = party.map((p) => `${Math.round(p.hp)}:${p.dead}`).join() + `|${lead}|${boss?.hp}:${boss?.awake}|${Math.floor(me.pp * 4)}:${Math.ceil(me.dashCd * 4)}|${two?.id}:${Math.floor((two?.pp ?? 0) * 4)}|${it.oran}${it.sitrus}${it.seed}${it.elixir}|${run.floor}|${t1}`
+  const key = party.map((p) => `${Math.round(p.hp)}:${p.dead}`).join() + `|${lead}|${boss?.hp}:${boss?.awake}|${Math.ceil(me.cdA * 4)}:${Math.ceil(me.cdB * 4)}|${it.oran}${it.sitrus}${it.seed}${it.elixir}|${run.floor}|${t1}|${party.length}`
   if (key === hudKey) return
   hudKey = key
   const t = me.types[0] ?? 'normal'
-  hud.querySelector('.dg-party')!.innerHTML = party
-    .map((p, i) => `<div class="dg-panel dg-mon${i === lead ? ' on' : ''}${p.dead ? ' out' : ''}"><img src="${portrait(p.dex)}" alt="" /><div class="nm"><p>${p.name}</p><span class="hp"><i class="${hpClass(p.hp / p.maxHp)}" style="width:${(p.hp / p.maxHp) * 100}%"></i></span></div></div>`)
-    .join('')
+  // the party, then a small Tab key when there is someone to switch to (2026-11-18, Paul)
+  hud.querySelector('.dg-party')!.innerHTML =
+    party
+      .map((p, i) => `<div class="dg-panel dg-mon${i === lead ? ' on' : ''}${p.dead ? ' out' : ''}"><img src="${portrait(p.dex)}" alt="" /><div class="nm"><p>${p.name}</p><span class="hp"><i class="${hpClass(p.hp / p.maxHp)}" style="width:${(p.hp / p.maxHp) * 100}%"></i></span></div></div>`)
+      .join('') + (party.filter((p) => !p.dead && isMine(p)).length > 1 ? '<span class="dg-tab" aria-label="Tab switches who you steer">Tab</span>' : '')
   const bossEl = hud.querySelector<HTMLElement>('.dg-boss')!
   bossEl.hidden = !boss || !boss.awake || boss.dead
   if (boss) bossEl.innerHTML = `<p>${boss.name} <span style="color:#707070">Lv${boss.level}</span></p><span class="hp"><i class="${hpClass(boss.hp / boss.maxHp)}" style="width:${(boss.hp / boss.maxHp) * 100}%"></i></span>`
-  // the shared charge: three pips, the next one filling; a move you can't afford is dimmed
-  const pips = (a: Actor) =>
-    `<span class="dg-pips">${[0, 1, 2].map((i) => `<i class="${a.pp >= i + 1 ? 'full' : ''}"${a.pp >= i + 1 || a.pp < i ? '' : ` style="--fill:${Math.round((a.pp - i) * 100)}%"`}></i>`).join('')}</span>`
-  const word = (type: string) => `<span style="color:${STATUS_INK[statusOf(type)]}">${STATUS_WORD[statusOf(type)]}</span>`
-  hud.querySelector('.dg-moves')!.innerHTML = `
-    <div class="dg-panel dg-move"><p><b>Charge</b></p>${pips(me)}</div>
-    <div class="dg-panel dg-move${me.pp >= 1 ? '' : ' off'}"><p><b>1</b> ${word(t1)}</p><p>${STRONG[t1] ?? 'Body Slam'}</p></div>
-    <div class="dg-panel dg-move${me.pp >= 2 ? '' : ' off'}"><p><b>2</b> ${word(t)}</p><p>${BURST[t] ?? 'Hyper Voice'}</p></div>
-    <div class="dg-panel dg-move${two && two.pp >= 2 ? '' : ' off'}"><p><b>3</b> ${two ? two.name : ''}</p><p>${two ? BURST[two.types[0]] ?? 'Hyper Voice' : 'None left'}</p>${two ? pips(two) : ''}</div>`
+  // three moves for the Pokémon you steer: a normal attack and its two specials, each a button
+  // you can click; a special cooling down fills back up from the left (2026-11-18, Paul)
+  const move = (k: string, name: string, type: string, cd: number, max: number) =>
+    `<button class="dg-move-b${cd > 0 ? ' cooling' : ''}" data-move="${k}" style="--type:${COL[type] ?? '#a8a878'}"><b>${k}</b><span>${name}</span>${cd > 0 ? `<i style="width:${Math.round((1 - cd / max) * 100)}%"></i>` : ''}</button>`
+  hud.querySelector('.dg-moves')!.innerHTML =
+    move('1', 'Attack', 'normal', 0, 1) + move('2', STRONG[t1] ?? 'Body Slam', t1, me.cdA, SPECIAL_A_CD) + move('3', BURST[t] ?? 'Hyper Voice', t, me.cdB, SPECIAL_B_CD)
   const mod = map.modifier ? `<p class="dg-dim">${{ fog: 'Fog', flooded: 'Flooded', restless: 'Restless', echo: 'Echo', rich: 'Rich' }[map.modifier]}</p>` : ''
-  hud.querySelector('.dg-floor')!.innerHTML = `<p>${isExplore() ? (map === hand ? 'The heart' : `Clearing ${run.floor}`) : map === hand ? 'Boss floor' : `B${run.floor}`}</p>${mod}<p class="dg-dim">${run.charged ? 'Lantern lit' : 'No charge'}</p>`
+  hud.querySelector('.dg-floor')!.innerHTML = `<p>${isExplore() ? (map === hand ? 'The heart' : `Clearing ${run.floor}`) : map === hand ? 'Boss floor' : `B${run.floor}`}</p>${mod}`
   hud.querySelector('.dg-items')!.innerHTML = `<p><b>Q</b> Berries ${it.oran}${it.sitrus ? ` +${it.sitrus}` : ''}</p><p><b>E</b> Elixirs ${it.elixir}</p><p class="dg-dim">Seeds ${it.seed}</p>`
 }
 function message(html: string, buttons: { label: string; gold?: boolean; run: () => void }[]) {
@@ -2667,7 +2769,7 @@ function end(win: boolean) {
     const text = win ? `<p>You climbed back out of the deep floors of ${hand.name}.</p>` : `<p>Your party was carried out of the deep floors of ${hand.name}.</p>`
     return message(text + found, [deep ? { label: 'Continue', gold: true, run: () => deepCatch(deep) } : { label: 'Back to the island', gold: true, run: home }])
   }
-  const pool = win && !test && run.charged ? DEEP[run.dungeon] : undefined
+  const pool = win && !test ? DEEP[run.dungeon] : undefined
   // the special Pokémon waits in the saved run until its one throw (closing the tab doesn't lose it)
   const deep = pool?.length && !deepDone ? run.deep ?? pool[Math.floor(Math.random() * pool.length)] : undefined
   run.deep = deep
@@ -2695,14 +2797,14 @@ function end(win: boolean) {
   } else if (test) text += `<p class="dg-dim">Test play: nothing was saved.</p>`
   else if (boss) text += `<p>${boss.name} is beaten.</p>`
   text += found
-  // L10: once the gate has been cleared, a charged run can go on to three deeper floors
-  const deeper = !test && mode !== 'guest' && run.charged && !!g && latest().guardians.includes(g)
+  // L10: once the gate has been cleared, a run can go on to three deeper floors
+  const deeper = !test && mode !== 'guest' && !!g && latest().guardians.includes(g)
   if (deeper) text += `<p class="dg-dim">Three deeper floors wait below, at about Lv${Math.max(1, Math.max(...party.map((p) => p.level)) - 5)}. They hold chests but give no EXP.</p>`
   const after = deep ? { label: 'Continue', gold: !deeper, run: () => deepCatch(deep) } : { label: 'Back to the island', gold: !deeper, run: home }
   message(text, [...(deeper ? [{ label: 'Go deeper', gold: true, run: goDeeper }] : []), after])
 }
 let deepDone = false // the special catch has been offered this page (so the deep floors can't offer it twice)
-/** After a charged clear: something stirs in the deep, for one throw. */
+/** After a clear: something stirs in the deep, for one throw. */
 function deepCatch(dex: number) {
   deepDone = true
   const name = game.name(dex)
@@ -2787,25 +2889,29 @@ function act(me: Actor, k: string) {
   if (k === 'q') useBerry()
   if (k === 'e') useElixir()
   if (k === 'f') pray(me)
-  // moves 1 and 2 spend the same charge: one pip for a strong move, two for a burst
-  if (k === '1' && me.pp >= 1 && me.gcd <= 0) {
-    const t = nearest(me, foes, reach1(me))
+  // 1 a normal attack, 2 the strong typed move, 3 the burst
+  if (k === '1' && me.cd <= 0) {
+    const t = nearest(me, foes.filter((f) => !f.dead), range(me) + 6)
+    if (t) {
+      me.cd = NORMAL_CD
+      attack(me, t)
+    }
+  }
+  if (k === '2' && me.cdA <= 0 && me.gcd <= 0) {
+    const t = nearest(me, foes.filter((f) => !f.dead), reach1(me))
     if (t) strong(me, t)
   }
-  if (k === '2' && me.pp >= 2 && me.gcd <= 0) spendBurst(me)
-  // 3: your second Pokémon's burst, wherever it stands, from its own charge (D-F2)
-  const two = k === '3' ? second(me) : undefined
-  if (two && two.pp >= 2 && two.gcd <= 0 && two.sleep <= 0) spendBurst(two)
+  if (k === '3' && me.cdB <= 0 && me.gcd <= 0) spendBurst(me)
 }
 function spendBurst(a: Actor) {
-  a.pp -= 2
+  a.cdB = SPECIAL_B_CD
   a.gcd = 0.5
   burst(a, 1.5, 44, BURST[a.types[0]] ?? 'Hyper Voice')
 }
 /** Move 1's reach: a shot for ranged types, a blow for melee ones. */
 const reach1 = (a: Actor) => (ranged(a) ? 90 : 30)
 function strong(a: Actor, t: Actor) {
-  a.pp -= 1
+  a.cdA = SPECIAL_A_CD
   a.gcd = 0.5
   attack(a, t, 2.2, STRONG[bestType(a, t)], 1)
 }
@@ -2867,6 +2973,13 @@ async function boot() {
   hud.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).closest('button')) click()
   }, true)
+  // the move buttons can be clicked as well as pressed (2026-11-18, Paul)
+  hud.addEventListener('click', (e) => {
+    const k = (e.target as HTMLElement).closest<HTMLElement>('[data-move]')?.dataset.move
+    if (!k || state !== 'play' || !party[lead]) return
+    if (mode === 'guest') guestActs.push(k)
+    else act(party[lead], k)
+  })
   if (mode === 'guest') return bootGuest()
   const id = params.get('id') ?? 'test'
   hand = test ? JSON.parse(localStorage.getItem('island-dungeon-play') ?? 'null') : params.get('id') ? await (await fetch(`${BASE}dungeons/${id}.json?v=${__BUILD__}`)).json() : null
@@ -2879,8 +2992,7 @@ async function boot() {
   party = team.map((m) => makeActor('you', m.dex, m.level, species.get(m.dex)!, game.species(m.dex)?.types ?? ['normal'], game.name(m), 0, 0))
   team.forEach((m, i) => (party[i].monId = m.id))
   hud.innerHTML = `<div class="dg-party"></div><div class="dg-panel dg-boss" hidden></div><div class="dg-moves"></div><div class="dg-panel dg-toast"></div>
-    <div class="dg-panel dg-floor"></div><div class="dg-panel dg-items"></div>
-    <div class="dg-panel dg-keys"><p>WASD move</p><p>Space dash</p><p>1 2 3 moves</p><p>Tab switch</p><p>Esc ${mode === "solo" ? "pause" : "menu"}</p></div>`
+    <div class="dg-floor" hidden></div><div class="dg-panel dg-items"></div>`
 
   let saved: Run | null = null
   try {
@@ -2904,7 +3016,10 @@ async function boot() {
     if (!(await loadSafely(run.floor))) return
     saveRun()
     state = 'play'
-    toast(arrival(run.floor))
+    titleCard(run.floor)
+    hint('moves2', 'Press 1 to attack, and hold it to keep going. 2 and 3 are special moves. You can click them too.')
+    hint('items', 'Press Q to eat a berry when someone is hurt.')
+    floorHints()
     // co-op: tell each guest the seed and which Pokémon are theirs (their lead first)
     if (mode === 'host')
       for (const [peer, g] of guests) net?.sendStart({ dungeon: id, gate, seed: run.seed, floor: run.floor, mine: g.actors.filter((a) => party.includes(a)).map((a) => a.id) }, peer)
@@ -2924,14 +3039,9 @@ async function boot() {
   renderHud()
   const lv = hand.entities.filter((e) => e.kind === 'enemy').map((e) => e.level ?? 10)
   const boss = hand.entities.find((e) => e.kind === 'boss')
-  /**
-   * The entrance (review 2 D8): you choose whether to light a Lantern charge; "Start over" keeps
-   * the charge and the berries the old run already paid for.
-   */
+  /** The entrance: what is down there, and whether to bring Oran Berries. "Start over" keeps the berries the old run already took. */
   const entrance = (kept?: Run) => {
-    const charges = latest().lanterns ?? 0
     const berries = kept ? 0 : Math.min(2, game.save.berries)
-    let light = !!kept?.charged || charges > 0
     let bring = berries > 0
     // (Paul, 2026-11-12: the old entrance was "weird, unclear, too many buttons and uneven".) The
     // facts are label-and-value rows, the two choices are Yes/No switches on their rows, and there
@@ -2940,17 +3050,10 @@ async function boot() {
       `<span class="dg-seg"><button class="dg-btn${on ? ' on' : ''}" data-${attr}="1">Yes</button><button class="dg-btn${on ? '' : ' on'}" data-${attr}="0">No</button></span>`
     const row = (label: string, value: string) => `<div class="dg-kv"><span>${label}</span><b>${value}</b></div>`
     const firstVisit = !latest().tips?.includes('tab:dungeon')
-    const lantern = kept?.charged
-      ? row('Lantern', 'Still lit')
-      : charges && !test
-        ? row(`Light a charge (${charges} left)`, yesNo('light', light))
-        : row('Lantern', 'None')
-    const intro = `<p>${hand.name}</p><div class="dg-kvs">${row(isExplore() ? 'Clearings' : 'Floors', test ? '1, a test' : isExplore() ? '3, then the heart of it' : `3, then ${boss ? `${game.name(boss.dex!)} Lv${boss.level}` : 'the deepest'}`)}${row('Levels', `${Math.min(...lv) - 6} to ${Math.max(...lv)}`)}${lantern}${berries ? row(`Bring ${berries} Oran Berr${berries === 1 ? 'y' : 'ies'}`, yesNo('bring', bring)) : ''}</div>${
-      !kept?.charged && !charges && !test ? '<p class="dg-dim">Chests stay shut without a lit charge. A finished 30-minute session lights one.</p>' : ''
-    }${
+    const intro = `<p>${hand.name}</p><div class="dg-kvs">${row(isExplore() ? 'Clearings' : 'Floors', test ? '1, a test' : isExplore() ? '3, then the heart of it' : `3, then ${boss ? `${game.name(boss.dex!)} Lv${boss.level}` : 'the deepest'}`)}${row('Levels', `${Math.min(...lv) - 6} to ${Math.max(...lv)}`)}${berries ? row(`Bring ${berries} Oran Berr${berries === 1 ? 'y' : 'ies'}`, yesNo('bring', bring)) : ''}</div>${
       // the first visit explains the run (2026-11-18, Paul: every window should be explained)
       firstVisit && !test
-        ? '<p class="dg-dim">Your three strongest Pokémon go in. Walk with WASD, dash with Space, use moves with 1, 2 and 3, and switch who you steer with Tab. Pots heal you during the run. Wooden crates open for anyone; sealed chests open on a lit run. Stairs heal your party and save the run.</p>'
+        ? '<p class="dg-dim">Your three strongest Pokémon go in. Pots heal you on the way. Chests hold things to take home. The stairs heal everyone and save your place.</p>'
         : ''
     }`
     const enter = () => {
@@ -2964,12 +3067,11 @@ async function boot() {
       coop = mode === 'host' && guests.size > 0
       coopGuests = guests.size
       const r = fresh()
+      r.charged = true
       if (kept) {
-        r.charged = kept.charged
         r.brought = kept.brought ?? 0
         r.items.oran = r.brought
       } else {
-        if (!test && light) r.charged = latest() && game.useLantern()
         if (bring && berries) {
           latest().berries -= berries
           game.persist()
@@ -2983,7 +3085,7 @@ async function boot() {
     const enterButtons = [{ label: 'Enter', gold: true, run: enter }]
     // the switches flip in place; they never close the panel
     const wire = () => {
-      for (const [attr, set] of [['light', (v: boolean) => (light = v)], ['bring', (v: boolean) => (bring = v)]] as const)
+      for (const [attr, set] of [['bring', (v: boolean) => (bring = v)]] as const)
         hud.querySelectorAll<HTMLButtonElement>(`[data-${attr}]`).forEach((b) => {
           b.onclick = (e) => {
             e.stopPropagation()
@@ -3155,27 +3257,16 @@ function hostLobby(id: string, intro: string, enterButtons: { label: string; gol
   }, 2000)
   show()
 }
-/** The guest: choose whether to light a charge, send our team, wait for the host to start, then play on their run. */
+/** The guest: send our team, wait for the host to start, then play on their run. */
 async function bootGuest() {
   if (game.inSession) return message('<p>Finish your focus session first. Dungeons are for breaks.</p>', [{ label: 'Back to the island', gold: true, run: home }])
   const team = pickParty().slice(0, 2)
   await Promise.all(team.map(async (m) => species.set(m.dex, await loadSpecies(manifest, String(m.dex).padStart(4, '0')))))
   hud.innerHTML = `<div class="dg-party"></div><div class="dg-panel dg-boss" hidden></div><div class="dg-moves"></div><div class="dg-panel dg-toast"></div>
-    <div class="dg-panel dg-floor"></div><div class="dg-panel dg-items"></div>
-    <div class="dg-panel dg-keys"><p>WASD move</p><p>Space dash</p><p>1 2 3 moves</p><p>Tab switch</p><p>Esc menu</p></div>`
-  // review 2 D8: helping a friend never spends a charge unless you choose to
-  const charges = latest().lanterns ?? 0
-  const light = await new Promise<boolean>((done) => {
-    if (!charges) return done(false)
-    message(`<p>Room <b class="dg-room">${roomCode}</b></p><p class="dg-dim">Lantern charges: ${charges}. Light one and chests open for you too.</p>`, [
-      { label: 'Join and light one', gold: true, run: () => done(true) },
-      { label: 'Join without', run: () => done(false) },
-      { label: 'Back to the island', run: home },
-    ])
-  })
+    <div class="dg-floor" hidden></div><div class="dg-panel dg-items"></div>`
   net = connectRoom(roomCode!)
   message(`<p>Room <b class="dg-room">${roomCode}</b></p><p class="dg-dim">Joining. You go in together when your friend starts.</p>`, [{ label: 'Back to the island', run: home }])
-  const hello: Hello = { name: 'friend', team: team.map((m): TeamMon => ({ dex: m.dex, level: m.level, name: game.name(m), types: game.species(m.dex)?.types ?? ['normal'] })), v: __BUILD__, charged: light }
+  const hello: Hello = { name: 'friend', team: team.map((m): TeamMon => ({ dex: m.dex, level: m.level, name: game.name(m), types: game.species(m.dex)?.types ?? ['normal'] })), v: __BUILD__, charged: true }
   net.sendHello(hello)
   const timer = setInterval(() => net!.sendHello(hello), 1500)
   // no word from a host in 45 seconds: a wrong code, or the host has gone
@@ -3195,14 +3286,14 @@ async function bootGuest() {
     hostPeer = peer
     heardAt = performance.now()
     hand = await (await fetch(`${BASE}dungeons/${st.dungeon}.json?v=${__BUILD__}`)).json()
-    run = { dungeon: st.dungeon, gate: st.gate as IslandId | null, floor: st.floor, seed: st.seed, charged: light && !!latest() && game.useLantern(), items: { oran: 0, sitrus: 0, seed: 0, elixir: 0 }, hp: {}, found: [] }
+    run = { dungeon: st.dungeon, gate: st.gate as IslandId | null, floor: st.floor, seed: st.seed, charged: true, items: { oran: 0, sitrus: 0, seed: 0, elixir: 0 }, hp: {}, found: [] }
     for (const i of st.mine) mine.add(i)
     guestLeadId = st.mine[0]
     await Promise.all(hand.entities.filter((e) => e.dex).map(async (e) => species.set(e.dex!, species.get(e.dex!) ?? (await loadSpecies(manifest, String(e.dex).padStart(4, '0'))))))
     await guestFloor(st.floor)
     hud.querySelectorAll('.dg-msg').forEach((m) => m.remove())
     state = 'play'
-    toast(`${arrival(st.floor)}${run.charged ? ' Your Lantern is lit.' : ''}`)
+    titleCard(st.floor)
   })
   net.onSnap((snap, peer) => {
     if (hostPeer && peer !== hostPeer) return
@@ -3237,14 +3328,12 @@ async function bootGuest() {
       await guestFloor(e.floor)
       view.style.opacity = '1'
       state = 'play'
-      toast(arrival(e.floor, e.floor === FLOORS + 1 ? ` The deep floors, at about Lv${run.deepLevel}.` : ''))
+      titleCard(e.floor, e.floor === FLOORS + 1 ? `The deep floors, at about Lv${run.deepLevel}.` : '')
     }
     if (e.kind === 'chest') {
-      if (run.charged) {
-        const lines = lootChest(!!e.big)
-        run.found.push(...lines)
-        toast(lines.join(' '))
-      } else toast('A friend opened a chest. Light a Lantern charge to share the loot.')
+      const lines = lootChest(!!e.big)
+      run.found.push(...lines)
+      toast(lines.join(' '))
     }
     if (e.kind === 'end') end(!!e.win)
   })
@@ -3252,7 +3341,7 @@ async function bootGuest() {
     if (state === 'won' || state === 'lost') return
     state = 'lost'
     hud.querySelectorAll('.dg-msg').forEach((m) => m.remove())
-    message(run ? '<p>The host left, so the run ended.</p>' : '<p>The host left the room.</p>', [{ label: 'Back to the island', gold: true, run: home }])
+    message(run ? '<p>The host left and the run ended.</p>' : '<p>The host left the room.</p>', [{ label: 'Back to the island', gold: true, run: home }])
   }
   // review 2 D3: every player is connected to every other; only the host leaving ends the run
   net.onPeerLeave((peer) => {

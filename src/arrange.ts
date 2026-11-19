@@ -6,6 +6,7 @@
 // stand anywhere it fits: fully on land, clear of the tree, bush, habitats, the nest, the tall
 // grass, the pier steps and the other decorations. Positions live in save.decor.pos.
 import { click } from './audio'
+import { CURSOR } from './cursors'
 import { CATALOG, DecorArt, SLOTS, decorArt } from './decor'
 import type { Game } from './game'
 import { HABITAT_SPOTS } from './habitats'
@@ -179,7 +180,7 @@ export function createArrange(d: Deps) {
     if (!active) return
     const { x, y } = toIsland(e)
     if (!drag) {
-      canvas.style.cursor = pick(x, y) ? 'grab' : ''
+      canvas.style.cursor = pick(x, y) ? CURSOR.grab : ''
       return
     }
     const nx = Math.round(x + drag.dx)
@@ -190,7 +191,7 @@ export function createArrange(d: Deps) {
     drag.moved = true
     const art = decorArt(game.save.decor.slots[drag.slot]!)!
     drag.ok = fits(drag.slot, art, nx, ny)
-    canvas.style.cursor = 'grabbing'
+    canvas.style.cursor = CURSOR.grabbing
   }
   const up = (e: PointerEvent) => {
     if (!active || !drag) return
@@ -220,7 +221,7 @@ export function createArrange(d: Deps) {
     const sel = selected && s.slots[selected] ? name(s.slots[selected]!) : null
     bar.innerHTML = `
       <p>${sel ? `${sel}. Drag it to move it.` : 'Drag a decoration to move it. Tap one to choose it.'}</p>
-      ${stored.length ? `<p class="hint">${free.length ? `Stored, ${free.length} ${free.length === 1 ? 'spot' : 'spots'} free:` : 'Stored. Put one away to make room:'}</p><div class="row-actions">${stored.map((id) => `<button class="px-btn small" data-a-place="${id}" ${free.length ? '' : 'disabled'}>${name(id)}</button>`).join('')}</div>` : ''}
+      ${stored.length ? `<p class="hint">${free.length ? `${free.length} free ${free.length === 1 ? 'spot' : 'spots'}. Tap a stored one to place it.` : 'No free spots. Put one away to make room.'}</p><div class="row-actions">${stored.map((id) => `<button class="px-btn small" data-a-place="${id}" ${free.length ? '' : 'disabled'}>${name(id)}</button>`).join('')}</div>` : ''}
       <div class="row-actions">
         ${sel ? '<button class="px-btn small" data-a-store="1">Put away</button>' : ''}
         <button class="px-btn small primary" data-a-done="1">Done</button>

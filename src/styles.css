@@ -17,7 +17,7 @@ body { -webkit-font-smoothing: none; }
 .debug { padding: 16px; background: #1c2840; color: #e8eef8; font: 13px/1.4 ui-monospace, monospace; }
 .debug-title { margin: 0 0 10px; opacity: .7; }
 .debug-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 0 0 8px; }
-.debug .btn { padding: 6px 10px; background: #3c4a6c; color: #fff; border: 1px solid #56668c; font: inherit; cursor: pointer; }
+.debug .btn { padding: 6px 10px; background: #3c4a6c; color: #fff; border: 1px solid #56668c; font: inherit; cursor: var(--cur-hand); }
 .time { display: inline-flex; align-items: center; gap: 8px; }
 .time input { width: 160px; }
 
@@ -51,7 +51,7 @@ body { -webkit-font-smoothing: none; }
 
 /* buttons: white, or gold for the thing to press */
 .px-btn {
-  appearance: none; font: 8px/1 var(--px); padding: 5px 8px; cursor: pointer; white-space: nowrap;
+  appearance: none; font: 8px/1 var(--px); padding: 5px 8px; cursor: var(--cur-hand); white-space: nowrap;
   background: var(--fr-win); border: 2px solid var(--fr-edge); border-radius: 2px;
   box-shadow: inset 0 -2px 0 #d0dce8;
   transition: transform .2s cubic-bezier(.3,1.6,.5,1), background .15s;
@@ -60,13 +60,13 @@ body { -webkit-font-smoothing: none; }
 .px-btn.primary { background: var(--fr-gold); border-color: var(--fr-gold-edge); color: var(--fr-gold-ink); box-shadow: inset 0 -2px 0 #d89838; text-shadow: 1px 1px 0 #f8e8a8; }
 .px-btn.primary:hover { background: #f8dc80; }
 .px-btn:active { transform: translateY(1px); box-shadow: none; transition-duration: .05s; }
-.px-btn:disabled { opacity: .45; cursor: default; transform: none; }
+.px-btn:disabled { opacity: .45; cursor: var(--cur-arrow); transform: none; }
 
 /* focus, top left */
 .hud-focus { position: absolute; left: 6px; top: 6px; display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
 .hud-focus > .px-btn:not(.small) { padding: 6px 10px; }
 .segs { display: flex; gap: 2px; padding: 2px; background: var(--fr-navy); border: 2px solid #0e1628; }
-.seg { appearance: none; font: 8px/1 var(--px); padding: 5px 6px; cursor: pointer; background: var(--fr-navy-2); color: #e8eef8 !important; text-shadow: none !important; border: 0; transition: background .15s; }
+.seg { appearance: none; font: 8px/1 var(--px); padding: 5px 6px; cursor: var(--cur-hand); background: var(--fr-navy-2); color: #e8eef8 !important; text-shadow: none !important; border: 0; transition: background .15s; }
 .seg:hover { background: var(--fr-navy-3); }
 .seg.on { background: var(--fr-gold); color: var(--fr-gold-ink) !important; }
 /* the clock sits bare on the sea: white pixel text with a hard dark outline (no blur, no spread) */
@@ -82,7 +82,7 @@ body { -webkit-font-smoothing: none; }
 .clock.away .clock-t, .clock.break .clock-t { color: #c4d0e0; }
 
 /* party, top right: a compact FireRed-style list, one small card per Pokémon */
-.hud-party { position: absolute; right: 6px; top: 6px; line-height: 1.5; display: flex; flex-direction: column; align-items: stretch; gap: 3px; background: none; border: 0; padding: 0; cursor: pointer; }
+.hud-party { position: absolute; right: 6px; top: 6px; line-height: 1.5; display: flex; flex-direction: column; align-items: stretch; gap: 3px; background: none; border: 0; padding: 0; cursor: var(--cur-hand); }
 .chip {
   display: flex; align-items: center; gap: 5px; padding: 2px 6px 2px 2px; min-width: 104px;
   background: var(--fr-tint); border: 2px solid var(--fr-edge); border-radius: 3px;
@@ -101,7 +101,7 @@ body { -webkit-font-smoothing: none; }
 
 /* the menu strip, bottom left: square, like a GBA tab bar */
 .hud-strip { position: absolute; left: 6px; bottom: 6px; display: flex; gap: 2px; padding: 2px; background: var(--fr-navy); border: 2px solid #0e1628; box-shadow: 0 2px 0 rgba(0,0,0,.35); }
-.strip-tab { appearance: none; width: 23px; height: 23px; padding: 0; display: grid; place-items: center; cursor: pointer; background: var(--fr-navy-2); border: 0; transition: background .15s; }
+.strip-tab { appearance: none; width: 23px; height: 23px; padding: 0; display: grid; place-items: center; cursor: var(--cur-hand); background: var(--fr-navy-2); border: 0; transition: background .15s; }
 .strip-tab:hover { background: var(--fr-navy-3); }
 .strip-tab:active { transform: translateY(1px); }
 .strip-tab.on { background: var(--fr-gold); }
@@ -145,14 +145,15 @@ body { -webkit-font-smoothing: none; }
 .subtabs .seg { padding: 4px 3px; white-space: nowrap; flex: 1 0 auto; }
 .job-row { display: flex; justify-content: space-between; gap: 8px; padding: 1px 0; line-height: 1.5; border-bottom: 2px solid #dde8f0; }
 .job-row span:last-child { text-align: right; }
-.bag-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px; margin: 4px 0; }
+/* one item a row with the count at the right, as in FireRed's bag (two columns cut the names) */
+.bag-grid { display: grid; grid-template-columns: 1fr; gap: 2px; margin: 4px 0; }
 .bag-cell { display: flex; align-items: center; gap: 4px; padding: 3px 5px; background: var(--fr-tint); border: 2px solid var(--fr-edge-2); min-width: 0; }
-.bag-cell span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: clip; color: var(--fr-soft); }
+.bag-cell span { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: clip; }
 .bag-cell b { font-weight: 400; }
 
 /* the Box as a portrait grid; decorations as small cards; one-line shop rows */
 .box-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 3px; margin: 2px 0 6px; }
-.box-cell { appearance: none; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 2px 0 3px; cursor: pointer; background: var(--fr-tint); border: 2px solid var(--fr-edge-2); }
+.box-cell { appearance: none; display: flex; flex-direction: column; align-items: center; gap: 1px; padding: 2px 0 3px; cursor: var(--cur-hand); background: var(--fr-tint); border: 2px solid var(--fr-edge-2); }
 .box-cell img { width: 40px; height: 40px; display: block; }
 .box-cell span { line-height: 1.2; color: var(--fr-soft); }
 .box-cell.on { border-color: var(--fr-gold-edge); background: #fff4d0; }
@@ -165,9 +166,9 @@ body { -webkit-font-smoothing: none; }
 .decor-row.tight { padding: 2px 0; }
 
 /* a Pokémon's summary card, under the party list */
-.hud-summary { position: absolute; right: 6px; top: 100px; width: 212px; padding: 6px 8px 8px; z-index: 4; display: flex; flex-direction: column; gap: 4px; }
+.hud-summary { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 212px; max-height: calc(100% - 78px); padding: 6px 8px 8px; z-index: 4; display: flex; flex-direction: column; gap: 4px; }
 .hud-summary[hidden] { display: none !important; }
-.hud.narrow .hud-summary { top: auto; bottom: 39px; right: 6px; }
+
 .sum-head { display: flex; align-items: center; gap: 6px; }
 .sum-face { width: 40px; height: 40px; flex: none; border: 2px solid var(--fr-edge); background: var(--fr-tint); }
 .sum-id { flex: 1; min-width: 0; }
@@ -194,18 +195,19 @@ body { -webkit-font-smoothing: none; }
 .t-steel { background: #b8b8d0; } .t-fairy { background: #e898e8; }
 
 /* the Cheats window sits where the menu does, a little taller */
-.hud-cheats { position: absolute; left: 6px; bottom: 39px; width: min(320px, calc(100% - 12px)); max-height: calc(100% - 45px); z-index: 7; display: flex; flex-direction: column; overflow: hidden; padding: 3px; }
+.hud-cheats { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(320px, calc(100% - 12px)); max-height: calc(100% - 78px); z-index: 7; display: flex; flex-direction: column; overflow: hidden; padding: 3px; }
 .hud-cheats[hidden] { display: none !important; }
 .hud-cheats .row-actions { gap: 3px; }
 .hud-cheats .px-btn { padding: 4px 6px; }
 
-/* the menu window: opens above the strip and leaves the island in view */
-.hud-sheet { position: absolute; left: 6px; bottom: 39px; width: min(300px, calc(100% - 12px)); height: min(392px, calc(100% - 45px)); z-index: 3; }
+/* the menu window opens in the middle of the page, between the top row and the menu strip
+   (Paul, 2026-11-18: "when you open a window ... have it centered on the page") */
+.hud-sheet { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(300px, calc(100% - 12px)); height: min(392px, calc(100% - 78px)); z-index: 3; }
 /* the 3 px padding keeps scrolled content inside the window's inner lines (Paul, 2026-11-12:
    portraits and buttons were drawn over the frame at the bottom edge) */
 .sheet-panel { height: 100%; display: flex; flex-direction: column; overflow: hidden; padding: 3px; }
 .sheet-head { display: flex; align-items: center; gap: 4px; padding: 3px 3px 2px 7px; }
-.close-x { appearance: none; margin-left: auto; width: 19px; height: 19px; padding: 0; cursor: pointer; position: relative; background: var(--fr-red); border: 2px solid #801818; box-shadow: inset 0 -2px 0 #b02828; }
+.close-x { appearance: none; margin-left: auto; width: 19px; height: 19px; padding: 0; cursor: var(--cur-hand); position: relative; background: var(--fr-red); border: 2px solid #801818; box-shadow: inset 0 -2px 0 #b02828; }
 .close-x::before, .close-x::after { content: ''; position: absolute; left: 50%; top: 50%; width: 9px; height: 2px; background: #fff; transform: translate(-50%, -50%) rotate(45deg); }
 .close-x::after { transform: translate(-50%, -50%) rotate(-45deg); }
 .sheet-title { margin: 0; flex: 1; text-transform: uppercase; }
@@ -223,7 +225,7 @@ body { -webkit-font-smoothing: none; }
 
 .mon-row { border-bottom: 2px solid #dde8f0; }
 .mon-row.open { background: var(--fr-tint); }
-.mon-head { appearance: none; display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 4px; background: none; border: 0; text-align: left; cursor: pointer; font: inherit; position: relative; }
+.mon-head { appearance: none; display: flex; align-items: center; gap: 8px; width: 100%; padding: 5px 4px; background: none; border: 0; text-align: left; cursor: var(--cur-hand); font: inherit; position: relative; }
 .mon-head img { width: 40px; height: 40px; flex: none; }
 .mon-row.open .mon-head { padding-left: 8px; }
 .mon-row.open .mon-head::before { content: ''; position: absolute; left: 2px; top: 50%; border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 4px solid var(--fr-ink); transform: translateY(-50%); }
@@ -240,7 +242,7 @@ body { -webkit-font-smoothing: none; }
 .row-actions { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
 
 .dex-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; margin: 4px 0; }
-.dex-cell { appearance: none; aspect-ratio: 1; padding: 0; border: 2px solid var(--fr-edge-2); background: var(--fr-tint); cursor: pointer; display: grid; place-items: center; overflow: hidden; }
+.dex-cell { appearance: none; aspect-ratio: 1; padding: 0; border: 2px solid var(--fr-edge-2); background: var(--fr-tint); cursor: var(--cur-hand); display: grid; place-items: center; overflow: hidden; }
 .dex-cell img { width: 40px; height: 40px; display: block; }
 .dex-cell span { color: var(--fr-soft); }
 .dex-cell.seen img { filter: grayscale(1); opacity: .45; }
@@ -281,9 +283,9 @@ body { -webkit-font-smoothing: none; }
 .catch-head p { margin: 0; line-height: 1.6; }
 .catch-face { width: 40px; height: 40px; border: 2px solid var(--fr-edge); background: var(--fr-tint); }
 .catch-balls { display: flex; gap: 4px; }
-.ball-pick { appearance: none; display: flex; align-items: center; gap: 3px; padding: 3px 6px 3px 3px; cursor: pointer; font: 8px/1 var(--px); background: var(--fr-tint); border: 2px solid var(--fr-edge-2); }
+.ball-pick { appearance: none; display: flex; align-items: center; gap: 3px; padding: 3px 6px 3px 3px; cursor: var(--cur-hand); font: 8px/1 var(--px); background: var(--fr-tint); border: 2px solid var(--fr-edge-2); }
 .ball-pick.on { border-color: var(--fr-gold-edge); background: #fff4d0; }
-.ball-pick:disabled { opacity: .4; cursor: default; }
+.ball-pick:disabled { opacity: .4; cursor: var(--cur-arrow); }
 .catch-actions { display: flex; gap: 4px; justify-content: flex-end; }
 .shop-ico { flex: none; }
 .row-actions.row { flex-direction: row; align-items: center; }
@@ -330,7 +332,7 @@ html:has(.float), body:has(.float) { background: transparent; }
 .log-pager { display: flex; align-items: center; justify-content: space-between; gap: 6px; margin-top: 8px; }
 
 /* secondary text: darker grey with a lighter shadow so small numbers stay crisp */
-.hint, .note, .log-time, .inv, .chip-row, .bag-cell span, .box-cell span, .dex-cell span { text-shadow: 1px 1px 0 var(--fr-soft-shadow); }
+.hint, .note, .log-time, .inv, .chip-row, .box-cell span, .dex-cell span { text-shadow: 1px 1px 0 var(--fr-soft-shadow); }
 .stat-rows { margin: 2px 0 6px; }
 .stat-rows p { display: flex; justify-content: space-between; margin: 0; padding: 4px 2px 3px; border-bottom: 1px solid #e2e8f0; }
 .stat-rows span { color: var(--fr-soft); text-shadow: 1px 1px 0 var(--fr-soft-shadow); }
@@ -341,7 +343,7 @@ html:has(.float), body:has(.float) { background: transparent; }
 .intro-layer { position: absolute; z-index: 40; pointer-events: none; image-rendering: pixelated; }
 
 /* a line that waits for a click */
-.hud-dialog.waits { cursor: pointer; }
+.hud-dialog.waits { cursor: var(--cur-hand); }
 /* the tutorial's pointer: a slow gold pulse on the one control to press next */
 .guide-pulse { position: relative; z-index: 6; animation: guidepulse 1.6s ease-in-out infinite; }
 @keyframes guidepulse { 0%, 100% { box-shadow: 0 0 0 2px var(--fr-gold), 0 0 0 4px rgba(248, 208, 96, .25); } 50% { box-shadow: 0 0 0 2px var(--fr-gold), 0 0 0 6px rgba(248, 208, 96, .5); } }
@@ -349,19 +351,19 @@ html:has(.float), body:has(.float) { background: transparent; }
 /* the prologue: a black screen with one FireRed text box (tutorial.ts) */
 .prologue { position: absolute; inset: 0; z-index: 45; background: #000; transition: opacity .9s ease; }
 .prologue.lift { opacity: 0; pointer-events: none; }
-.prologue-box { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(400px, calc(100% - 16px)); min-height: 56px; padding: 10px 14px 14px; cursor: pointer; }
+.prologue-box { position: absolute; left: 50%; bottom: 14px; transform: translateX(-50%); width: min(400px, calc(100% - 16px)); min-height: 56px; padding: 10px 14px 14px; cursor: var(--cur-hand); }
 .prologue-text { margin: 0; line-height: 1.9; }
 .prologue-box .hud-next { right: 10px; bottom: 7px; }
 .prologue-ui.typing .hud-next, .prologue-ui.asks .hud-next { display: none; }
 .prologue-menu { position: absolute; bottom: 82px; right: max(8px, calc(50% - 200px)); display: flex; flex-direction: column; gap: 2px; padding: 6px 8px; }
 .prologue-menu:empty { display: none; }
-.prologue-choice { appearance: none; position: relative; padding: 4px 4px 4px 14px; border: 0; background: none; text-align: left; cursor: pointer; }
+.prologue-choice { appearance: none; position: relative; padding: 4px 4px 4px 14px; border: 0; background: none; text-align: left; cursor: var(--cur-hand); }
 .prologue-choice:hover::before, .prologue-choice:focus-visible::before { content: ''; position: absolute; left: 2px; top: 50%; transform: translateY(-50%); border-top: 4px solid transparent; border-bottom: 4px solid transparent; border-left: 5px solid var(--fr-ink); }
 .prologue-menu.cards { right: auto; left: 50%; transform: translateX(-50%); flex-direction: column; align-items: center; gap: 4px; padding: 0; width: max-content; max-width: calc(100% - 16px); }
 .prologue-cards { display: flex; justify-content: center; gap: 3px; }
 .prologue-list { display: flex; flex-direction: column; gap: 2px; }
 .prologue-regions { display: flex; }
-.prologue-card { appearance: none; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 72px; padding: 6px 6px 7px; white-space: nowrap; cursor: pointer; transition: transform .15s; }
+.prologue-card { appearance: none; display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 72px; padding: 6px 6px 7px; white-space: nowrap; cursor: var(--cur-hand); transition: transform .15s; }
 .prologue-card:hover { transform: translateY(-2px); background: #fff4d0; }
 .prologue-card:active { transform: translateY(1px); }
 .prologue-card img { width: 40px; height: 40px; border: 2px solid var(--fr-edge-2); background: var(--fr-tint); }
@@ -394,9 +396,8 @@ html:has(.float), body:has(.float) { background: transparent; }
 .stepper { align-items: center; margin-top: 2px; }
 .stepper .seg { width: 18px; padding: 5px 0; text-align: center; }
 .stepper .step-v { min-width: 64px; text-align: center; color: #e8eef8; }
-.hud.compact .strip-pop { display: none; }
-.hud.compact.small-window .strip-pop { display: grid; }
-.hud.compact .hud-sheet { left: 4px; right: 4px; top: 4px; bottom: 30px; width: auto; height: auto; }
+.hud.compact .hud-pop { display: none; }
+.hud.compact .hud-sheet { left: 4px; right: 4px; top: 4px; bottom: 30px; width: auto; height: auto; transform: none; }
 /* the small window (Paul, 2026-11-12: the sub-tabs ran off the edge): sub-tabs wrap to a second row */
 .hud.compact .subtabs, .hud.compact .subtabs:has(.seg:nth-child(5)) { flex-wrap: wrap; margin: 0; align-self: stretch; flex: 1; min-width: 0; }
 .hud.compact .subtabs .seg { padding: 4px 3px; flex: 1 0 auto; }
@@ -404,15 +405,16 @@ html:has(.float), body:has(.float) { background: transparent; }
 .hud.compact .sheet-body { padding: 2px 3px 5px; }
 /* grids take as many columns as fit; names get a whole row */
 .hud.compact .box-grid, .hud.compact .dex-grid { grid-template-columns: repeat(auto-fill, minmax(44px, 1fr)); }
-.hud.compact .bag-grid, .hud.compact .decor-grid { grid-template-columns: 1fr; }
+.hud.compact .decor-grid { grid-template-columns: 1fr; }
 .hud.compact .hud-dialog, .hud.compact .hud-catch, .hud.compact .hud-summary { left: 4px; right: 4px; bottom: 30px; top: auto; max-width: none; width: auto; }
+.hud.compact .hud-summary { transform: none; }
 .hud.compact .hud-dialog.task { top: 4px; bottom: auto; right: 4px; width: auto; }
 .hud.compact .hud-portrait-frame { display: none; }
-.hud.compact .hud-cheats { left: 4px; right: 4px; top: 4px; bottom: 4px; width: auto; height: auto; }
+.hud.compact .hud-cheats { left: 4px; right: 4px; top: 4px; bottom: 4px; width: auto; height: auto; max-height: none; transform: none; }
 .prologue-cards { flex-wrap: wrap; }
 
 /* the desktop pet is moved by a small grip at the top (dragging by the island would swallow taps) */
-.float-grip { position: absolute; left: 50%; top: 2px; width: 44px; height: 9px; transform: translateX(-50%); z-index: 20; cursor: grab; border-radius: 2px;
+.float-grip { position: absolute; left: 50%; top: 2px; width: 44px; height: 9px; transform: translateX(-50%); z-index: 20; cursor: var(--cur-grab); border-radius: 2px;
   background: repeating-linear-gradient(90deg, rgba(232,238,248,.85) 0 2px, transparent 2px 4px); opacity: .35; transition: opacity .3s ease; }
 .window:hover .float-grip { opacity: .9; }
 
@@ -443,3 +445,104 @@ html:has(.float), body:has(.float) { background: transparent; }
 .intro-card p { margin: 0 0 5px; line-height: 1.5; color: var(--fr-ink); }
 .intro-face { width: 40px; height: 40px; image-rendering: pixelated; flex: none; }
 .hud.compact .intro-face { width: 24px; height: 24px; }
+
+/* Helpers: one row per task, an arrow to unfold it, locked ones greyed behind a padlock (2026-11-18) */
+.task-row { appearance: none; display: flex; align-items: center; gap: 6px; width: 100%; padding: 6px 4px; margin: 0; background: none; border: 0; border-bottom: 2px solid var(--fr-shadow); font: 8px/1.4 var(--px); color: var(--fr-ink); text-align: left; cursor: var(--cur-hand); }
+.task-row:hover { background: var(--fr-tint); }
+.task-name { flex: none; }
+.task-status { margin-left: auto; text-align: right; }
+.task-arrow { flex: none; width: 0; height: 0; border-left: 4px solid var(--fr-ink); border-top: 3px solid transparent; border-bottom: 3px solid transparent; transition: transform .15s; }
+.task-arrow.open { transform: rotate(90deg); }
+.task-row.locked { cursor: var(--cur-arrow); color: var(--fr-soft); opacity: .7; }
+.task-row.locked:hover { background: none; }
+.task-lock { flex: none; display: grid; place-items: center; width: 9px; }
+.task-body { padding: 6px 4px 8px 14px; border-bottom: 2px solid var(--fr-shadow); }
+.task-body > .hint { display: block; margin: 0 0 6px; line-height: 1.5; }
+
+/* the island arrows at the sides (2026-11-18): a navy tab with a white chevron and the island's name */
+.hud-isle { position: absolute; top: 50%; transform: translateY(-50%); display: flex; align-items: center; gap: 4px; padding: 6px 6px; background: var(--fr-navy); border: 2px solid #0e1628; box-shadow: 0 2px 0 rgba(0,0,0,.35); color: #e8eef8; font: 8px/1 var(--px); cursor: var(--cur-hand); z-index: 3; }
+.hud-isle[hidden] { display: none; }
+.hud-isle.left { left: 6px; }
+.hud-isle.right { right: 6px; }
+.hud-isle span { max-width: 0; overflow: hidden; white-space: nowrap; transition: max-width .2s; }
+.hud-isle:hover span, .hud-isle:focus-visible span { max-width: 120px; }
+.hud-isle:hover { background: var(--fr-navy-2); }
+.hud-isle.locked { opacity: .75; }
+.hud-isle.locked svg:last-child { margin-left: 2px; }
+.hud.arranging .hud-isle { display: none !important; }
+/* white text with a dark drop on the navy tab, so the island's name reads (2026-11-18, Paul) */
+.hud .hud-isle { color: #ffffff; text-shadow: 1px 1px 0 #0e1628; }
+
+/* the top HUD, as compact as the menu strip (2026-11-18, Paul: "way too messy at this size") */
+.focus-bar { display: flex; align-items: stretch; gap: 2px; padding: 2px; background: var(--fr-navy); border: 2px solid #0e1628; box-shadow: 0 2px 0 rgba(0,0,0,.35); }
+.focus-bar .px-btn { padding: 4px 7px; box-shadow: inset 0 -2px 0 #d89838; }
+.len-cycle { padding: 4px 7px; min-width: 52px; }
+.hud-party.tiles { flex-direction: row; align-items: center; gap: 2px; padding: 2px; background: var(--fr-navy); border: 2px solid #0e1628; box-shadow: 0 2px 0 rgba(0,0,0,.35); }
+.hud-party.tiles.many { display: flex; }
+.ptile { position: relative; display: block; width: 22px; height: 22px; background: var(--fr-navy-2); }
+.ptile img { display: block; width: 20px; height: 20px; margin: 1px; image-rendering: pixelated; }
+.ptile > b { position: absolute; right: 1px; bottom: 2px; font: 8px/1 var(--px); color: #ffffff; text-shadow: 1px 0 0 #0e1628, -1px 0 0 #0e1628, 0 1px 0 #0e1628, 0 -1px 0 #0e1628; }
+.ptile > i { position: absolute; left: 0; right: 0; bottom: 0; height: 2px; background: #0e1628; }
+.ptile > i > i { display: block; height: 100%; background: var(--fr-exp); transition: width .8s cubic-bezier(.2,.7,.2,1); }
+.ptile.shiny { box-shadow: inset 0 0 0 1px var(--fr-gold); }
+.hud-party.tiles:hover .ptile { transform: none; }
+.hud.compact .hud-party .ptile:not(:first-child) { display: none; }
+.hud.compact .len-cycle { display: none; }
+/* in a narrower window the party wraps into two rows of three, clear of the focus strip */
+.hud.narrow .hud-party.tiles { flex-wrap: wrap; width: 78px; }
+.hud.compact .hud-party.tiles { width: auto; }
+/* white on navy needs a dark drop, not the HUD's pale one (2026-11-18, Paul) */
+.hud .step-v, .hud .seg { text-shadow: 1px 1px 0 #0e1628 !important; }
+.hud .step-v { color: #ffffff; }
+.hud .seg.on { text-shadow: 1px 1px 0 #f8e8a8 !important; }
+
+/* the catch bar (2026-11-18): one thin row centred along the bottom */
+.hud .hud-catch { left: 50%; right: auto; bottom: 6px; transform: translateX(-50%); max-width: none; width: max-content; padding: 4px 6px 4px 4px; flex-direction: row; align-items: center; gap: 8px; }
+.hud .hud-catch[hidden] { display: none; }
+.catch-who { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.hud .catch-face { width: 20px; height: 20px; border-width: 1px; image-rendering: pixelated; }
+.catch-balls { display: flex; gap: 3px; }
+.catch-balls .ball-pick { padding: 2px 5px 2px 2px; border-width: 1px; }
+.catch-actions { display: flex; gap: 3px; }
+.hud.catching .hud-strip, .hud.catching .hud-pop { display: none; }
+.hud.catching .hud-dialog { bottom: 44px; }
+.hud.compact .hud-catch { left: 4px; right: 4px; transform: none; width: auto; justify-content: space-between; bottom: 4px; }
+.hud.compact.catching .hud-dialog { bottom: 34px; }
+.hud.compact .catch-who > span { display: none; }
+
+/* ---------- HUD layout options (2026-11-18, Paul: "without the black box holding them together") ----------
+   .layout-float: every button its own small tile with a gap, no shared box.
+   .layout-rail: floating tiles, with the menu down the left edge and the party down the right. */
+.hud.layout-float .hud-strip, .hud.layout-rail .hud-strip { background: none; border: 0; box-shadow: none; padding: 0; gap: 3px; }
+.hud.layout-float .strip-tab, .hud.layout-rail .strip-tab { border: 2px solid #0e1628; border-radius: 3px; box-shadow: 0 2px 0 rgba(0,0,0,.35); }
+.hud.layout-float .hud-party.tiles, .hud.layout-rail .hud-party.tiles { background: none; border: 0; box-shadow: none; padding: 0; gap: 3px; }
+.hud.layout-float .ptile, .hud.layout-rail .ptile { border: 2px solid #0e1628; border-radius: 3px; box-shadow: 0 2px 0 rgba(0,0,0,.35); box-sizing: content-box; }
+.hud.layout-float .focus-bar, .hud.layout-rail .focus-bar { background: none; border: 0; box-shadow: none; padding: 0; gap: 3px; }
+.hud.layout-float .focus-bar > *, .hud.layout-rail .focus-bar > * { border: 2px solid #0e1628; border-radius: 3px; box-shadow: 0 2px 0 rgba(0,0,0,.35); }
+.hud.layout-float .len-cycle, .hud.layout-rail .len-cycle { background: var(--fr-navy-2); }
+.hud.layout-rail .hud-strip { flex-direction: column; left: 6px; bottom: 50%; transform: translateY(50%); }
+.hud.layout-rail .hud-party.tiles { flex-direction: column; width: auto; flex-wrap: nowrap; top: 50%; transform: translateY(-50%); }
+.hud.layout-rail .hud-isle.left { left: 40px; }
+.hud.layout-rail .hud-isle.right { right: 40px; }
+.hud.narrow.layout-float .hud-party.tiles { width: 84px; }
+.hud.layout-float .segs.stepper, .hud.layout-rail .segs.stepper { background: none; border: 0; padding: 0; gap: 3px; }
+.hud.layout-float .stepper > *, .hud.layout-rail .stepper > * { border: 2px solid #0e1628; border-radius: 3px; box-shadow: 0 2px 0 rgba(0,0,0,.35); background: var(--fr-navy-2); }
+.hud.layout-float .stepper .step-v, .hud.layout-rail .stepper .step-v { padding: 5px 0; background: var(--fr-navy); }
+.hud.layout-rail .hud-strip { bottom: 6px; transform: none; }
+.hud.layout-rail .hud-party.tiles { top: 6px; transform: none; }
+.hud.layout-rail .hud-isle { top: auto; bottom: 6px; transform: none; }
+.hud.layout-rail .hud-isle.left { left: 40px; }
+.hud.layout-rail .hud-isle.right { right: 40px; }
+.hud.layout-rail .hud-sheet { width: min(300px, calc(100% - 80px)); }
+.hud.narrow .hud-catch { left: 50%; bottom: 6px; }
+
+/* Pop out / Close the small window: its own tile in the bottom-right corner (Paul, 2026-11-18).
+   Boxed, it matches one cell of the strip in its navy box; floating, one bordered tile. */
+.hud-pop { position: absolute; right: 6px; bottom: 6px; appearance: none; width: 31px; height: 31px; padding: 0; display: grid; place-items: center; cursor: var(--cur-hand);
+  background: var(--fr-navy-2); border: 2px solid #0e1628; box-shadow: inset 0 0 0 2px var(--fr-navy), 0 2px 0 rgba(0,0,0,.35); z-index: 2; }
+.hud-pop:hover { background: var(--fr-navy-3); }
+.hud-pop:active { transform: translateY(1px); }
+.hud.layout-float .hud-pop, .hud.layout-rail .hud-pop { width: 23px; height: 23px; border-radius: 3px; box-shadow: 0 2px 0 rgba(0,0,0,.35); }
+/* in the small window it is the way back, the same size as the strip there */
+.hud.compact.small-window .hud-pop { display: grid; right: 4px; bottom: 4px; width: 27px; height: 27px; box-shadow: inset 0 0 0 1px var(--fr-navy), 0 2px 0 rgba(0,0,0,.35); }
+.hud.compact.small-window.layout-float .hud-pop, .hud.compact.small-window.layout-rail .hud-pop { width: 21px; height: 21px; box-shadow: 0 2px 0 rgba(0,0,0,.35); }

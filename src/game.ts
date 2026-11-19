@@ -100,11 +100,17 @@ export const ISLANDS: {
   unlock?: { from: IslandId; share: number; hours: number; landmark?: string }
   wildLevel?: number // passers-by here are this many levels higher (L2: levels rise island to island)
 }[] = [
-  { id: 'home', name: 'Home Island', guardian: { dex: 143, level: 36, where: 'asleep at the bottom of Pier Hollow' }, dungeon: 'pier-hollow', explore: { id: 'blossom-meadow', name: 'Blossom Meadow', hours: 2 } },
-  { id: 'frost', name: 'Frost Isle', guardian: { dex: 131, level: 58, where: 'resting at the bottom of Glacier Grotto' }, dungeon: 'glacier-grotto', explore: { id: 'snowdrift-woods', name: 'Snowdrift Woods', hours: 0 }, unlock: { from: 'home', share: 0.7, hours: 20 }, wildLevel: 6 },
+  { id: 'home', name: 'Home Island', guardian: { dex: 143, level: 26, where: 'asleep at the bottom of Pier Hollow' }, dungeon: 'pier-hollow', explore: { id: 'blossom-meadow', name: 'Blossom Meadow', hours: 2 } },
+  { id: 'frost', name: 'Frost Isle', guardian: { dex: 131, level: 58, where: 'resting at the bottom of Glacier Grotto' }, dungeon: 'glacier-grotto', explore: { id: 'snowdrift-woods', name: 'Snowdrift Woods', hours: 0 }, unlock: { from: 'home', share: 0, hours: 0 }, wildLevel: 6 },
   // the third island (L2, 2026-11-12): reached from the restored old pier, after Lapras
   { id: 'ember', name: 'Ember Cove', guardian: { dex: 59, level: 75, where: 'at the mouth of the crater' }, dungeon: 'ember-crater', explore: { id: 'palm-shore', name: 'Palm Shore', hours: 0 }, unlock: { from: 'frost', share: 0.6, hours: 50, landmark: 'pier' }, wildLevel: 12 },
 ]
+/**
+ * Frost Isle opens when Snorlax is beaten (2026-11-18, Paul: the game should lead you into the
+ * first dungeon once you have caught enough and focused enough, so a growing Box gets a new
+ * island). Wooper suggests Pier Hollow at this point; Snorlax is Lv26 so it can be done then.
+ */
+export const DUNGEON_NUDGE = { caught: 12, hours: 5 }
 /** The island grows with your total focused hours. */
 export const GROWTH: { hours: number; text: string }[] = [
   { hours: 3, text: 'Two more decoration spots' },
@@ -142,8 +148,19 @@ export const JOBS: { id: JobId; name: string; types: string[]; every: number; fl
   // Ember Cove's own job (L2): it reforges your most plentiful stone into the one you choose
   { id: 'forge', name: 'Ember forge', types: ['fire'], every: 150, floor: 90, needsIsland: 'ember', does: 'Turns a stone into the one you choose' },
 ]
+/**
+ * Helper tasks open one at a time with focused hours (2026-11-18, Paul: the Helpers list had too
+ * many choices at the start). Each opens at this many focused hours; the campfire also needs the
+ * Campfire decoration, the generator the rebuilt lighthouse, and the forge Ember Cove.
+ */
+export const TASK_HOURS: Record<string, number> = { bush: 0, trips: 1, daycare: 2, dig: 3, lookout: 4, campfire: 5, garden: 6, fortune: 8, generator: 0, forge: 0 }
 export const jobEvery = (job: (typeof JOBS)[number], level: number) => Math.max(job.floor, Math.round(job.every - level / 2))
 export const EGG_MAX = 3
+/** The nine regions, by the national Pokédex number where each begins. */
+export const REGIONS: [string, number][] = [['Kanto', 1], ['Johto', 152], ['Hoenn', 252], ['Sinnoh', 387], ['Unova', 494], ['Kalos', 650], ['Alola', 722], ['Galar', 810], ['Paldea', 906]]
+export const regionOf = (dex: number) => [...REGIONS].reverse().find(([, from]) => dex >= from)![0]
+/** Species from your starter's region come this many times as often, on every island (2026-11-18, Paul). */
+export const REGION_LEAN = 2
 /** The sea (2026-11-18, Paul: water Pokémon visiting as bubbles, and items floating to collect). */
 export const SEA_MAX = 2 // bubbles waiting at once
 export const FLOATS_MAX = 3
@@ -255,7 +272,7 @@ export interface Save {
   mons: Mon[]
   session: Session | null
   days: Record<string, number> // local date → focused minutes
-  settings: { length: number | null; detector: boolean; sound?: boolean; music?: boolean; volume?: number; custom?: number; alarm?: boolean; notifyAsked?: boolean }
+  settings: { length: number | null; detector: boolean; sound?: boolean; music?: boolean; volume?: number; custom?: number; alarm?: boolean; notifyAsked?: boolean; layout?: 'float' | 'rail' | 'boxed' }
   seen: number[] // species that have visited or that you have raised
   caught: number[] // species you have owned
   shells: number
@@ -295,6 +312,8 @@ export interface Save {
   restored?: string[] // landmarks restored (RESTORE, docs/CONTENT_PLAN.md L1)
   dexPaid?: string[] // Pokédex milestones already paid, as `${island}:${percent}` (L5)
   extraSlots?: number // decoration spots from Pokédex milestones (decor.ts SLOTS milestone)
+  /** A Pokémon back from its trip, waiting on the island with its finds until you tap it (2026-11-18). */
+  homecoming?: { id: string; haul: Haul } | null
   /** Water Pokémon waiting under bubbles in the island's water (2026-11-18); tap to bring one ashore. */
   sea?: Wild[]
   /** Things floating near the island, from finished sessions; tap to pick one up. */
@@ -309,13 +328,10 @@ export interface Save {
   togetherWeek?: { week: number; min: number } // minutes with friends this week; 600 lights the festival
   guestbook?: { name: string; t: number }[] // friends who signed your signpost (L12)
   togetherMin?: number // focused minutes with a friend; they count twice toward restoration
-  lanterns: number // Lantern charges: one per finished session of 30+ minutes, up to LANTERN_MAX; a charged dungeon run opens chests
   deepTries: Record<string, number> // failed throws at each dungeon's special Pokémon (each makes the next likelier)
 }
 
-/** Dungeon loot needs a Lantern charge (Paul, 2026-11-11): focus stays the only real currency. */
-export const LANTERN_MAX = 2
-/** The special Pokémon deep in each dungeon, caught after a charged clear. */
+/** The special Pokémon deep in each dungeon, met after a clear. */
 export const DEEP: Record<string, number[]> = { 'pier-hollow': [246, 304], 'glacier-grotto': [147], 'ember-crater': [443] }
 
 /** Island upgrades: the long-term place for Star Pieces to go (review 2026-11-11). */
@@ -481,7 +497,6 @@ export function emptySave(): Save {
     tutorial: 'prologue',
     parties: {},
     upgrades: [],
-    lanterns: 0,
     deepTries: {},
   }
 }
@@ -753,8 +768,13 @@ export class Game {
     if (e) out.push(e)
     return out
   }
+  /** Has this helper task opened yet (TASK_HOURS)? */
+  taskOpen(id: string) {
+    return this.totalHours() >= (TASK_HOURS[id] ?? 0)
+  }
   canDoJob(m: Mon, job: JobId) {
     const j = JOBS.find((x) => x.id === job)!
+    if (!this.taskOpen(job)) return false
     if (j.needsDecor && !Object.values(this.save.decor.slots).includes(j.needsDecor)) return false
     if (j.needsLandmark && !this.restored(j.needsLandmark)) return false
     if (j.needsIsland && j.needsIsland !== this.save.island) return false
@@ -772,7 +792,7 @@ export class Game {
     if (from === 'party' && this.isPartner(id)) return false // your partner stays with you
     // check the destination has room
     if (role === 'party' && s.party.length >= PARTY_MAX) return false
-    if (role === 'daycare' && !s.daycare.ids.includes(null)) return false
+    if (role === 'daycare' && (!s.daycare.ids.includes(null) || !this.taskOpen('daycare'))) return false
     if (role === 'expedition' && s.expedition) return false
     if (role.startsWith('job:')) {
       const job = role.slice(4) as JobId
@@ -809,6 +829,8 @@ export class Game {
     if (!m || this.save.session || this.save.expedition) return false
     const d = dest ? DESTINATIONS.find((x) => x.id === dest) : undefined
     if (dest && (!d || m.level < d.level)) return false
+    if (this.save.homecoming) return false // collect the last trip first
+    if (!this.taskOpen('trips')) return false
     if (!this.assign(id, 'box')) return false
     this.save.expedition = { id, long: long || !!d, need: d ? d.minutes : long ? 90 : 30, progress: 0, dest: d?.id }
     this.persist()
@@ -1034,8 +1056,6 @@ export class Game {
       // Open sessions already ripen a berry every 30 minutes, so they get none at the end
       berries = !s.length ? 0 : s.length >= LONG_SESSION ? 2 : 1
       this.save.berries = Math.min(BERRIES_MAX, this.save.berries + berries)
-      // a finished session of 30 minutes or more lights a Lantern charge for the dungeons
-      if (s.credited >= SHORT_SESSION) this.save.lanterns = Math.min(LANTERN_MAX, (this.save.lanterns ?? 0) + 1)
       this.seaRoll(s.credited >= LONG_SESSION)
       this.save.breakUntil = this.now() + BREAK_SECONDS * 1000
     }
@@ -1118,6 +1138,7 @@ export class Game {
     if (sp.needs) notes.push(`Needs ${HABITATS.find((h) => h.id === sp.needs)!.name.toLowerCase()}.`)
     if (sp.time === 'night') notes.push('Night only.')
     if (sp.time === 'morning') notes.push('Likes mornings.')
+    if (sp.line && this.homeRegion && regionOf(sp.line) === this.homeRegion) notes.push(`From ${this.homeRegion}, like your starter. It comes more often.`)
     if (sp.rarity === 'rare' || sp.rarity === 'starter') notes.push('Comes in hour-long sessions, or rarely in shorter ones on a 3-day streak.')
     const food = FOODS.filter((f) => f.types.some((t) => sp.types?.includes(t))).map((f) => f.name)
     if (food.length) notes.push(`Likes ${food.join(' or ')}.`)
@@ -1206,8 +1227,8 @@ export class Game {
     out.push({ text: `Beat ${this.name(g.dex)}`, done: this.save.guardians.includes(u.from) })
     const dex = this.dexOf(u.from)
     const need = Math.ceil(dex.all.length * u.share)
-    out.push({ text: `Catch ${need} of ${dex.all.length} (${dex.caught})`, done: dex.caught >= need })
-    out.push({ text: `Focus ${u.hours} hours (${Math.floor(this.totalHours())})`, done: this.totalHours() >= u.hours })
+    if (u.share > 0) out.push({ text: `Catch ${need} of ${dex.all.length} (${dex.caught})`, done: dex.caught >= need })
+    if (u.hours > 0) out.push({ text: `Focus ${u.hours} hours (${Math.floor(this.totalHours())})`, done: this.totalHours() >= u.hours })
     return out
   }
   canSail(to: IslandId) {
@@ -1494,7 +1515,22 @@ export class Game {
     }
     if (ex.dest === 'shelf') haul.items.push({ kind: 'great-ball', n: 2 }, { kind: rand() < 0.3 ? 'ultra-ball' : 'great-ball', n: 1 }, { kind: 'food', id: 'aspear-berry', n: 2 })
     haul.dest = ex.dest
-    // apply
+    const far = DESTINATIONS.find((d) => d.id === ex.dest)
+    if (far?.egg && this.species(far.egg) && rand() < 0.15) haul.egg = this.addEgg(far.egg, 'expedition') ?? undefined
+    else if (ex.long && rand() < 0.25 + m.level / 200) haul.egg = this.addEgg(this.randomEggDex(true), 'expedition') ?? undefined
+    // it waits on the island with its finds until you tap it (2026-11-18, Paul: a bubble to collect)
+    this.save.homecoming = { id: m.id, haul }
+    this.persist()
+    this.emit({ type: 'expeditionBack', mon: m, haul })
+    this.emit({ type: 'rolesChanged' })
+  }
+  /** Tap the returned traveller: its finds go into your bag. */
+  collectTrip() {
+    const h = this.save.homecoming
+    if (!h) return null
+    const m = this.mon(h.id)
+    const haul = h.haul
+    this.save.homecoming = null
     this.save.shells += haul.shells
     for (const it of haul.items) {
       if (it.kind === 'berry') this.save.berries = Math.min(BERRIES_MAX, this.save.berries + it.n)
@@ -1503,12 +1539,8 @@ export class Game {
       else if (it.kind === 'food') this.save.foods[it.id!] = (this.save.foods[it.id!] ?? 0) + it.n
       else this.save.balls[it.kind] += it.n
     }
-    const far = DESTINATIONS.find((d) => d.id === ex.dest)
-    if (far?.egg && this.species(far.egg) && rand() < 0.15) haul.egg = this.addEgg(far.egg, 'expedition') ?? undefined
-    else if (ex.long && rand() < 0.25 + m.level / 200) haul.egg = this.addEgg(this.randomEggDex(true), 'expedition') ?? undefined
     this.persist()
-    this.emit({ type: 'expeditionBack', mon: m, haul })
-    this.emit({ type: 'rolesChanged' })
+    return m ? { mon: m, haul } : null
   }
 
   // ---------- moments during focus ----------
@@ -1655,13 +1687,7 @@ export class Game {
   }
 
   // ---------- dungeons ----------
-  /** Spend a Lantern charge on a run (true if there was one). */
-  useLantern() {
-    if ((this.save.lanterns ?? 0) <= 0) return false
-    this.save.lanterns--
-    this.persist()
-    return true
-  }
+
   /**
    * Odds of catching a dungeon's special Pokémon with this ball (it rises 8% for each miss there).
    * There is no ring to aim at, so the throw counts as a good one (review 2: an Ultra Ball is 65%).
@@ -1671,7 +1697,7 @@ export class Game {
     const mult = BALLS.find((b) => b.id === ball)?.mult ?? 1
     return Math.min(0.97, (CATCH_BASE.deep + tries * 0.08) * mult * (0.7 + 0.6 * quality))
   }
-  /** One throw at the special Pokémon after a charged clear. */
+  /** One throw at the special Pokémon after a clear. */
   throwDeep(dungeon: string, dex: number, ball: Ball, quality = 1, rand = Math.random) {
     if (this.save.balls[ball] <= 0) return null
     this.save.balls[ball]--
@@ -1938,10 +1964,17 @@ export class Game {
       .slice(0, n)
       .map((e) => e.dex)
   }
+  /** Your starter's region (the partner's line, else the first Pokémon you had). */
+  get homeRegion() {
+    const first = (this.save.partner && this.mon(this.save.partner)) || this.save.mons[0]
+    const line = first ? this.species(first.dex)?.line ?? first.dex : 0
+    return line ? regionOf(line) : null
+  }
   /** Every first stage that could come by now, with its weight. */
   private visitorTable(rareMult: number, lure: Lure) {
     const caughtLines = new Set(this.save.caught.map((d) => this.species(d)?.line))
     const starterLine = this.save.mons[0] ? this.species(this.save.mons[0].dex)?.line : undefined
+    const home = this.homeRegion
     const boost = rareMult * (1 + (this.streak() >= 3 ? 0.6 : 0) + (this.todayMinutes() >= 120 ? 0.4 : 0))
     const night = isNightHour(lure.hour)
     const morning = lure.hour >= 5 && lure.hour < 10
@@ -1980,6 +2013,8 @@ export class Game {
       if (s.types?.includes(tide.type)) w *= 2
       if (dex === tide.rare) w *= 2
       if (dex === 187 && seasonOf(this.now()) === 'spring') w *= 2 // Hoppip drifts in on spring winds
+      // your starter's region leans in: its Pokémon come twice as often, wherever you are
+      if (home && regionOf(dex) === home) w *= REGION_LEAN
       table.push({ dex, w, rarity: s.rarity })
     }
     // a meteor shower: Clefairy comes down at night

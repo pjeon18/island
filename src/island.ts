@@ -130,7 +130,7 @@ let currentSeason = 'summer'
  * Home Island's lighthouse stands on its own small rock in the south-east sea (Paul, 2026-11-18:
  * the ruins crowded the lawn). Pokémon can't walk there; it is painted, not part of the top.
  */
-export const ISLET = { x: 219, y: 163, rx: 14, ry: 5 }
+export const ISLET = { x: 210, y: 158, rx: 14, ry: 5 }
 /** Small rocks in the shallows, in window pixels (bottom centre), clear of the land and the pier. */
 export const SEA_ROCKS: Record<string, [number, number][]> = {
   home: [[14, 142], [26, 150], [228, 58]],

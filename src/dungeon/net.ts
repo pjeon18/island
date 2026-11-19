@@ -26,7 +26,7 @@ export interface Hello {
   name: string
   team: TeamMon[]
   v: string // the build: different builds would quietly generate different floors
-  charged: boolean // the guest lit a Lantern charge, so chests open for them too
+  charged: boolean // always true since Lantern charges were removed (2026-11-18); kept for older builds
 }
 /** host -> guest: the run, and which actors are yours */
 export interface Start {

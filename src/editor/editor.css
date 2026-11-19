@@ -23,7 +23,7 @@ html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
 .bar .brand { font: 10px/1 'Island Digits', 'Press Start 2P', monospace; color: var(--gold); margin-right: 6px; white-space: nowrap; }
 .bar .sep { width: 1px; height: 24px; background: var(--line); margin: 0 2px; }
 button, select, input { font: inherit; color: var(--text); }
-.b { appearance: none; height: 30px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); cursor: pointer; white-space: nowrap; }
+.b { appearance: none; height: 30px; padding: 0 10px; border-radius: 6px; border: 1px solid var(--line); background: var(--panel-2); cursor: var(--cur-hand); white-space: nowrap; }
 .b:hover { border-color: #4a5160; }
 .b.on { background: var(--blue); border-color: var(--blue); color: #08121f; }
 .b.gold { background: var(--gold); border-color: var(--gold); color: var(--gold-ink); font-weight: 600; }
@@ -37,9 +37,9 @@ label.inl { display: inline-flex; align-items: center; gap: 6px; color: var(--so
 .side h3 { margin: 14px 0 6px; font: 9px/1 'Island Digits', 'Press Start 2P', monospace; color: var(--soft); letter-spacing: .04em; }
 .side h3:first-child { margin-top: 2px; }
 .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
-.chip { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 7px 4px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); cursor: grab; user-select: none; text-align: center; font-size: 12px; }
+.chip { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 7px 4px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel-2); cursor: var(--cur-grab); user-select: none; text-align: center; font-size: 12px; }
 .chip:hover { border-color: #4a5160; }
-.chip:active { cursor: grabbing; }
+.chip:active { cursor: var(--cur-grabbing); }
 .chip canvas, .chip img { image-rendering: pixelated; }
 .chip .sw { width: 40px; height: 22px; border-radius: 3px; }
 .tools { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }

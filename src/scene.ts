@@ -169,7 +169,7 @@ export class Scene {
       for (let x = 2; x < W - 6; x++) {
         let near = false
         for (let k = -6; k <= 6 && !near; k += 3) for (let j = -6; j <= 9 && !near; j += 3) near = !!fp[(Math.min(H - 1, Math.max(0, y + k))) * W + Math.min(W - 1, Math.max(0, x + j))]
-        if (!near) this.seaPts.push({ x, y })
+        if (!near && this.clearWater(x, y)) this.seaPts.push({ x, y })
       }
     for (let i = 0; i < 22; i++) this.spawnGlint(true)
   }
@@ -200,6 +200,28 @@ export class Scene {
     }
   }
 
+  /**
+   * Is the water open here for a moving line: its whole drift and length, and a row either side, are
+   * plain water in the painted base? Rocks, the lighthouse's rock, the rowboat and foam are not
+   * water tones, so no line is drawn over them (Paul, 2026-11-18).
+   */
+  private waterMask: Uint8Array | null = null
+  private clearWater(x: number, y: number) {
+    if (!this.waterMask) {
+      const d = this.island.base.getContext('2d')!.getImageData(0, 0, W, H).data
+      const tones = new Set([PAL.abyss, PAL.dusk, PAL.deep, PAL.sea, PAL.seaRipple, PAL.shallow, PAL.shallow2].map((c) => (c[0] << 16) | (c[1] << 8) | c[2]))
+      this.waterMask = new Uint8Array(W * H)
+      for (let i = 0; i < W * H; i++) this.waterMask[i] = tones.has((d[i * 4] << 16) | (d[i * 4 + 1] << 8) | d[i * 4 + 2]) ? 1 : 0
+    }
+    // a line drifts right by up to 8 px while it shows (1.2 px a second, at most 6.5 s) and is up to 4 long
+    for (let j = -1; j <= 1; j++)
+      for (let k = -1; k <= 13; k++) {
+        const X = x + k
+        const Y = y + j
+        if (X < 0 || Y < 0 || X >= W || Y >= H || !this.waterMask[Y * W + X]) return false
+      }
+    return true
+  }
   private spawnGlint(randomAge = false) {
     const p = this.seaPts[Math.floor(this.rand() * this.seaPts.length)]
     const life = 3.5 + this.rand() * 3
@@ -350,6 +372,11 @@ export class Scene {
     }
     g.globalAlpha = 1
   }
+
+  /** Which bubble, if any, a creature shows (set by main.ts); wild Pokémon get "!" at a break by default. */
+  statusOf?: (c: Creature) => BubbleKind | null
+  /** Bubbles over fixed things, such as a landmark ready to rebuild: the bubble's bottom-centre point. */
+  markers: { x: number; y: number; kind: BubbleKind }[] = []
 
   /** Arrange mode: the island without Pokémon, with a marker drawn by arrange.ts. */
   arranging = false
@@ -736,23 +763,17 @@ export class Scene {
       g.fillRect(Math.round(f.x) + 1, Math.round(f.y) - 8, 1, 3)
       g.globalAlpha = 1
     }
-    // a small "!" over each Pokémon waiting to be caught
-    if (this.markWild)
-      for (const c of this.creatures) {
-        if (!c.wildId || c.hidden || c.state === 'leave' || c.state === 'gone') continue
-        const bob = Math.round(Math.sin(this.time * 2.2 + c.x) * 0.8)
-        const x = Math.round(c.x) - 3
-        const y = Math.round(c.y - Math.min(c.sp.anims.Idle.ay, 28)) - 7 + bob
-        g.fillStyle = '#2c4c70'
-        g.fillRect(x, y, 7, 8)
-        g.fillStyle = '#f8f8f8'
-        g.fillRect(x + 1, y + 1, 5, 6)
-        g.fillStyle = '#2c4c70'
-        g.fillRect(x + 3, y + 8, 1, 1)
-        g.fillStyle = '#e03838'
-        g.fillRect(x + 3, y + 2, 1, 3)
-        g.fillRect(x + 3, y + 6, 1, 1)
-      }
+    // status bubbles over anything waiting on you (2026-11-18): a red "!" over a Pokémon to catch,
+    // a green check over one back from a trip with finds to collect, a gold arrow over a landmark
+    // ready to rebuild
+    for (const c of this.creatures) {
+      if (c.hidden || c.state === 'leave' || c.state === 'gone') continue
+      const kind = this.statusOf?.(c) ?? (this.markWild && c.wildId ? 'catch' : null)
+      if (!kind) continue
+      const bob = Math.round(Math.sin(this.time * 2.2 + c.x) * 0.8)
+      drawBubble(g, Math.round(c.x) - 3, Math.round(c.y - Math.min(c.sp.anims.Idle.ay, 28)) - 7 + bob, kind)
+    }
+    for (const m of this.markers) drawBubble(g, m.x - 3, m.y - 8 + Math.round(Math.sin(this.time * 2.2 + m.x) * 0.8), m.kind)
     this.overlay?.(g)
     // the opening clouds cover everything, dimmed by the hour's light
   }
@@ -972,5 +993,36 @@ export class Scene {
         g.restore()
       } else g.drawImage(img, 0, i, img.width, 1, x0 + off, y0 + tf.cut + i, img.width, 1)
     }
+  }
+}
+
+export type BubbleKind = 'catch' | 'collect' | 'build' | 'quest'
+/** A 7x8 speech bubble with a tail, in the HUD's navy and white, holding a small glyph. */
+function drawBubble(g: CanvasRenderingContext2D, x: number, y: number, kind: BubbleKind) {
+  const px = (dx: number, dy: number, w: number, h: number, c: string) => {
+    g.fillStyle = c
+    g.fillRect(x + dx, y + dy, w, h)
+  }
+  px(0, 0, 7, 8, '#2c4c70')
+  px(1, 1, 5, 6, '#f8f8f8')
+  px(3, 8, 1, 1, '#2c4c70')
+  if (kind === 'catch' || kind === 'quest') {
+    // a "!": red for a Pokémon to catch, gold for somewhere to go
+    const c = kind === 'catch' ? '#e03838' : '#d89818'
+    px(3, 2, 1, 3, c)
+    px(3, 6, 1, 1, c)
+  } else if (kind === 'collect') {
+    // a green check
+    px(1, 4, 1, 1, '#28a048')
+    px(2, 5, 1, 1, '#28a048')
+    px(3, 4, 1, 1, '#28a048')
+    px(4, 3, 1, 1, '#28a048')
+    px(5, 2, 1, 1, '#28a048')
+  } else {
+    // a gold arrow pointing up
+    px(3, 2, 1, 5, '#d89818')
+    px(2, 3, 3, 1, '#d89818')
+    px(1, 4, 1, 1, '#d89818')
+    px(5, 4, 1, 1, '#d89818')
   }
 }

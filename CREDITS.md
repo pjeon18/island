@@ -122,6 +122,16 @@ This is a free, non-commercial fan project with no affiliation.
 - **Mudkip** (#258): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/)
 - **Marshtomp** (#259): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), C_Pariah (<@322382592202637322>)
 - **Swampert** (#260): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin)
+- **Zigzagoon** (#263): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Caitemis (https://caitemis-art.tumblr.com/), Emmuffin (https://twitter.com/Ernmuffin); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), DasK (http://reddit.com/u/thedask), G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Linoone** (#264): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/)
+- **Lotad** (#270): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), smartini (https://github.com/CSCMe), Morei (https://bsky.app/profile/murpia57.bsky.social)
+- **Lombre** (#271): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), baronessfaron, Gust (https://twitter.com/Estelaris__)
+- **Ludicolo** (#272): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/)
+- **Taillow** (#276): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Top_Kec (@topkec.bsky.social)
+- **Swellow** (#277): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Caitemis (https://caitemis-art.tumblr.com/)
+- **Ralts** (#280): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, NeroIntruder (https://twitter.com/NeroIntruder); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, baronessfaron
+- **Kirlia** (#281): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), JFain; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, PhillipsYoung (https://twitter.com/PhilliYoung196)
+- **Gardevoir** (#282): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Ichor, Emmuffin (https://twitter.com/Ernmuffin)
 - **Azurill** (#298): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Fable (https://twitter.com/fabledpainter)
 - **Aron** (#304): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), Emboarger; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), , Morei (https://bsky.app/profile/murpia57.bsky.social)
 - **Lairon** (#305): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), baronessfaron, Magu (@magu_boi)
@@ -154,12 +164,176 @@ This is a free, non-commercial fan project with no affiliation.
 - **Gible** (#443): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
 - **Gabite** (#444): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), dmDash
 - **Garchomp** (#445): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Top_Kec (@topkec.bsky.social), G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Hippopotas** (#449): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Emmuffin (https://twitter.com/Ernmuffin)
+- **Hippowdon** (#450): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), baronessfaron
 - **Snover** (#459): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), Jarleypeño (https://www.deviantart.com/applecone413)
 - **Abomasnow** (#460): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), SingingMudkip
 - **Weavile** (#461): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, PhillipsYoung (https://twitter.com/PhilliYoung196), ShyStarryRain
 - **Leafeon** (#470): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), baronessfaron; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), baronessfaron
 - **Glaceon** (#471): sprite by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, baronessfaron; portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, PhillipsYoung (https://twitter.com/PhilliYoung196)
+- **Gallade** (#475): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, baronessfaron
 - **Froslass** (#478): sprite by CHUNSOFT (https://www.spike-chunsoft.com/); portrait by CHUNSOFT (https://www.spike-chunsoft.com/), JFain, baronessfaron
+- **Snivy** (#495): sprite by NeroIntruder (https://twitter.com/NeroIntruder), G〜 (https://bsky.app/profile/justtr4sh.pmd.social); portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Servine** (#496): sprite by NeroIntruder (https://twitter.com/NeroIntruder); portrait by NeroIntruder (https://twitter.com/NeroIntruder), Blanca, ShyStarryRain, Deeshura (https://bsky.app/profile/deeshura.bsky.social)
+- **Serperior** (#497): sprite by NeroIntruder (https://twitter.com/NeroIntruder); portrait by NeroIntruder (https://twitter.com/NeroIntruder), Emboarger, Emmuffin (https://twitter.com/Ernmuffin)
+- **Tepig** (#498): sprite by NeroIntruder (https://twitter.com/NeroIntruder), Emboarger, NikolaP (nikolasnonsense@gmail.com), 3P1C; portrait by mucrush (https://www.deviantart.com/mucrush), Noivern (https://twitter.com/notarealnoivern), Emmuffin (https://twitter.com/Ernmuffin)
+- **Pignite** (#499): sprite by NeroIntruder (https://twitter.com/NeroIntruder), Emboarger; portrait by mucrush (https://www.deviantart.com/mucrush), Gust (https://twitter.com/Estelaris__), baronessfaron
+- **Emboar** (#500): sprite by NeroIntruder (https://twitter.com/NeroIntruder), Emboarger; portrait by mucrush (https://www.deviantart.com/mucrush), Emboarger, G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Oshawott** (#501): sprite by Emmuffin (https://twitter.com/Ernmuffin), ◥θ┴θ◤ (DC:<@215638650434617345>); portrait by mucrush (https://www.deviantart.com/mucrush), Emmuffin (https://twitter.com/Ernmuffin)
+- **Dewott** (#502): sprite by JFain; portrait by mucrush (https://www.deviantart.com/mucrush), baronessfaron, JFain
+- **Samurott** (#503): sprite by Top_Kec (@topkec.bsky.social); portrait by mucrush (https://www.deviantart.com/mucrush), Emmuffin (https://twitter.com/Ernmuffin)
+- **Lillipup** (#506): sprite by baronessfaron; portrait by mucrush (https://www.deviantart.com/mucrush), baronessfaron, bwappi (https://bsky.app/profile/bwappi.bsky.social)
+- **Herdier** (#507): sprite by LightBlueBlaze (LightBlueBlaze@gmail.com); portrait by mucrush (https://www.deviantart.com/mucrush), baronessfaron, Caitemis (https://caitemis-art.tumblr.com/)
+- **Stoutland** (#508): sprite by Wyvernagon (https://twitter.com/Z_Serpentriss), JFain; portrait by Top_Kec (@topkec.bsky.social), Emmuffin (https://twitter.com/Ernmuffin)
+- **Roggenrola** (#524): sprite by powercristal (https://www.deviantart.com/powercristal); portrait by mucrush (https://www.deviantart.com/mucrush), Gust (https://twitter.com/Estelaris__)
+- **Boldore** (#525): sprite by Soulja (https://twitter.com/OlSoulja); portrait by mucrush (https://www.deviantart.com/mucrush), Emmuffin (https://twitter.com/Ernmuffin)
+- **Gigalith** (#526): sprite by Soulja (https://twitter.com/OlSoulja); portrait by mucrush (https://www.deviantart.com/mucrush), G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Tympole** (#535): sprite by JFain; portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social), JustAGunk (<@1377429093997477928>)
+- **Palpitoad** (#536): sprite by JFain; portrait by mucrush (https://www.deviantart.com/mucrush), G〜 (https://bsky.app/profile/justtr4sh.pmd.social), JustAGunk (<@1377429093997477928>)
+- **Seismitoad** (#537): sprite by Soulja (https://twitter.com/OlSoulja); portrait by mucrush (https://www.deviantart.com/mucrush), G〜 (https://bsky.app/profile/justtr4sh.pmd.social), JustAGunk (<@1377429093997477928>)
+- **Sewaddle** (#540): sprite by Emboarger; portrait by mucrush (https://www.deviantart.com/mucrush), Emmuffin (https://twitter.com/Ernmuffin)
+- **Swadloon** (#541): sprite by baronessfaron; portrait by mucrush (https://www.deviantart.com/mucrush), Emmuffin (https://twitter.com/Ernmuffin)
+- **Leavanny** (#542): sprite by baronessfaron, G〜 (https://bsky.app/profile/justtr4sh.pmd.social); portrait by mucrush (https://www.deviantart.com/mucrush), baronessfaron
+- **Cottonee** (#546): sprite by Emmuffin (https://twitter.com/Ernmuffin); portrait by mucrush (https://www.deviantart.com/mucrush), Emmuffin (https://twitter.com/Ernmuffin)
+- **Whimsicott** (#547): sprite by JFain; portrait by mucrush (https://www.deviantart.com/mucrush), baronessfaron
+- **Sandile** (#551): sprite by Noivern (https://twitter.com/notarealnoivern), baronessfaron; portrait by mucrush (https://www.deviantart.com/mucrush), Noivern (https://twitter.com/notarealnoivern)
+- **Krokorok** (#552): sprite by Soulja (https://twitter.com/OlSoulja); portrait by mucrush (https://www.deviantart.com/mucrush), Emmuffin (https://twitter.com/Ernmuffin)
+- **Krookodile** (#553): sprite by Soulja (https://twitter.com/OlSoulja); portrait by mucrush (https://www.deviantart.com/mucrush), baronessfaron
+- **Darumaka** (#554): sprite by Pink_no_tori (https://twitter.com/pink_avian_poke), baronessfaron; portrait by mucrush (https://www.deviantart.com/mucrush), Emmuffin (https://twitter.com/Ernmuffin)
+- **Darmanitan** (#555): sprite by Soulja (https://twitter.com/OlSoulja), Michael12 (https://www.deviantart.com/michael12dz); portrait by mucrush (https://www.deviantart.com/mucrush), G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Ducklett** (#580): sprite by baronessfaron; portrait by mucrush (https://www.deviantart.com/mucrush), Noo (https://artfight.net/~NooNoo_Skidoo), Emboarger
+- **Swanna** (#581): sprite by Katach314 (katamari.roller.314@gmail.com); portrait by mucrush (https://www.deviantart.com/mucrush), Noo (https://artfight.net/~NooNoo_Skidoo), G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Vanillite** (#582): sprite by JFain, baronessfaron; portrait by mucrush (https://www.deviantart.com/mucrush), JFain, NOLASMOR
+- **Vanillish** (#583): sprite by JFain; portrait by mucrush (https://www.deviantart.com/mucrush), Precascer (https://twitter.com/Precascer), Emboarger, Emmuffin (https://twitter.com/Ernmuffin)
+- **Vanilluxe** (#584): sprite by baronessfaron; portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Emolga** (#587): sprite by JFain, baronessfaron; portrait by mucrush (https://www.deviantart.com/mucrush), LornaWR (https://twitter.com/LornaWR_), Emmuffin (https://twitter.com/Ernmuffin)
+- **Litwick** (#607): sprite by Emmuffin (https://twitter.com/Ernmuffin); portrait by Emmuffin (https://twitter.com/Ernmuffin), baronessfaron
+- **Lampent** (#608): sprite by baronessfaron; portrait by mucrush (https://www.deviantart.com/mucrush), Emmuffin (https://twitter.com/Ernmuffin)
+- **Cubchoo** (#613): sprite by Emboarger; portrait by Miju (https://mobile.twitter.com/MijumewAndCo), G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Beartic** (#614): sprite by baronessfaron; portrait by mucrush (https://www.deviantart.com/mucrush), Gust (https://twitter.com/Estelaris__)
+- **Heatmor** (#631): sprite by baronessfaron; portrait by mucrush (https://www.deviantart.com/mucrush), baronessfaron
+- **Chespin** (#650): sprite by Emmuffin (https://twitter.com/Ernmuffin), G〜 (https://bsky.app/profile/justtr4sh.pmd.social); portrait by Noo (https://artfight.net/~NooNoo_Skidoo), Emmuffin (https://twitter.com/Ernmuffin)
+- **Quilladin** (#651): sprite by ◥θ┴θ◤ (DC:<@215638650434617345>), baronessfaron, Soulja (https://twitter.com/OlSoulja); portrait by baronessfaron, JustAGunk (<@1377429093997477928>)
+- **Chesnaught** (#652): sprite by Soulja (https://twitter.com/OlSoulja); portrait by Soulja (https://twitter.com/OlSoulja)
+- **Fennekin** (#653): sprite by Smalusion (https://twitter.com/Smalusion), Emmuffin (https://twitter.com/Ernmuffin), XModxGodX; portrait by Smalusion (https://twitter.com/Smalusion), G〜 (https://bsky.app/profile/justtr4sh.pmd.social), Deeshura (https://bsky.app/profile/deeshura.bsky.social)
+- **Braixen** (#654): sprite by Emmuffin (https://twitter.com/Ernmuffin), baronessfaron; portrait by Waffluffe (https://twitter.com/waffluffe), Emmuffin (https://twitter.com/Ernmuffin)
+- **Delphox** (#655): sprite by Jhony-Rex (https://www.deviantart.com/jhony-rex), Emmuffin (https://twitter.com/Ernmuffin); portrait by baronessfaron, Emmuffin (https://twitter.com/Ernmuffin)
+- **Froakie** (#656): sprite by Emmuffin (https://twitter.com/Ernmuffin); portrait by C_Pariah (<@322382592202637322>), Emmuffin (https://twitter.com/Ernmuffin), G〜 (https://bsky.app/profile/justtr4sh.pmd.social), Cloudy (https://twitter.com/cloudyskys17695), ◥θ┴θ◤ (DC:<@215638650434617345>), baronessfaron
+- **Frogadier** (#657): sprite by Caitemis (https://caitemis-art.tumblr.com/); portrait by baronessfaron, ◥θ┴θ◤ (DC:<@215638650434617345>), NOLASMOR, JustAGunk (<@1377429093997477928>)
+- **Greninja** (#658): sprite by Jhony-Rex (https://www.deviantart.com/jhony-rex), ◥θ┴θ◤ (DC:<@215638650434617345>), Soulja (https://twitter.com/OlSoulja); portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Bunnelby** (#659): sprite by pi3.14 (https://twitter.com/Pi_y_ranitas), baronessfaron; portrait by baronessfaron
+- **Diggersby** (#660): sprite by pi3.14 (https://twitter.com/Pi_y_ranitas), Soulja (https://twitter.com/OlSoulja); portrait by Aviivix (https://twitter.com/aviivix/), Morei (https://bsky.app/profile/murpia57.bsky.social)
+- **Fletchling** (#661): sprite by Axcel; portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Fletchinder** (#662): sprite by Emmuffin (https://twitter.com/Ernmuffin), Soulja (https://twitter.com/OlSoulja); portrait by Aviivix (https://twitter.com/aviivix/), Chesyon (https://linktr.ee/chesyon), Soulja (https://twitter.com/OlSoulja), Emmuffin (https://twitter.com/Ernmuffin)
+- **Talonflame** (#663): sprite by Michael12 (https://www.deviantart.com/michael12dz), Soulja (https://twitter.com/OlSoulja), Emmuffin (https://twitter.com/Ernmuffin); portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Flabébé** (#669): sprite by baronessfaron; portrait by baronessfaron
+- **Skiddo** (#672): sprite by Emmuffin (https://twitter.com/Ernmuffin), TawnySoup (https://linktr.ee/tawnysoup); portrait by Emmuffin (https://twitter.com/Ernmuffin), TawnySoup (https://linktr.ee/tawnysoup)
+- **Gogoat** (#673): sprite by JFain; portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Espurr** (#677): sprite by NeroIntruder (https://twitter.com/NeroIntruder); portrait by baronessfaron
+- **Helioptile** (#694): sprite by Emmuffin (https://twitter.com/Ernmuffin), Leif; portrait by Noo (https://artfight.net/~NooNoo_Skidoo)
+- **Heliolisk** (#695): sprite by Emmuffin (https://twitter.com/Ernmuffin); portrait by Noo (https://artfight.net/~NooNoo_Skidoo), Emmuffin (https://twitter.com/Ernmuffin)
+- **Amaura** (#698): sprite by Emmuffin (https://twitter.com/Ernmuffin); portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Dedenne** (#702): sprite by Inv3rse (<@656696412087648257>), baronessfaron; portrait by Emmuffin (https://twitter.com/Ernmuffin), Top_Kec (@topkec.bsky.social)
+- **Bergmite** (#712): sprite by baronessfaron; portrait by Noivern (https://twitter.com/notarealnoivern), <ElGian> (<gfcobross@gmail.com>)
+- **Avalugg** (#713): sprite by baronessfaron; portrait by Noivern (https://twitter.com/notarealnoivern)
+- **Rowlet** (#722): sprite by Reimu\_needs\_$$$ (<@!378654902181691392>), Emmuffin (https://twitter.com/Ernmuffin); portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Dartrix** (#723): sprite by Reimu\_needs\_$$$ (<@!378654902181691392>); portrait by Reimu\_needs\_$$$ (<@!378654902181691392>), ◥θ┴θ◤ (DC:<@215638650434617345>), JustAGunk (<@1377429093997477928>)
+- **Decidueye** (#724): sprite by Reimu\_needs\_$$$ (<@!378654902181691392>), Audino (https://github.com/audinowho); portrait by baronessfaron, Top_Kec (@topkec.bsky.social)
+- **Litten** (#725): sprite by Top_Kec (@topkec.bsky.social); portrait by Waffluffe (https://twitter.com/waffluffe), Caitemis (https://caitemis-art.tumblr.com/), Top_Kec (@topkec.bsky.social), Emmuffin (https://twitter.com/Ernmuffin)
+- **Torracat** (#726): sprite by baronessfaron, ◥θ┴θ◤ (DC:<@215638650434617345>), Kawaiitron (<@412938965713158144>); portrait by baronessfaron
+- **Incineroar** (#727): sprite by avalancheman (milesbehemoth@gmail.com), G〜 (https://bsky.app/profile/justtr4sh.pmd.social), mixy:3 (https://x.com/MixyPurple?s=20); portrait by baronessfaron
+- **Popplio** (#728): sprite by ◥θ┴θ◤ (DC:<@215638650434617345>), JFain; portrait by Fable (https://twitter.com/fabledpainter), ◥θ┴θ◤ (DC:<@215638650434617345>), Emmuffin (https://twitter.com/Ernmuffin)
+- **Brionne** (#729): sprite by ◥θ┴θ◤ (DC:<@215638650434617345>), baronessfaron; portrait by baronessfaron, Top_Kec (@topkec.bsky.social)
+- **Primarina** (#730): sprite by baronessfaron, ◥θ┴θ◤ (DC:<@215638650434617345>), JFain; portrait by , Emboarger, ◥θ┴θ◤ (DC:<@215638650434617345>), baronessfaron
+- **Grubbin** (#736): sprite by Soulja (https://twitter.com/OlSoulja); portrait by JFain
+- **Charjabug** (#737): sprite by Soulja (https://twitter.com/OlSoulja); portrait by Deeshura (https://bsky.app/profile/deeshura.bsky.social)
+- **Vikavolt** (#738): sprite by Soulja (https://twitter.com/OlSoulja); portrait by baronessfaron
+- **Crabrawler** (#739): sprite by Soulja (https://twitter.com/OlSoulja); portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Crabominable** (#740): sprite by Soulja (https://twitter.com/OlSoulja); portrait by Emmuffin (https://twitter.com/Ernmuffin), Soulja (https://twitter.com/OlSoulja)
+- **Cutiefly** (#742): sprite by baronessfaron, Mitsubachi, Emmuffin (https://twitter.com/Ernmuffin); portrait by baronessfaron, NOLASMOR
+- **Ribombee** (#743): sprite by baronessfaron; portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Rockruff** (#744): sprite by JFain, baronessfaron; portrait by XModxGodX, JFain, Emmuffin (https://twitter.com/Ernmuffin)
+- **Mareanie** (#747): sprite by baronessfaron; portrait by Aviivix (https://twitter.com/aviivix/), baronessfaron
+- **Toxapex** (#748): sprite by baronessfaron; portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Mudbray** (#749): sprite by Ichor, bwappi (https://bsky.app/profile/bwappi.bsky.social); portrait by Emboarger, bwappi (https://bsky.app/profile/bwappi.bsky.social)
+- **Mudsdale** (#750): sprite by bwappi (https://bsky.app/profile/bwappi.bsky.social); portrait by bwappi (https://bsky.app/profile/bwappi.bsky.social)
+- **Fomantis** (#753): sprite by Emmuffin (https://twitter.com/Ernmuffin); portrait by Aviivix (https://twitter.com/aviivix/), Emmuffin (https://twitter.com/Ernmuffin)
+- **Salandit** (#757): sprite by baronessfaron, Soulja (https://twitter.com/OlSoulja); portrait by Top_Kec (@topkec.bsky.social), baronessfaron
+- **Stufful** (#759): sprite by JFain; portrait by baronessfaron, G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Bewear** (#760): sprite by baronessfaron; portrait by baronessfaron
+- **Bounsweet** (#761): sprite by baronessfaron; portrait by baronessfaron, NOLASMOR
+- **Steenee** (#762): sprite by JFain; portrait by JFain, Morei (https://bsky.app/profile/murpia57.bsky.social), G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Comfey** (#764): sprite by baronessfaron; portrait by Emmuffin (https://twitter.com/Ernmuffin), baronessfaron, G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Wimpod** (#767): sprite by Soulja (https://twitter.com/OlSoulja); portrait by Aviivix (https://twitter.com/aviivix/), Emboarger, Soulja (https://twitter.com/OlSoulja)
+- **Golisopod** (#768): sprite by JFain, Soulja (https://twitter.com/OlSoulja), Michael12 (https://www.deviantart.com/michael12dz); portrait by Deleca7755 (<https://www.deviantart.com/deleca-7755>), Soulja (https://twitter.com/OlSoulja)
+- **Sandygast** (#769): sprite by Emmuffin (https://twitter.com/Ernmuffin); portrait by JFain, Emmuffin (https://twitter.com/Ernmuffin)
+- **Palossand** (#770): sprite by baronessfaron; portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Turtonator** (#776): sprite by Emmuffin (https://twitter.com/Ernmuffin); portrait by Noo (https://artfight.net/~NooNoo_Skidoo), TawnySoup (https://linktr.ee/tawnysoup)
+- **Mimikyu** (#778): sprite by JFain, G〜 (https://bsky.app/profile/justtr4sh.pmd.social), baronessfaron; portrait by JFain, Emmuffin (https://twitter.com/Ernmuffin)
+- **Grookey** (#810): sprite by bwappi (https://bsky.app/profile/bwappi.bsky.social), JFain; portrait by EzerArt (https://twitter.com/EzerArt_), G〜 (https://bsky.app/profile/justtr4sh.pmd.social), JustAGunk (<@1377429093997477928>)
+- **Thwackey** (#811): sprite by baronessfaron; portrait by Emmuffin (https://twitter.com/Ernmuffin), JustAGunk (<@1377429093997477928>)
+- **Rillaboom** (#812): sprite by baronessfaron; portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social), JustAGunk (<@1377429093997477928>)
+- **Scorbunny** (#813): sprite by NeroIntruder (https://twitter.com/NeroIntruder), Emmuffin (https://twitter.com/Ernmuffin); portrait by NeroIntruder (https://twitter.com/NeroIntruder), Emmuffin (https://twitter.com/Ernmuffin)
+- **Raboot** (#814): sprite by Emmuffin (https://twitter.com/Ernmuffin); portrait by NeroIntruder (https://twitter.com/NeroIntruder), Emmuffin (https://twitter.com/Ernmuffin)
+- **Cinderace** (#815): sprite by NeroIntruder (https://twitter.com/NeroIntruder); portrait by NeroIntruder (https://twitter.com/NeroIntruder), Emmuffin (https://twitter.com/Ernmuffin)
+- **Sobble** (#816): sprite by JFain, G〜 (https://bsky.app/profile/justtr4sh.pmd.social), baronessfaron; portrait by Emmuffin (https://twitter.com/Ernmuffin), G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Drizzile** (#817): sprite by JFain; portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Inteleon** (#818): sprite by TawnySoup (https://linktr.ee/tawnysoup); portrait by Emmuffin (https://twitter.com/Ernmuffin), TawnySoup (https://linktr.ee/tawnysoup)
+- **Skwovet** (#819): sprite by Jhony-Rex (https://www.deviantart.com/jhony-rex), Soulja (https://twitter.com/OlSoulja); portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Greedent** (#820): sprite by Jhony-Rex (https://www.deviantart.com/jhony-rex), Soulja (https://twitter.com/OlSoulja); portrait by Emboarger, G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Rookidee** (#821): sprite by Michael12 (https://www.deviantart.com/michael12dz), Soulja (https://twitter.com/OlSoulja), Caitemis (https://caitemis-art.tumblr.com/); portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social), Cloudy (https://twitter.com/cloudyskys17695)
+- **Corvisquire** (#822): sprite by Emmuffin (https://twitter.com/Ernmuffin); portrait by EzerArt (https://twitter.com/EzerArt_), Emmuffin (https://twitter.com/Ernmuffin)
+- **Corviknight** (#823): sprite by nataniel-sama (https://pokemon-reloaded.el-foro.net/), ◥θ┴θ◤ (DC:<@215638650434617345>), G〜 (https://bsky.app/profile/justtr4sh.pmd.social), Soulja (https://twitter.com/OlSoulja); portrait by EzerArt (https://twitter.com/EzerArt_), Soulja (https://twitter.com/OlSoulja)
+- **Nickit** (#827): sprite by Top_Kec (@topkec.bsky.social); portrait by Ddragon, Waffluffe (https://twitter.com/waffluffe), EzerArt (https://twitter.com/EzerArt_), Top_Kec (@topkec.bsky.social)
+- **Thievul** (#828): sprite by Smalusion (https://twitter.com/Smalusion); portrait by Ddragon, Precascer (https://twitter.com/Precascer), EzerArt (https://twitter.com/EzerArt_), Emmuffin (https://twitter.com/Ernmuffin)
+- **Wooloo** (#831): sprite by Emmuffin (https://twitter.com/Ernmuffin), JFain; portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Dubwool** (#832): sprite by Top_Kec (@topkec.bsky.social); portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social), Emmuffin (https://twitter.com/Ernmuffin)
+- **Chewtle** (#833): sprite by nataniel-sama (https://pokemon-reloaded.el-foro.net/), Emmuffin (https://twitter.com/Ernmuffin), Soulja (https://twitter.com/OlSoulja); portrait by EzerArt (https://twitter.com/EzerArt_), Emmuffin (https://twitter.com/Ernmuffin)
+- **Drednaw** (#834): sprite by nataniel-sama (https://pokemon-reloaded.el-foro.net/), Soulja (https://twitter.com/OlSoulja); portrait by Noivern (https://twitter.com/notarealnoivern), EzerArt (https://twitter.com/EzerArt_), Emmuffin (https://twitter.com/Ernmuffin)
+- **Yamper** (#835): sprite by RelicCipher (<@739304144552198285>), baronessfaron, Emmuffin (https://twitter.com/Ernmuffin); portrait by RelicCipher (<@739304144552198285>)
+- **Boltund** (#836): sprite by Top_Kec (@topkec.bsky.social); portrait by Emmuffin (https://twitter.com/Ernmuffin), Gust (https://twitter.com/Estelaris__)
+- **Applin** (#840): sprite by JFain, Emmuffin (https://twitter.com/Ernmuffin); portrait by eon (https://twitter.com/eon_exists), Emmuffin (https://twitter.com/Ernmuffin)
+- **Silicobra** (#843): sprite by Soulja (https://twitter.com/OlSoulja); portrait by Jelly (https://www.deviantart.com/drjellystone), NikolaP (nikolasnonsense@gmail.com), NeonCityRain (https://neoncityrain.tumblr.com/)
+- **Sandaconda** (#844): sprite by Soulja (https://twitter.com/OlSoulja); portrait by baronessfaron, Soulja (https://twitter.com/OlSoulja)
+- **Sizzlipede** (#850): sprite by Soulja (https://twitter.com/OlSoulja); portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Centiskorch** (#851): sprite by Soulja (https://twitter.com/OlSoulja); portrait by baronessfaron
+- **Snom** (#872): sprite by JFain, ◥θ┴θ◤ (DC:<@215638650434617345>); portrait by JFain, Jelly (https://www.deviantart.com/drjellystone), ◥θ┴θ◤ (DC:<@215638650434617345>)
+- **Frosmoth** (#873): sprite by Jhony-Rex (https://www.deviantart.com/jhony-rex), Caitemis (https://caitemis-art.tumblr.com/), Emmuffin (https://twitter.com/Ernmuffin); portrait by Emboarger, Emmuffin (https://twitter.com/Ernmuffin)
+- **Eiscue** (#875): sprite by baronessfaron; portrait by Emboarger, baronessfaron
+- **Sprigatito** (#906): sprite by Emmuffin (https://twitter.com/Ernmuffin), baronessfaron; portrait by Emmuffin (https://twitter.com/Ernmuffin), ◥θ┴θ◤ (DC:<@215638650434617345>), Ichor
+- **Floragato** (#907): sprite by ◥θ┴θ◤ (DC:<@215638650434617345>), Soulja (https://twitter.com/OlSoulja); portrait by Emmuffin (https://twitter.com/Ernmuffin), JustAGunk (<@1377429093997477928>), G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Meowscarada** (#908): sprite by LazerBlitz (<@585276060136898591>); portrait by baronessfaron, distress (https://www.artstation.com/distress/albums/1200843)
+- **Fuecoco** (#909): sprite by JFain, G〜 (https://bsky.app/profile/justtr4sh.pmd.social), Caitemis (https://caitemis-art.tumblr.com/); portrait by Emboarger, Emmuffin (https://twitter.com/Ernmuffin), G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Crocalor** (#910): sprite by Soulja (https://twitter.com/OlSoulja), pi3.14 (https://twitter.com/Pi_y_ranitas); portrait by ◥θ┴θ◤ (DC:<@215638650434617345>), JustAGunk (<@1377429093997477928>)
+- **Skeledirge** (#911): sprite by Soulja (https://twitter.com/OlSoulja), pi3.14 (https://twitter.com/Pi_y_ranitas); portrait by Noivern (https://twitter.com/notarealnoivern), ◥θ┴θ◤ (DC:<@215638650434617345>)
+- **Quaxly** (#912): sprite by JFain, NickOnimura (nickonimura.bsky.social); portrait by Top_Kec (@topkec.bsky.social), Emmuffin (https://twitter.com/Ernmuffin), Caitemis (https://caitemis-art.tumblr.com/)
+- **Quaxwell** (#913): sprite by Emmuffin (https://twitter.com/Ernmuffin); portrait by ◥θ┴θ◤ (DC:<@215638650434617345>), JustAGunk (<@1377429093997477928>)
+- **Quaquaval** (#914): sprite by Top_Kec (@topkec.bsky.social); portrait by ◥θ┴θ◤ (DC:<@215638650434617345>), Top_Kec (@topkec.bsky.social)
+- **Lechonk** (#915): sprite by Emboarger; portrait by Emmuffin (https://twitter.com/Ernmuffin), NikolaP (nikolasnonsense@gmail.com)
+- **Tarountula** (#917): sprite by G〜 (https://bsky.app/profile/justtr4sh.pmd.social); portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Spidops** (#918): sprite by baronessfaron; portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Nymble** (#919): sprite by JFain; portrait by baronessfaron, Axcel
+- **Lokix** (#920): sprite by Soulja (https://twitter.com/OlSoulja); portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Pawmi** (#921): sprite by ShyStarryRain, JFain; portrait by Emmuffin (https://twitter.com/Ernmuffin), G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Pawmo** (#922): sprite by ShyStarryRain; portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social), ◥θ┴θ◤ (DC:<@215638650434617345>)
+- **Tandemaus** (#924): sprite by baronessfaron; portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Fidough** (#926): sprite by Emmuffin (https://twitter.com/Ernmuffin); portrait by Emmuffin (https://twitter.com/Ernmuffin), Axcel
+- **Dachsbun** (#927): sprite by baronessfaron; portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Nacli** (#932): sprite by DavKriz, baronessfaron; portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Naclstack** (#933): sprite by Soulja (https://twitter.com/OlSoulja), baronessfaron; portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Garganacl** (#934): sprite by baronessfaron; portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Charcadet** (#935): sprite by Emmuffin (https://twitter.com/Ernmuffin); portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Capsakid** (#951): sprite by pi3.14 (https://twitter.com/Pi_y_ranitas), Soulja (https://twitter.com/OlSoulja); portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Scovillain** (#952): sprite by pi3.14 (https://twitter.com/Pi_y_ranitas), Soulja (https://twitter.com/OlSoulja), baronessfaron; portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Tinkatink** (#957): sprite by JFain; portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Tinkatuff** (#958): sprite by JFain; portrait by Emmuffin (https://twitter.com/Ernmuffin), baronessfaron
+- **Wiglett** (#960): sprite by Limomon (https://twitter.com/TheLimomon); portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Wugtrio** (#961): sprite by baronessfaron; portrait by Emmuffin (https://twitter.com/Ernmuffin)
+- **Finizen** (#963): sprite by baronessfaron; portrait by Emmuffin (https://twitter.com/Ernmuffin), ◥θ┴θ◤ (DC:<@215638650434617345>)
+- **Cetoddle** (#974): sprite by pi3.14 (https://twitter.com/Pi_y_ranitas), DeltaL (averyderp.sm2@gmail.com); portrait by Emboarger, Emmuffin (https://twitter.com/Ernmuffin)
+- **Frigibax** (#996): sprite by Soulja (https://twitter.com/OlSoulja), pi3.14 (https://twitter.com/Pi_y_ranitas), Inv3rse (<@656696412087648257>); portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
+- **Arctibax** (#997): sprite by Soulja (https://twitter.com/OlSoulja), pi3.14 (https://twitter.com/Pi_y_ranitas); portrait by ◥θ┴θ◤ (DC:<@215638650434617345>)
+- **Baxcalibur** (#998): sprite by Soulja (https://twitter.com/OlSoulja), pi3.14 (https://twitter.com/Pi_y_ranitas); portrait by G〜 (https://bsky.app/profile/justtr4sh.pmd.social)
 
 # Art credits
 
