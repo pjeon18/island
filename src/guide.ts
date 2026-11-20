@@ -147,7 +147,7 @@ export const GUIDE: Tip[] = [
   {
     id: 'weather',
     title: 'Weather and night',
-    text: 'Rain brings Water types. Some Pokémon only come at night. The Pokédex shows what each one likes.',
+    text: 'The weather shows beside your party. Tap it to see which types it brings. Some Pokémon only come at night, and the Pokédex shows what each one likes.',
     ready: (g) => hours(g) >= 2,
   },
   {

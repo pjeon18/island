@@ -5,7 +5,7 @@ import './styles.css'
 import { Creature } from './creature'
 import * as cloud from './cloud'
 import { CATALOG, SLOTS, decorDef } from './decor'
-import { BALLS, Ball, DESTINATIONS, FOODS, Find, GUIDE_DEX, isMeteorWeek, seasonOf, Game, GameEvent, RESTORE, dayKey, HABITATS, Haul, ISLANDS, JOBS, DUNGEON_NUDGE, MAX_SESSION, Mon, RARE_LONG, Role, Roster, STONES, Weather, Wild, aStone, loadSave, stoneName } from './game'
+import { BALLS, Ball, DESTINATIONS, FOODS, Find, GUIDE_DEX, isMeteorWeek, isNightHour, seasonOf, Game, GameEvent, RESTORE, dayKey, HABITATS, Haul, ISLANDS, JOBS, DUNGEON_NUDGE, MAX_SESSION, Mon, RARE_LONG, Role, Roster, STONES, Weather, Wild, aStone, loadSave, stoneName } from './game'
 import { CRATER_SPOT, DRAWN_LANDMARKS, LANDMARK_SPOTS, craterArt, landmarkArt } from './landmarks'
 import { HABITAT_SPOTS } from './habitats'
 import { CatchAnim } from './catch'
@@ -18,7 +18,7 @@ import { CURSOR } from './cursors'
 import { H, SEA_ROCKS, W, seaCss, seaEdge, useIsland, useSeason } from './island'
 import { loadNature } from './nature'
 import { PresenceHandlers, enableIdleDetection, startIdleDetection } from './presence'
-import { applyVolume, audioState, initAudio, listenIn, sfx, syncMusic, wantsMusic, type SfxName } from './audio'
+import { applyVolume, audioState, initAudio, listenIn, musicTrack, sfx, syncMusic, wantsMusic, type SfxName } from './audio'
 import { NEST, Scene, lightAt, nightness } from './scene'
 import { GUIDE, TIPS_PER_BREAK, nextTip } from './guide'
 import { Manifest, Species, loadManifest, loadSpecies } from './sprites'
@@ -1874,8 +1874,21 @@ if ('locks' in navigator) takeClock(popoutMode && !floatMode)
 document.addEventListener('visibilitychange', () => {
   if (!document.hidden && !clockOwner && 'locks' in navigator) takeClock(true)
 })
+/** A dungeon tab in view writes this every second; the island stays quiet while it is fresh. */
+const dungeonPlaying = () => {
+  try {
+    return Date.now() - Number(localStorage.getItem('island-dungeon-music') ?? 0) < 4000
+  } catch {
+    return false
+  }
+}
+/** Night music from 19:00 to 05:00 (the island's own hour, so ?debug's hour slider moves it too). */
+const islandTrack = () => (isNightHour(scene.hour) ? 'night' : 'day')
 setInterval(() => {
-  if (game) wantsMusic(clockOwner)
+  if (game) {
+    musicTrack(islandTrack())
+    wantsMusic(clockOwner && !dungeonPlaying())
+  }
   if (game) syncTitle()
   if (clockOwner) game?.beat()
   if (game && scene.weather !== game.weather) scene.weather = game.weather
@@ -2256,6 +2269,7 @@ async function boot() {
     manifest = m
     void cloud.initCloud() // signed in, so you can leave marks on the island you visit
     initAudio({ sounds: () => true, music: () => true })
+    musicTrack(islandTrack())
     wantsMusic(true)
     return bootVisit(visitData)
   }
@@ -2263,7 +2277,8 @@ async function boot() {
   manifest = m
   game = new Game((roster as { species: Roster }).species)
   initAudio({ sounds: () => game.save.settings.sound !== false, music: () => game.save.settings.music !== false, volume: () => game.save.settings.volume ?? 1 })
-  wantsMusic(clockOwner)
+  musicTrack(islandTrack())
+  wantsMusic(clockOwner && !dungeonPlaying())
   // fire types light up the dark around them
   for (const [k, sp] of Object.entries((roster as { species: Roster }).species)) if (sp.types?.includes('fire')) scene.glowDex.add(k.padStart(4, '0'))
   scene.hour = clockHour()
@@ -2581,7 +2596,7 @@ function creditsHtml() {
   const rows = Object.values(manifest.species)
     .map((s) => `<li><strong>${s.name}</strong> ${names(s.credits.sprite)} / ${names(s.credits.portrait)}</li>`)
     .join('')
-  return `<p>PMD Sprite Repository, CC BY-NC 4.0. Cries and page sprites: Pokémon Showdown. Data and item icons: PokéAPI. Sound effects: Case Portman Audio (Cute & Cozy UI Audio). Music: Mayra, Free Ambient Music (Loop), mayragandra.itch.io. Island trees, grass, flowers and rocks: Flurmimon, Flurmimon's Tileset - Nature (DeviantArt). Sprite / portrait artists:</p><ul>${rows}</ul>`
+  return `<p>PMD Sprite Repository, CC BY-NC 4.0. Cries and page sprites: Pokémon Showdown. Data and item icons: PokéAPI. Sound effects: Case Portman Audio (Cute & Cozy UI Audio). Music: Mayra, Free Ambient Music (Loop), mayragandra.itch.io. Night and dungeon music: Open Space and Above the Clouds by FSM Team. Royalty Free Music by https://www.free-stock-music.com. Island trees, grass, flowers and rocks: Flurmimon, Flurmimon's Tileset - Nature (DeviantArt). Sprite / portrait artists:</p><ul>${rows}</ul>`
 }
 
 window.__island = {

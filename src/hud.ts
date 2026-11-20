@@ -8,7 +8,7 @@ import { click, sfx } from './audio'
 import { GUIDE } from './guide'
 import { INTROS, OLD_INTRO, introKey } from './intros'
 import { CATALOG, SLOTS, decorDef } from './decor'
-import { CUSTOM_MAX, CUSTOM_MIN, DEX_MILESTONES, BALLS, DESTINATIONS, GUIDE_DEX, RESTORE, STONES, TASK_HOURS, berryExp, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, JobId, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
+import { CUSTOM_MAX, CUSTOM_MIN, DEX_MILESTONES, WEATHER_TYPES, Weather, BALLS, DESTINATIONS, GUIDE_DEX, RESTORE, STONES, TASK_HOURS, berryExp, LogEntry, BOND_FOR_FRIENDSHIP, Ball, DAYCARE_EVERY, DECOR_LOVES, Evolution, UPGRADES, FOODS, GROWTH, Game, HABITATS, HABITAT_HOURS, Habitat, ISLANDS, IslandId, JOBS, JobId, Mon, PARTY_MAX, Role, aStone, expToNext, jobEvery, stoneName } from './game'
 
 const BASE = import.meta.env.BASE_URL
 export const portraitUrl = (dex: number, emo = 'Normal') => `${BASE}sprites/${String(dex).padStart(4, '0')}/${emo}.png`
@@ -103,6 +103,61 @@ const BACK_ICON = `data:image/svg+xml,${encodeURIComponent(
     <path fill="#f8d060" d="M7 1h1v6h2l-2.5 3L5 7h2z"/>
   </svg>`,
 )}`
+// Weather icons, 15x15, shown in the top row while the weather is anything but clear (Paul,
+// 2026-11-19: the fog read as a faded screen with nothing saying what it was)
+const svgIcon = (body: string) =>
+  `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 15 15" shape-rendering="crispEdges">${body}</svg>`)}`
+// Each icon is a 15x15 pixel map. The cloud is three round lobes on a flat base, outlined in its
+// darkest tone, with a pale top edge and a shaded underside.
+type Px = Map<string, string>
+const put = (m: Px, x: number, y: number, c: string) => {
+  if (x >= 0 && x < 15 && y >= 0 && y < 15) m.set(`${x},${y}`, c)
+}
+const pxIcon = (m: Px) =>
+  svgIcon([...m].map(([k, c]) => { const [x, y] = k.split(','); return `<rect x="${x}" y="${y}" width="1" height="1" fill="${c}"/>` }).join(''))
+function cloud(m: Px, dy: number, o: string, b: string, hi: string, sh: string) {
+  const inside = (x: number, y: number) => {
+    const X = x + 0.5
+    const Y = y + 0.5 - dy
+    return (X - 4) ** 2 + (Y - 7) ** 2 < 4 || (X - 7.5) ** 2 + (Y - 5) ** 2 < 2.9 ** 2 || (X - 11) ** 2 + (Y - 6.5) ** 2 < 2.2 ** 2 || (X >= 2.5 && X <= 12.5 && Y >= 7 && Y <= 9)
+  }
+  for (let y = 0; y < 15; y++)
+    for (let x = 0; x < 15; x++) {
+      if (inside(x, y)) put(m, x, y, !inside(x, y + 1) ? sh : !inside(x, y - 1) ? hi : b)
+      else if (inside(x - 1, y) || inside(x + 1, y) || inside(x, y - 1) || inside(x, y + 1)) put(m, x, y, o)
+    }
+}
+function sunIcon() {
+  const m: Px = new Map()
+  const inside = (x: number, y: number) => (x + 0.5 - 7.5) ** 2 + (y + 0.5 - 7.5) ** 2 < 3.6 ** 2
+  for (let y = 0; y < 15; y++)
+    for (let x = 0; x < 15; x++) {
+      if (inside(x, y)) put(m, x, y, (x < 7 && y < 7 && (!inside(x - 1, y) || !inside(x, y - 1))) ? '#fff8b0' : '#f8d838')
+      else if (inside(x - 1, y) || inside(x + 1, y) || inside(x, y - 1) || inside(x, y + 1)) put(m, x, y, '#c87018')
+    }
+  for (const [x, y] of [[7, 0], [7, 1], [7, 13], [7, 14], [0, 7], [1, 7], [13, 7], [14, 7], [2, 2], [3, 3], [12, 2], [11, 3], [2, 12], [3, 11], [12, 12], [11, 11]]) put(m, x, y, '#f8a830')
+  return pxIcon(m)
+}
+function weatherIcon(w: 'rain' | 'snow' | 'fog') {
+  const m: Px = new Map()
+  if (w === 'rain') {
+    cloud(m, -1, '#3c4c68', '#b8c4d8', '#dce4f0', '#8494b0')
+    for (const [x, y] of [[3, 10], [6, 12], [9, 10], [12, 12]]) { put(m, x, y, '#58b8f8'); put(m, x, y + 1, '#58b8f8') }
+  } else if (w === 'snow') {
+    cloud(m, -1, '#3c4c68', '#e8eef8', '#ffffff', '#b8c4d8')
+    for (const [x, y] of [[4, 11], [10, 11]]) for (const [dx, dy] of [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]]) put(m, x + dx, y + dy, '#ffffff')
+    put(m, 7, 13, '#ffffff')
+    put(m, 13, 14, '#ffffff')
+  } else {
+    cloud(m, -1, '#5c6c88', '#d0d8e4', '#e8eef6', '#aab6c8')
+    for (const [x0, x1, y] of [[1, 8, 10], [10, 12, 10], [3, 13, 12], [0, 6, 14], [8, 10, 14]]) for (let x = x0; x <= x1; x++) put(m, x, y, '#d0d8e4')
+  }
+  return pxIcon(m)
+}
+const WEATHER_ICON: Record<Exclude<Weather, 'clear'>, string> = { sun: sunIcon(), rain: weatherIcon('rain'), snow: weatherIcon('snow'), fog: weatherIcon('fog') }
+const WEATHER_NAME: Record<Weather, string> = { clear: 'Clear', sun: 'Sunny', rain: 'Rain', fog: 'Fog', snow: 'Snow' }
+const WEATHER_SAY: Record<Weather, string> = { clear: '', sun: "It's sunny.", rain: "It's raining.", fog: "It's foggy.", snow: "It's snowing." }
+
 /** A session length in short words: "45 min", "1 h", "1 h 45". */
 const fmtLen = (sec: number) => {
   const m = Math.round(sec / 60)
@@ -255,6 +310,7 @@ export class Hud {
     this.el.innerHTML = `
       <div class="hud-focus"></div>
       <button class="hud-party" aria-label="Your Pokémon"></button>
+      <button class="hud-weather" hidden><img class="ico" alt="" /></button>
       <nav class="hud-strip" aria-label="Menu">${TABS.map(([id, label, src]) => `<button class="strip-tab" data-open-tab="${id}" aria-label="${label}" title="${label}">${tabIcon(src)}</button>`).join('')}</nav>
       ${this.h.popOut || this.h.closeSmall ? `<button class="hud-pop" data-popout aria-label="Pop out to a small window" title="Pop out">${tabIcon(POP_ICON)}</button>` : ''}
       <div class="hud-toast" aria-live="polite"></div>
@@ -289,6 +345,17 @@ export class Hud {
       if ((e.target as HTMLElement).closest('button')) click()
     }, true)
     this.party.addEventListener('click', () => this.openSheet('mons'))
+    this.el.querySelector('.hud-weather')!.addEventListener('click', (e) => {
+      e.stopPropagation()
+      const g = this.game
+      const w = g.weather
+      if (w === 'clear') return
+      const types = WEATHER_TYPES[w].map((t) => t[0].toUpperCase() + t.slice(1))
+      const list = types.length > 1 ? `${types.slice(0, -1).join(', ')} and ${types[types.length - 1]}` : types[0]
+      const min = Math.max(1, Math.round((g.save.weather.until - g.now()) / 60000))
+      // a toast, not a line in the dialogue queue, so the press answers at once even while Wooper is talking
+      this.toast(`${WEATHER_SAY[w]} ${list} types come by more often. It should clear in about ${min} minute${min === 1 ? '' : 's'}.`, true)
+    })
     this.dialogEl.addEventListener('click', (e) => {
       if (!(e.target as HTMLElement).closest('button')) this.advance()
     })
@@ -354,6 +421,15 @@ export class Hud {
   // The HUD has its own whole-number scale (Press Start 2P sits on an 8px
   // grid), independent of the island's, so a bigger island does not mean
   // bigger menus. Its box is the canvas size divided by that scale.
+  private lastWeather: Weather = 'clear'
+  /** The weather tile sits just left of the party, top-aligned with it, whatever its width. */
+  private placeWeather() {
+    const b = this.el.querySelector<HTMLElement>('.hud-weather')
+    if (!b || b.hidden) return
+    const gap = this.el.classList.contains('layout-float') || this.el.classList.contains('layout-rail') ? 3 : 2
+    b.style.right = `${this.party.offsetLeft ? this.el.clientWidth - this.party.offsetLeft + gap : 6}px`
+    b.style.top = `${this.party.offsetTop}px`
+  }
   fit(canvas: HTMLCanvasElement) {
     const cw = canvas.clientWidth
     const ch = canvas.clientHeight
@@ -364,6 +440,7 @@ export class Hud {
     this.el.classList.toggle('narrow', cw / hs < 480)
     // a small window: one compact layout (clock, Start, the lead, the menu strip; menus fill the window)
     this.el.classList.toggle('compact', cw / hs < 320)
+    this.placeWeather()
   }
 
   /** The tutorial points at one control at a time: a selector, or null for none. */
@@ -432,6 +509,19 @@ export class Hud {
     const t = this.focus.querySelector('.clock-t')
     if (t) t.textContent = s ? (s.length ? fmtClock(s.length - s.credited) : fmtClock(s.credited)) : fmtClock(breakLeft)
 
+    const wk = key === 'none' ? 'clear' : g.weather
+    if (wk !== this.lastWeather) {
+      this.lastWeather = wk
+      const b = this.el.querySelector<HTMLButtonElement>('.hud-weather')!
+      b.hidden = wk === 'clear'
+      if (wk !== 'clear') {
+        b.querySelector('img')!.src = WEATHER_ICON[wk]
+        b.title = WEATHER_NAME[wk]
+        b.setAttribute('aria-label', `${WEATHER_NAME[wk]}. Tap to hear what it brings.`)
+        this.placeWeather()
+      }
+    }
+
     if (this.summaryId) this.renderSummary()
     const pk = g.party.map((m) => `${m.id}:${m.dex}:${m.level}:${m.exp}`).join('|')
     if (pk !== this.lastPartyKey && !this.holdParty) {
@@ -445,6 +535,7 @@ export class Hud {
           return `<span class="ptile${m.shiny ? ' shiny' : ''}"><img src="${portraitUrl(m.dex)}" alt="" /><i><i style="width:${pct}%"></i></i></span>`
         })
         .join('')
+      this.placeWeather()
       this.party.setAttribute('aria-label', `Your party: ${g.party.map((m) => `${g.name(m)}, level ${m.level}`).join('; ')}. Open your Pokémon.`)
       // EXP alone changes every focused minute; re-rendering the open menu for it reset focus and hover
       const sk = g.party.map((m) => `${m.id}:${m.dex}:${m.level}`).join('|')
@@ -535,11 +626,13 @@ export class Hud {
     this.queue = this.queue.filter((d) => !filter(d))
   }
 
-  toast(text: string) {
+  /** A short note at the top. `long` lets it wrap and stay longer (the weather tile's line). */
+  toast(text: string, long = false) {
     this.toastEl.textContent = text
+    this.toastEl.classList.toggle('wrap', long)
     this.toastEl.classList.add('show')
     window.clearTimeout(this.toastTimer)
-    this.toastTimer = window.setTimeout(() => this.toastEl.classList.remove('show'), 3800)
+    this.toastTimer = window.setTimeout(() => this.toastEl.classList.remove('show'), long ? 6500 : 3800)
   }
 
   // ---------- catching ----------
@@ -680,6 +773,7 @@ export class Hud {
     const l = this.game.save.settings.layout ?? 'float'
     this.el.classList.toggle('layout-float', l === 'float')
     this.el.classList.toggle('layout-rail', l === 'rail')
+    this.placeWeather()
   }
   /** A gold dot on Goals while a landmark is ready to rebuild (2026-11-18: the hut has no art to show it). */
   setGoalsReady(on: boolean) {

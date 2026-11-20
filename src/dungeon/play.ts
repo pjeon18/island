@@ -23,7 +23,7 @@
 // Opened as dungeon.html?id=<map>&gate=<island> from the island, or
 // ?map=play from the editor's Play test (one floor, nothing is saved then).
 import './play.css'
-import { click, initAudio, sfx } from '../audio'
+import { audioState, click, hitSound, initAudio, musicTrack, sfx, wantsMusic } from '../audio'
 import { effectiveness, MOVES } from '../battle'
 import { BALLS, Ball, DEEP, DUNGEON_SHELLS_DAY, Game, ISLANDS, IslandId, Roster, SAVE_KEY, dayKey, loadSave } from '../game'
 import { Light, applyLighting, normalMapFor } from '../lighting'
@@ -632,6 +632,10 @@ function hit(from: Actor, to: Actor, mult: number, type: string): boolean {
   if (braced) mult *= 0.3
   const dmg = Math.max(1, Math.round(from.atk * 0.5 * mult * (eff || 0.25) * (0.9 + Math.random() * 0.2)))
   hurt(to, dmg, braced ? '#8a9ab8' : eff > 1 ? '#ffe040' : eff < 1 ? '#c8c8c8' : '#ffffff')
+  // a soft knock when your side lands a hit: full for the Pokémon you steer, softer for the rest,
+  // a little lower and fuller for a strong move or a super-effective one (2026-11-19, Paul)
+  if (from.side === 'you') hitSound(from === party[lead] ? 1 : 0.45, mult >= 1.5 || eff > 1)
+  if (eff > 1 && Math.random() < 0.5) toast("It's super effective!", true)
   // a brute curls up once it's hit, then rolls out when it uncurls
   if (to.role === 'brute' && to.side === 'foe' && !braced && to.braceCd <= 0 && !to.dead && !to.charge) {
     to.brace = 1.5
@@ -640,7 +644,6 @@ function hit(from: Actor, to: Actor, mult: number, type: string): boolean {
     pops.push({ x: to.x, y: to.y - 30, text: to.types.includes('steel') ? 'Harden' : 'Defense Curl', t: 0, col: '#c8d4ec' })
   }
   return true
-  if (eff > 1 && Math.random() < 0.5) toast("It's super effective!", true)
 }
 function hurt(to: Actor, dmg: number, col = '#ffffff') {
   if (to.dead || to.guard > 0) return
@@ -2086,7 +2089,11 @@ function applySnap(raw: Snap) {
     a.maxHp = maxHp
     if (!mineLead) a.moving = !!(fl & 1)
     if (fl & 2) a.hop = Math.max(a.hop, 0.15)
-    if (fl & 4) a.hurt = Math.max(a.hurt, 0.1)
+    if (fl & 4) {
+      // a guest hears the host's hits as they arrive (one knock per hit, at a follower's level)
+      if (a.hurt <= 0 && !you && !a.dead) hitSound(0.45)
+      a.hurt = Math.max(a.hurt, 0.1)
+    }
     a.dead = !!(fl & 8)
     a.sleep = fl & 16 ? 0.2 : 0
     if (!mineLead && fl & 32) a.dash = 0.05
@@ -2964,12 +2971,32 @@ function switchGuestLead() {
 function pickParty() {
   return [...game.party].sort((a, b) => b.level - a.level).slice(0, 3)
 }
+/** main.ts reads this: while it is fresh, the island tab keeps its music off. */
+const DUNGEON_MUSIC_KEY = 'island-dungeon-music'
+function syncDungeonMusic() {
+  const on = !document.hidden
+  wantsMusic(on)
+  try {
+    if (on) localStorage.setItem(DUNGEON_MUSIC_KEY, String(Date.now()))
+    else localStorage.removeItem(DUNGEON_MUSIC_KEY)
+  } catch {}
+}
 async function boot() {
   const [mf, roster] = await Promise.all([loadManifest(), fetch(`${BASE}data/roster.json?v=${__BUILD__}`).then((r) => r.json())])
   manifest = mf
   game = new Game((roster as { species: Roster }).species)
-  // the island's Sounds setting; no music down here
-  initAudio({ sounds: () => game.save.settings.sound !== false, volume: () => game.save.settings.volume ?? 1 })
+  // the island's Sounds and Music settings; down here the music is FSM Team's "Above the Clouds"
+  // (2026-11-19, Paul). It plays while this tab is in view, and the island tab goes quiet meanwhile.
+  initAudio({ sounds: () => game.save.settings.sound !== false, music: () => game.save.settings.music !== false, volume: () => game.save.settings.volume ?? 1 })
+  musicTrack('dungeon')
+  syncDungeonMusic()
+  setInterval(syncDungeonMusic, 1000)
+  document.addEventListener('visibilitychange', syncDungeonMusic)
+  addEventListener('pagehide', () => {
+    try {
+      localStorage.removeItem(DUNGEON_MUSIC_KEY)
+    } catch {}
+  })
   hud.addEventListener('click', (e) => {
     if ((e.target as HTMLElement).closest('button')) click()
   }, true)
@@ -3360,6 +3387,7 @@ async function bootGuest() {
 }
 void boot()
 ;(window as unknown as { __dungeon: unknown }).__dungeon = {
+  audio: audioState,
   get party() {
     return party
   },

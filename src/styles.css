@@ -116,6 +116,7 @@ body { -webkit-font-smoothing: none; }
   opacity: 0; transition: opacity .5s ease, transform .6s cubic-bezier(.2,.7,.2,1);
 }
 .hud-toast.show { opacity: 1; transform: translate(-50%, 0); }
+.hud-toast.wrap { white-space: normal; width: max-content; max-width: min(260px, calc(100% - 24px)); text-align: center; line-height: 1.75; }
 
 /* the text box, bottom centre */
 .hud-dialog {
@@ -546,3 +547,11 @@ html:has(.float), body:has(.float) { background: transparent; }
 /* in the small window it is the way back, the same size as the strip there */
 .hud.compact.small-window .hud-pop { display: grid; right: 4px; bottom: 4px; width: 27px; height: 27px; box-shadow: inset 0 0 0 1px var(--fr-navy), 0 2px 0 rgba(0,0,0,.35); }
 .hud.compact.small-window.layout-float .hud-pop, .hud.compact.small-window.layout-rail .hud-pop { width: 21px; height: 21px; box-shadow: 0 2px 0 rgba(0,0,0,.35); }
+
+/* The weather tile: left of the party, only while it isn't clear (Paul, 2026-11-19). Boxed, it is
+   as tall as the party's navy box; floating, as tall as one party tile. JS sets right and top. */
+.hud-weather { position: absolute; right: 6px; top: 6px; appearance: none; width: 30px; height: 30px; padding: 0; display: grid; place-items: center; cursor: var(--cur-hand);
+  background: var(--fr-navy-2); border: 2px solid #0e1628; box-shadow: inset 0 0 0 2px var(--fr-navy), 0 2px 0 rgba(0,0,0,.35); }
+.hud-weather:hover { background: var(--fr-navy-3); }
+.hud-weather:active { transform: translateY(1px); }
+.hud.layout-float .hud-weather, .hud.layout-rail .hud-weather { width: 26px; height: 26px; border-radius: 3px; box-shadow: 0 2px 0 rgba(0,0,0,.35); }

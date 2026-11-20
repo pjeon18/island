@@ -343,4 +343,5 @@ This is a free, non-commercial fan project with no affiliation.
 
 - Sound effects: Case Portman Audio, Cute & Cozy UI Audio (free sample), https://caseportman.itch.io/cute-cozy-ui-sfx. Royalty-free with attribution.
 - Music: Mayra (mayragandra), Free Ambient Music (Loop), https://mayragandra.itch.io/freeambientmusic. Free for any project with credit; looped by crossfading its end into its start.
+- Night and dungeon music: Open Space and Above the Clouds by FSM Team. Royalty Free Music by https://www.free-stock-music.com
 - Pokémon cries: Pokémon Showdown.

@@ -20,7 +20,7 @@
   - Blossom Meadow, Snowdrift Woods and Palm Shore each load in daylight with their own trees, ground, tall grass, flowers and woods; the entrance says "3, then the heart of it". The rowboat by the pier offers Row over on Home.
   - The sea's rings now wander instead of forming ellipses.
   - `npx tsc --noEmit` and `npm run build` pass; no console errors on the exploration pages.
-- **Not checked:** a full exploration run by hand (the heart's exit, the end message), arrange mode by touch and in the small window, the guide's two-tips-a-break pacing over real sessions, and `supabase/island_stage9.sql` (Paul runs it; until then friends see decorations on their default spots).
+- **Not checked:** a full exploration run by hand (the heart's exit, the end message), arrange mode by touch and in the small window, the guide's two-tips-a-break pacing over real sessions, and a friend seeing an arranged island (`supabase/island_stage9.sql` is live since 2026-11-19, when Paul ran it; a signed-out probe can't tell the new version from the old, so the real check is a friend's visit).
 
 ## Flurmimon's pieces and a bigger island (2026-11-18)
 - **Measured in the browser (the late-game save):**
